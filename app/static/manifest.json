@@ -1,0 +1,13 @@
+{
+  "name": "Stash - AI Personal Wallet",
+  "short_name": "Stash",
+  "description": "An AI-powered personal wallet you talk to.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f3f1ea",
+  "theme_color": "#0f766e",
+  "icons": [
+    { "src": "/static/icons/icon-192.svg", "sizes": "192x192", "type": "image/svg+xml" },
+    { "src": "/static/icons/icon-512.svg", "sizes": "512x512", "type": "image/svg+xml" }
+  ]
+}

@@ -1,0 +1,28 @@
+# Environment / secrets
+.env
+
+# Python
+venv/
+__pycache__/
+*.pyc
+
+# Local SQLite data + generated files (don't ship personal finance data)
+data/*.db
+data/*.db-wal
+data/*.db-shm
+backups/*.db
+logs/*.log
+exports/csv/*
+exports/excel/*
+exports/pdf/*
+!exports/csv/.gitkeep
+!exports/excel/.gitkeep
+!exports/pdf/.gitkeep
+
+# Node / frontend
+node_modules/
+frontend/node_modules/
+
+# OS/editor cruft
+.DS_Store
+.vscode/
