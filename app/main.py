@@ -21,7 +21,7 @@ from sqlalchemy.orm import Session
 
 from app.database.database import init_db, get_db, SessionLocal
 from app.database import seed, crud
-from app.auth.session import is_authenticated
+from app.auth.session import is_authenticated, SESSION_MAX_AGE_SECONDS
 from app.ai import extractor
 from app.ai.llm import LLMUnavailableError
 from app.services import finance as finance_service
@@ -52,6 +52,7 @@ app = FastAPI(title="Stash - AI Personal Wallet")
 app.add_middleware(
     SessionMiddleware,
     secret_key=SECRET_KEY,
+    max_age=SESSION_MAX_AGE_SECONDS,
     session_cookie="stash_session",
     same_site="lax",
     https_only=IS_PRODUCTION,

@@ -211,14 +211,23 @@ function App() {
     document.documentElement.classList.toggle('chat-route', route === '/chat');
   }, [route]);
 
-  const syncSessionSettings = (patch) => {
-    setSession((current) => ({
-      ...current,
-      settings: {
-        ...(current?.settings || {}),
+  const syncSessionPatch = (patch) => {
+    setSession((current) => {
+      const nextSession = {
+        ...current,
         ...patch,
-      },
-    }));
+        settings: {
+          ...(current?.settings || {}),
+          ...(patch?.settings || {}),
+        },
+      };
+      try {
+        localStorage.setItem('stash_session_cache', JSON.stringify(nextSession));
+      } catch {
+        // Ignore cache write failures and keep the live session state.
+      }
+      return nextSession;
+    });
   };
 
   useEffect(() => {
@@ -281,7 +290,7 @@ function App() {
       onNavigate={navigateTo}
       onLogout={logout}
       onThemeChange={updateTheme}
-      onSessionSync={syncSessionSettings}
+      onSessionSync={syncSessionPatch}
       onTouchData={touchData}
       refreshToken={refreshToken}
     />
@@ -1086,6 +1095,11 @@ function SettingsPage({ session, theme, onThemeChange, onSessionSync, onTouchDat
     currency: 'INR',
     theme: theme || 'obsidian',
   });
+  const [account, setAccount] = useState({
+    username: session.username || '',
+    old_password: '',
+    new_password: '',
+  });
   const [currencyOpen, setCurrencyOpen] = useState(false);
   const [recurringRows, setRecurringRows] = useState([]);
   const [form, setForm] = useState({
@@ -1099,6 +1113,7 @@ function SettingsPage({ session, theme, onThemeChange, onSessionSync, onTouchDat
     total_cycles: '',
   });
   const [saveStatus, setSaveStatus] = useState('');
+  const [accountStatus, setAccountStatus] = useState('');
   const [error, setError] = useState('');
   const currencyRef = useRef(null);
 
@@ -1129,6 +1144,13 @@ function SettingsPage({ session, theme, onThemeChange, onSessionSync, onTouchDat
   }, []);
 
   useEffect(() => {
+    setAccount((prev) => ({
+      ...prev,
+      username: session.username || prev.username || '',
+    }));
+  }, [session.username]);
+
+  useEffect(() => {
     const onPointerDown = (event) => {
       if (currencyRef.current && !currencyRef.current.contains(event.target)) {
         setCurrencyOpen(false);
@@ -1146,6 +1168,7 @@ function SettingsPage({ session, theme, onThemeChange, onSessionSync, onTouchDat
   }, []);
 
   const saveSettings = async () => {
+    setError('');
     try {
       await apiFetch('/api/settings', {
         method: 'PUT',
@@ -1157,15 +1180,52 @@ function SettingsPage({ session, theme, onThemeChange, onSessionSync, onTouchDat
         }),
       });
       onSessionSync({
-        monthly_alert_amount: settings.monthly_alert_amount ? Number(settings.monthly_alert_amount) : null,
-        salary_day: settings.salary_day ? Number(settings.salary_day) : null,
-        currency: settings.currency,
-        theme: settings.theme,
+        settings: {
+          monthly_alert_amount: settings.monthly_alert_amount ? Number(settings.monthly_alert_amount) : null,
+          salary_day: settings.salary_day ? Number(settings.salary_day) : null,
+          currency: settings.currency,
+          theme: settings.theme,
+        },
       });
       await onThemeChange(settings.theme);
       setSaveStatus('Saved.');
       onTouchData();
       setTimeout(() => setSaveStatus(''), 1600);
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+
+  const saveAccount = async () => {
+    setError('');
+    const nextUsername = account.username.trim();
+    const currentUsername = (session.username || '').trim();
+    const payload = {};
+
+    if (nextUsername && nextUsername !== currentUsername) {
+      payload.username = nextUsername;
+    }
+    if (account.new_password) {
+      payload.old_password = account.old_password;
+      payload.new_password = account.new_password;
+    }
+
+    if (!Object.keys(payload).length) {
+      setAccountStatus('No changes to save.');
+      return;
+    }
+
+    try {
+      const result = await apiFetch('/api/settings', {
+        method: 'PUT',
+        body: JSON.stringify(payload),
+      });
+      if (payload.username) {
+        onSessionSync({ username: result.username || nextUsername });
+      }
+      setAccount((prev) => ({ ...prev, old_password: '', new_password: '' }));
+      setAccountStatus('Account updated.');
+      setTimeout(() => setAccountStatus(''), 1600);
     } catch (err) {
       setError(err.message);
     }
@@ -1216,6 +1276,49 @@ function SettingsPage({ session, theme, onThemeChange, onSessionSync, onTouchDat
       {error ? <div className="alert alert-error">{error}</div> : null}
 
       <section className="grid two-up">
+        <div className="card card-pad stack">
+          <h2 className="card-title">Account</h2>
+          <div className="form-grid wallet-grid">
+            <label className="field">
+              <span>Username</span>
+              <input
+                className="input"
+                autoComplete="username"
+                value={account.username}
+                onChange={(e) => setAccount((prev) => ({ ...prev, username: e.target.value }))}
+                placeholder="Username"
+              />
+            </label>
+            <label className="field">
+              <span>Old password</span>
+              <input
+                className="input"
+                type="password"
+                autoComplete="current-password"
+                value={account.old_password}
+                onChange={(e) => setAccount((prev) => ({ ...prev, old_password: e.target.value }))}
+                placeholder="Required only for password changes"
+              />
+            </label>
+            <label className="field">
+              <span>New password</span>
+              <input
+                className="input"
+                type="password"
+                autoComplete="new-password"
+                value={account.new_password}
+                onChange={(e) => setAccount((prev) => ({ ...prev, new_password: e.target.value }))}
+                placeholder="Leave blank to keep current password"
+              />
+            </label>
+          </div>
+          <div className="card-note">
+            Change username directly. If you set a new password, the old password is required.
+          </div>
+          <button className="btn btn-primary btn-full" onClick={saveAccount}>Save account</button>
+          {accountStatus ? <div className="success-text">{accountStatus}</div> : null}
+        </div>
+
         <div className="card card-pad stack">
           <h2 className="card-title">Wallet preferences</h2>
           <div className="form-grid wallet-grid">

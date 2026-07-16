@@ -17,6 +17,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from app.database.database import SessionLocal
 from app.database import crud
 from app.auth.password import hash_password
+from app.database.seed import update_family_account_password
 
 
 def main():
@@ -33,6 +34,7 @@ def main():
             sys.exit(1)
         user.password_hash = hash_password(new_password)
         db.commit()
+        update_family_account_password(username, new_password)
         print(f"Password updated for '{username}'.")
     finally:
         db.close()

@@ -12,8 +12,15 @@ These are intentionally simple, easy-to-type passwords since this is a
 private family app, not a bank. Still: don't leave this file in a PUBLIC
 GitHub repo with real passwords in it - keep the repo private, or move
 these into environment variables before deploying if you're worried.
+
+If you change a live password through the app or the CLI reset tool, the
+helper below can rewrite the matching FAMILY_ACCOUNTS entry so this file
+stays in sync for tracking.
 """
 
+import json
+import re
+from pathlib import Path
 from sqlalchemy.orm import Session
 from app.auth.password import hash_password
 from . import models
@@ -35,6 +42,32 @@ FAMILY_ACCOUNTS = [
     ("family1", "family1@2026", "Family Member 1"),
     ("family2", "family2@2026", "Family Member 2"),
 ]
+
+
+def update_family_account_password(username: str, new_password: str, new_username: str | None = None) -> bool:
+    """Rewrite the matching FAMILY_ACCOUNTS row in this source file.
+
+    This keeps the seed list aligned with a live password change so the
+    account detail remains visible in one place for later review.
+    """
+    seed_path = Path(__file__).resolve()
+    lines = seed_path.read_text(encoding="utf-8").splitlines(keepends=True)
+    pattern = re.compile(
+        r'^(?P<indent>\s*)\("(?P<username>(?:\\.|[^"])*)",\s*"(?P<password>(?:\\.|[^"])*)",\s*"(?P<display_name>(?:\\.|[^"])*)"\),?(?P<suffix>\s*)$'
+    )
+
+    for index, line in enumerate(lines):
+        match = pattern.match(line.rstrip("\n"))
+        if not match or match.group("username") != username:
+            continue
+        indent = match.group("indent")
+        next_username = new_username or match.group("username")
+        display_name = match.group("display_name")
+        lines[index] = f'{indent}({json.dumps(next_username)}, {json.dumps(new_password)}, {json.dumps(display_name)}),\n'
+        seed_path.write_text("".join(lines), encoding="utf-8")
+        return True
+
+    return False
 
 
 def seed_categories(db: Session):

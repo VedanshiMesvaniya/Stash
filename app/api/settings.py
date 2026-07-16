@@ -4,13 +4,15 @@ Settings read/update (now just fields on the User row), backup/restore, and
 offline-sync reconciliation. All scoped per logged-in user.
 """
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Request, HTTPException, status
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 
 from app.database.database import get_db
-from app.database import models
+from app.database import models, crud
+from app.database.seed import update_family_account_password
 from app.auth.auth import get_current_user
+from app.auth.password import hash_password, verify_password
 from app.services import backup as backup_service
 from app.services import sync as sync_service
 
@@ -47,6 +49,9 @@ class SettingsUpdate(BaseModel):
     salary_day: int | None = None
     currency: str | None = None
     theme: str | None = None
+    username: str | None = None
+    old_password: str | None = None
+    new_password: str | None = None
     lock_enabled: bool | None = None
     biometric_enabled: bool | None = None
     lock_pin: str | None = None
@@ -71,7 +76,14 @@ def get_settings(request: Request, user: models.User = Depends(get_current_user)
 
 @router.put("/settings")
 def update_settings(payload: SettingsUpdate, request: Request, db: Session = Depends(get_db), user: models.User = Depends(get_current_user)):
-    for field, value in payload.dict(exclude_unset=True).items():
+    data = payload.dict(exclude_unset=True)
+    original_username = user.username
+
+    username = data.pop("username", None)
+    old_password = data.pop("old_password", None)
+    new_password = data.pop("new_password", None)
+
+    for field, value in data.items():
         if field == "lock_pin":
             continue
         if field == "theme":
@@ -79,12 +91,37 @@ def update_settings(payload: SettingsUpdate, request: Request, db: Session = Dep
         if field == "currency":
             value = _normalize_currency(value)
         setattr(user, field, value)
-    if payload.lock_pin is not None:
-        from app.auth.password import hash_password
 
+    if username is not None:
+        next_username = username.strip()
+        if not next_username:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Username cannot be empty")
+        if next_username.lower() != user.username.lower():
+            existing = crud.get_user_by_username(db, next_username)
+            if existing and existing.id != user.id:
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Username already exists")
+            user.username = next_username
+            request.session["username"] = next_username
+
+    if new_password is not None:
+        if not old_password:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Old password is required to change password")
+        if not verify_password(old_password, user.password_hash):
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Old password is incorrect")
+        if not new_password.strip():
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="New password cannot be empty")
+        user.password_hash = hash_password(new_password)
+
+    if payload.lock_pin is not None:
         user.lock_pin_hash = hash_password(payload.lock_pin) if payload.lock_pin else None
     db.commit()
-    return {"ok": True}
+    if new_password is not None:
+        update_family_account_password(
+            original_username,
+            new_password,
+            new_username=user.username if user.username != original_username else None,
+        )
+    return {"ok": True, "username": user.username}
 
 
 @router.post("/backup")
