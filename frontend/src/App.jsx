@@ -9,15 +9,15 @@ import RecurringCard from './components/ui/RecurringCard';
 import { PieViz, BarViz, LineViz } from './components/charts/Charts';
 
 const NAV_ITEMS = [
-  { path: '/', label: 'Dashboard', short: 'DB' },
-  { path: '/chat', label: 'Chat', short: 'AI' },
-  { path: '/timeline', label: 'Timeline', short: 'TX' },
-  { path: '/reports', label: 'Reports', short: 'RP' },
-  { path: '/settings', label: 'Settings', short: 'ST' },
+  { path: '/', label: 'Dashboard', icon: 'space_dashboard' },
+  { path: '/chat', label: 'Chat', icon: 'auto_awesome' },
+  { path: '/timeline', label: 'Timeline', icon: 'receipt_long' },
+  { path: '/reports', label: 'Reports', icon: 'query_stats' },
+  { path: '/settings', label: 'Settings', icon: 'tune' },
 ];
 
 const AUTH_ROUTES = new Set(['/login']);
-const LOGO_SRC = '/static/icons/FullLogo.png';
+const LOGO_SRC = '/static/icons/mark.png';
 const DASHBOARD_CACHE_KEY = 'stash_dashboard_cache';
 const RECURRING_CACHE_KEY = 'stash_recurring_cache';
 
@@ -31,11 +31,8 @@ const emptySession = {
 };
 
 const THEME_OPTIONS = [
-  { key: 'obsidian', label: 'Obsidian', swatch: '#1f2430' },
-  { key: 'shadow', label: 'Shadow', swatch: '#312f41' },
-  { key: 'violet', label: 'Violet', swatch: '#4b3b6f' },
-  { key: 'lavender', label: 'Lavender', swatch: '#b8a4d1' },
-  { key: 'mist', label: 'Mist', swatch: '#d3d0cf' },
+  { key: 'obsidian', label: 'Dark', swatch: '#151313' },
+  { key: 'mist', label: 'Light', swatch: '#fcf9f8' },
 ];
 
 const CURRENCY_OPTIONS = [
@@ -136,11 +133,11 @@ function useTheme(session) {
   return [theme, setTheme];
 }
 
+const LIGHT_THEME_ALIASES = new Set(['light', 'mist', 'lavender']);
+
 function normalizeTheme(value) {
   if (!value) return 'obsidian';
-  if (value === 'dark') return 'obsidian';
-  if (value === 'light') return 'mist';
-  return value;
+  return LIGHT_THEME_ALIASES.has(value) ? 'mist' : 'obsidian';
 }
 
 function ThemedDropdown({ value, options, onChange, label, triggerClassName = '' }) {
@@ -210,17 +207,8 @@ function App() {
   const [refreshToken, setRefreshToken] = useState(0);
 
   useEffect(() => {
-    const isChat = route === '/chat';
-    document.body.classList.toggle('chat-route', isChat);
-    document.documentElement.classList.toggle('chat-route', isChat);
-    document.body.style.overflow = isChat ? 'hidden' : '';
-    document.documentElement.style.overflow = isChat ? 'hidden' : '';
-    return () => {
-      document.body.classList.remove('chat-route');
-      document.documentElement.classList.remove('chat-route');
-      document.body.style.overflow = '';
-      document.documentElement.style.overflow = '';
-    };
+    document.body.classList.toggle('chat-route', route === '/chat');
+    document.documentElement.classList.toggle('chat-route', route === '/chat');
   }, [route]);
 
   const syncSessionSettings = (patch) => {
@@ -327,11 +315,10 @@ function AuthPage({ onSuccess, onThemeChange, theme }) {
   return (
     <div className="auth-page">
       <div className="auth-card">
-        <img src={LOGO_SRC} alt="Stash" className="brand-logo brand-logo-auth" />
-        <div className="brand-subtitle">Private family finance workspace</div>
+        <img src={LOGO_SRC} alt="Stash" className="brand-mark" style={{ width: 56, height: 56, borderRadius: 16 }} />
+        <div className="brand-wordmark" style={{ fontSize: 26, marginTop: 4 }}>Stash</div>
 
         <h1 className="page-title">Welcome back</h1>
-        <p className="page-copy">Sign in with the username and password you were given.</p>
 
         <form className="stack" onSubmit={submit}>
           <input
@@ -389,9 +376,6 @@ function AppShell({
             <div className="account-subtitle">Private wallet</div>
           </div>
           <ThemeToggle theme={theme} onThemeChange={onThemeChange} />
-          <button className="btn btn-danger btn-full" type="button" onClick={onLogout}>
-            Log out
-          </button>
         </div>
       </aside>
 
@@ -406,6 +390,7 @@ function AppShell({
             refreshToken={refreshToken}
             onThemeChange={onThemeChange}
             onSessionSync={onSessionSync}
+            onLogout={onLogout}
           />
         </main>
 
@@ -424,8 +409,13 @@ function Brand({ compact = false }) {
       <img
         src={LOGO_SRC}
         alt="Stash"
-        className={compact ? 'brand-logo brand-logo-compact' : 'brand-logo brand-logo-shell'}
+        className={compact ? 'brand-mark brand-mark-compact' : 'brand-mark'}
       />
+      {!compact ? (
+        <div>
+          <div className="brand-wordmark">Stash</div>
+        </div>
+      ) : null}
     </a>
   );
 }
@@ -443,7 +433,9 @@ function Nav({ route, onNavigate, vertical = false }) {
             onNavigate(item.path);
           }}
         >
-          <span className="nav-icon">{item.short}</span>
+          <span className="nav-icon">
+            <span className="material-symbols-rounded">{item.icon}</span>
+          </span>
           <span>{item.label}</span>
         </a>
       ))}
@@ -465,6 +457,7 @@ function MobileNav({ route, onNavigate }) {
               onNavigate(item.path);
             }}
           >
+            <span className="material-symbols-rounded">{item.icon}</span>
             <span>{item.label}</span>
           </a>
         ))}
@@ -473,7 +466,7 @@ function MobileNav({ route, onNavigate }) {
   );
 }
 
-function Page({ route, theme, session, onNavigate, onTouchData, refreshToken, onThemeChange, onSessionSync, onUnlock, onBiometric }) {
+function Page({ route, theme, session, onNavigate, onTouchData, refreshToken, onThemeChange, onSessionSync, onUnlock, onBiometric, onLogout }) {
   if (route === '/chat') {
     return (
       <ChatPage
@@ -498,6 +491,7 @@ function Page({ route, theme, session, onNavigate, onTouchData, refreshToken, on
         onThemeChange={onThemeChange}
         onSessionSync={onSessionSync}
         onTouchData={onTouchData}
+        onLogout={onLogout}
       />
     );
   }
@@ -556,7 +550,6 @@ function DashboardPage({ session, onNavigate, refreshToken, onTouchData }) {
     <div className="stack">
       <SectionHeader
         title="Dashboard"
-        copy="A clean wallet overview powered by chat, recurring tracking, and live summaries."
       />
 
       {error ? <div className="alert alert-error">{error}</div> : null}
@@ -619,11 +612,8 @@ function ChatPage({ session, onNavigate, onTouchData, refreshToken }) {
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
-  const [hidden, setHidden] = useState(sessionStorage.getItem('stash_chat_history_hidden') === '1');
   const [error, setError] = useState('');
-  const logRef = useRef(null);
   const textareaRef = useRef(null);
-  const pendingConsumedRef = useRef(false);
 
   const resizeComposer = () => {
     const el = textareaRef.current;
@@ -634,9 +624,8 @@ function ChatPage({ session, onNavigate, onTouchData, refreshToken }) {
 
   const scrollBottom = () => {
     requestAnimationFrame(() => {
-      if (logRef.current) {
-        logRef.current.scrollTop = logRef.current.scrollHeight;
-      }
+      const scrollTarget = Math.max(document.body.scrollHeight, document.documentElement.scrollHeight);
+      window.scrollTo({ top: scrollTarget, behavior: 'auto' });
     });
   };
 
@@ -644,19 +633,12 @@ function ChatPage({ session, onNavigate, onTouchData, refreshToken }) {
     let alive = true;
     const load = async () => {
       try {
-        if (hidden) {
-          if (alive) {
-            setMessages([]);
-            setLoading(false);
-          }
-          return;
-        }
         const rows = await apiFetch('/api/chat/history', { method: 'GET', headers: {} });
         if (!alive) return;
         setMessages(rows.map((row) => ({ role: row.role, content: row.content })));
         if (!rows.length) {
           setMessages([
-            { role: 'assistant', content: "Hi, I'm Stash. Tell me what happened today, for example: Salary received 35000 or Tea 20." },
+            { role: 'assistant', content: "Hi, I'm Stash. Tell me what happened today." },
           ]);
         }
         setLoading(false);
@@ -676,19 +658,7 @@ function ChatPage({ session, onNavigate, onTouchData, refreshToken }) {
     return () => {
       alive = false;
     };
-  }, [hidden, refreshToken]);
-
-  useEffect(() => {
-    const pending = sessionStorage.getItem('stash_pending_message');
-    if (pending && !pendingConsumedRef.current) {
-      pendingConsumedRef.current = true;
-      sessionStorage.removeItem('stash_pending_message');
-      setInput(pending);
-      queueMicrotask(() => {
-        sendMessage(pending);
-      });
-    }
-  }, []);
+  }, [refreshToken]);
 
   useEffect(() => {
     scrollBottom();
@@ -750,18 +720,6 @@ function ChatPage({ session, onNavigate, onTouchData, refreshToken }) {
     }
   };
 
-  const clearChat = () => {
-    sessionStorage.setItem('stash_chat_history_hidden', '1');
-    setHidden(true);
-    setMessages([]);
-  };
-
-  const showChat = async () => {
-    sessionStorage.removeItem('stash_chat_history_hidden');
-    setHidden(false);
-    setLoading(true);
-  };
-
   const handleCandidateConfirm = async (candidate, pendingNewAmount) => {
     addMessage('assistant', 'Updating...');
     const result = await apiFetch('/api/chat/confirm-correction', {
@@ -790,22 +748,10 @@ function ChatPage({ session, onNavigate, onTouchData, refreshToken }) {
 
   return (
     <div className="chat-shell chat-page-shell">
-      <SectionHeader
-        title="Chat with Stash"
-        copy="Speak naturally. Stash turns plain language into transactions, corrections, and reports."
-        action={<button className="btn btn-ghost" onClick={hidden ? showChat : clearChat}>{hidden ? 'Show chat' : 'Clear chat'}</button>}
-      />
-
-      <div className="chip-row section">
-        {['Salary received 35000', 'Paid 480 for petrol', 'Show this month report', 'How much money do I have?'].map((chip) => (
-          <button key={chip} className="chip" onClick={() => setInput(chip)}>
-            {chip}
-          </button>
-        ))}
-      </div>
+      <SectionHeader title="Chat with Stash" />
 
       <div className="chat-panel">
-        <div className="chat-log" ref={logRef}>
+        <div className="chat-log">
           {loading ? <div className="empty-state">Loading chat...</div> : null}
           {error ? <div className="alert alert-error">{error}</div> : null}
           {!loading && !messages.length ? <div className="empty-state">No conversation yet.</div> : null}
@@ -863,8 +809,10 @@ function ChatPage({ session, onNavigate, onTouchData, refreshToken }) {
               }
             }}
           />
-          <button className="btn btn-primary" type="submit" disabled={busy || !input.trim()}>
-            {busy ? 'Sending...' : 'Send'}
+          <button className="btn btn-primary" type="submit" disabled={busy || !input.trim()} aria-label="Send message">
+            <span className="material-symbols-rounded" aria-hidden="true">
+              arrow_upward
+            </span>
           </button>
         </form>
       </div>
@@ -983,10 +931,7 @@ function TimelinePage({ session }) {
 
   return (
     <div className="stack">
-      <SectionHeader
-        title="Timeline"
-        copy="A unified ledger view of every income and expense in chronological order."
-      />
+      <SectionHeader title="Timeline" />
       {error ? <div className="alert alert-error">{error}</div> : null}
       <div className="timeline-stack">
         {rows.length ? (
@@ -1061,7 +1006,6 @@ function ReportsPage({ session, refreshToken }) {
     <div className="stack">
       <SectionHeader
         title="Reports"
-        copy="AI-friendly monthly summaries with chart-style views and export links."
         action={
           <select className="select page-select" value={selectedMonth} onChange={(event) => setSelectedMonth(event.target.value)}>
             {months.map((item) => (
@@ -1135,7 +1079,7 @@ function ReportsPage({ session, refreshToken }) {
   );
 }
 
-function SettingsPage({ session, theme, onThemeChange, onSessionSync, onTouchData }) {
+function SettingsPage({ session, theme, onThemeChange, onSessionSync, onTouchData, onLogout }) {
   const [settings, setSettings] = useState({
     monthly_alert_amount: '',
     salary_day: '',
@@ -1267,10 +1211,7 @@ function SettingsPage({ session, theme, onThemeChange, onSessionSync, onTouchDat
 
   return (
     <div className="stack">
-      <SectionHeader
-        title="Settings"
-        copy="Tune the wallet, app lock, theme, and recurring rules from one clean workspace."
-      />
+      <SectionHeader title="Settings" />
 
       {error ? <div className="alert alert-error">{error}</div> : null}
 
@@ -1406,6 +1347,19 @@ function SettingsPage({ session, theme, onThemeChange, onSessionSync, onTouchDat
         {recurringRows.length ? recurringRows.map((row) => (
           <RecurringCard key={row.id} row={row} currency={session.settings?.currency || 'INR'} onDisable={disableRecurring} />
         )) : <div className="empty-state">No recurring schedules yet.</div>}
+      </section>
+
+      <section className="card card-pad stack">
+        <div className="card-head">
+          <div>
+            <h2 className="card-title">Account</h2>
+            <div className="card-note">Signed in as {session.display_name || session.username || 'your account'}</div>
+          </div>
+        </div>
+        <button className="btn btn-danger btn-full" type="button" onClick={onLogout}>
+          <span className="material-symbols-rounded" style={{ fontSize: 18 }}>logout</span>
+          Log out
+        </button>
       </section>
     </div>
   );

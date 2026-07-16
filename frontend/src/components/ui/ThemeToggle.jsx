@@ -1,10 +1,13 @@
 import React from 'react';
 
 export default function ThemeToggle({ theme, onThemeChange }) {
-  const isObsidian = theme === 'obsidian' || theme === 'shadow' || theme === 'violet';
+  const isDark = theme === 'obsidian';
   return (
-    <button className="btn btn-ghost btn-full" type="button" onClick={() => onThemeChange(isObsidian ? 'mist' : 'obsidian')}>
-      {isObsidian ? 'Switch to light' : 'Switch to obsidian'}
+    <button className="btn btn-ghost btn-full" type="button" onClick={() => onThemeChange(isDark ? 'mist' : 'obsidian')}>
+      <span className="material-symbols-rounded" style={{ fontSize: 18 }}>
+        {isDark ? 'light_mode' : 'dark_mode'}
+      </span>
+      {isDark ? 'Switch to light' : 'Switch to dark'}
     </button>
   );
 }
