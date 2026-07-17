@@ -25,6 +25,43 @@ def _display_label(txn_type: str, label: str, description: str | None) -> str:
     return crud.resolve_display_label(txn_type, label, description)
 
 
+def _candidate_rows(
+    db: Session,
+    user_id: int,
+    txn_type: str,
+    category_or_source: str | None,
+    search_terms: str,
+    target_date: date | None,
+    days: int = 14,
+    limit: int = 10,
+):
+    if txn_type == "income":
+        candidates = crud.find_recent_income_by_source(db, user_id, category_or_source, days=days, limit=limit)
+    else:
+        candidates = crud.find_recent_expenses_by_category(db, user_id, category_or_source, days=days, limit=limit)
+
+    if target_date:
+        dated = [row for row in candidates if row.date == target_date]
+        if dated:
+            candidates = dated
+
+    if candidates or not search_terms:
+        return candidates
+
+    if txn_type == "income":
+        recent = crud.find_recent_income_by_source(db, user_id, None, days=days, limit=20)
+        return [
+            row for row in recent
+            if search_terms in (row.description or "").lower() or search_terms in row.source.lower()
+        ]
+
+    recent = crud.find_recent_expenses_by_category(db, user_id, None, days=days, limit=20)
+    return [
+        row for row in recent
+        if search_terms in (row.description or "").lower() or search_terms in row.category.lower()
+    ]
+
+
 def create_transactions(db: Session, user_id: int, transactions: list[dict]) -> list[dict]:
     created = []
     for t in transactions:
@@ -102,28 +139,7 @@ def apply_correction(db: Session, user_id: int, correction: dict) -> dict:
     search_terms = (correction.get("search_terms") or "").lower()
     target_date = correction.get("date")
 
-    if txn_type == "income":
-        candidates = crud.find_recent_income_by_source(db, user_id, cat, days=14, limit=10)
-        if target_date:
-            candidates = [row for row in candidates if row.date == target_date] or candidates
-    else:
-        candidates = crud.find_recent_expenses_by_category(db, user_id, cat, days=14, limit=10)
-        if target_date:
-            candidates = [row for row in candidates if row.date == target_date] or candidates
-
-    if not candidates and search_terms:
-        if txn_type == "income":
-            recent = crud.find_recent_income_by_source(db, user_id, None, days=14, limit=20)
-            candidates = [
-                row for row in recent
-                if search_terms in (row.description or "").lower() or search_terms in row.source.lower()
-            ]
-        else:
-            recent = crud.find_recent_expenses_by_category(db, user_id, None, days=14, limit=20)
-            candidates = [
-                row for row in recent
-                if search_terms in (row.description or "").lower() or search_terms in row.category.lower()
-            ]
+    candidates = _candidate_rows(db, user_id, txn_type, cat, search_terms, target_date)
 
     if not candidates:
         return {
@@ -182,6 +198,65 @@ def apply_correction(db: Session, user_id: int, correction: dict) -> dict:
     }
 
 
+def apply_delete(db: Session, user_id: int, delete_request: dict) -> dict:
+    txn_type = delete_request["type"]
+    cat = delete_request["category_or_source"]
+    search_terms = (delete_request.get("search_terms") or "").lower()
+    target_date = delete_request.get("date")
+
+    candidates = _candidate_rows(db, user_id, txn_type, cat, search_terms, target_date)
+
+    if not candidates:
+        return {
+            "intent": "delete",
+            "reply": "I couldn't find a matching transaction to delete in the last 14 days. Could you give a bit more detail?",
+            "data": None,
+            "needs_confirmation": False,
+            "candidates": None,
+        }
+
+    if len(candidates) == 1:
+        row = candidates[0]
+        label = _display_label(txn_type, row.source if txn_type == "income" else row.category, row.description)
+        if txn_type == "income":
+            crud.delete_income(db, user_id, row.id)
+        else:
+            crud.delete_expense(db, user_id, row.id)
+        balance = crud.get_balance(db, user_id)
+        reply = f"Deleted {label} ({row.date})."
+        reply += f"\nUpdated balance: Rs. {_fmt_amount(balance)}"
+        if balance <= 0:
+            reply += "\nYour balance hit Rs. 0.00."
+        return {
+            "intent": "delete",
+            "reply": reply,
+            "data": {"id": row.id, "type": txn_type},
+            "needs_confirmation": False,
+            "candidates": None,
+        }
+
+    options = []
+    for row in candidates:
+        label = _display_label(txn_type, row.source if txn_type == "income" else row.category, row.description)
+        options.append(
+            {
+                "id": row.id,
+                "type": txn_type,
+                "amount": row.amount,
+                "label": label,
+                "date": str(row.date),
+                "description": row.description,
+            }
+        )
+        return {
+            "intent": "delete",
+            "reply": f"I found {len(options)} matching transactions - which one should I delete?",
+            "data": {"pending_action": "delete"},
+            "needs_confirmation": True,
+            "candidates": options,
+        }
+
+
 def confirm_correction(db: Session, user_id: int, txn_id: int, txn_type: str, new_amount: float) -> dict:
     if txn_type == "income":
         row = crud.update_income(db, user_id, txn_id, amount=new_amount)
@@ -209,6 +284,10 @@ def build_qa_context(db: Session, user_id: int, question: str) -> dict:
     category_breakdown = crud.get_category_breakdown(db, user_id, today.year, today.month)
     largest = crud.get_largest_expense(db, user_id, today.year, today.month)
     timeline = crud.get_timeline(db, user_id, limit=30)
+    recent_chat = crud.get_recent_chat(db, user_id, limit=11)
+    if recent_chat and recent_chat[-1].role == "user" and recent_chat[-1].content == question:
+        recent_chat = recent_chat[:-1]
+    recent_chat = recent_chat[-10:]
 
     return {
         "current_balance": balance,
@@ -223,6 +302,10 @@ def build_qa_context(db: Session, user_id: int, question: str) -> dict:
         "recent_transactions": [
             {"type": t["type"], "amount": t["amount"], "label": t.get("display_label") or t["label"], "date": str(t["date"])}
             for t in timeline
+        ],
+        "recent_chat_memory": [
+            {"role": row.role, "content": row.content, "created_at": str(row.created_at)}
+            for row in recent_chat
         ],
     }
 

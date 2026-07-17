@@ -30,6 +30,11 @@ class ConfirmCorrectionRequest(BaseModel):
     new_amount: float
 
 
+class ConfirmDeleteRequest(BaseModel):
+    transaction_id: int
+    transaction_type: str  # "income" | "expense"
+
+
 class TransactionUpdateRequest(BaseModel):
     amount: float | None = None
     category_or_source: str | None = None
@@ -78,6 +83,36 @@ def confirm_correction(payload: ConfirmCorrectionRequest, request: Request, db: 
     result["balance"] = crud.get_balance(db, user.id)
     result["currency"] = user.currency or "INR"
     result["suggestion"] = analytics.get_smart_suggestion(db, user)
+    return result
+
+
+@router.post("/chat/confirm-delete")
+def confirm_delete(payload: ConfirmDeleteRequest, request: Request, db: Session = Depends(get_db), user: models.User = Depends(get_current_user)):
+    if payload.transaction_type == "income":
+        row = crud.delete_income(db, user.id, payload.transaction_id)
+    elif payload.transaction_type == "expense":
+        row = crud.delete_expense(db, user.id, payload.transaction_id)
+    else:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid transaction type")
+
+    if not row:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Transaction not found")
+
+    db.query(models.RecurringPosting).filter(
+        models.RecurringPosting.transaction_type == payload.transaction_type,
+        models.RecurringPosting.transaction_id == payload.transaction_id,
+    ).delete(synchronize_session=False)
+    db.commit()
+
+    reply = f"Deleted {crud.resolve_display_label(payload.transaction_type, row.source if payload.transaction_type == 'income' else row.category, row.description)}."
+    crud.save_chat_message(db, user.id, "assistant", reply)
+    result = {
+        "ok": True,
+        "reply": reply,
+        "balance": crud.get_balance(db, user.id),
+        "currency": user.currency or "INR",
+        "suggestion": analytics.get_smart_suggestion(db, user),
+    }
     return result
 
 

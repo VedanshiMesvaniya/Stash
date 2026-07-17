@@ -24,6 +24,7 @@ from .prompts import (
     CATEGORIES_EXPENSE,
     CATEGORIES_INCOME,
     CORRECTION_SYSTEM_PROMPT,
+    DELETE_SYSTEM_PROMPT,
     EXTRACTION_SYSTEM_PROMPT,
 )
 
@@ -53,6 +54,17 @@ INCOME_CATEGORY_HINTS = {
 
 _DAYS_AGO_RE = re.compile(r"(\d+)\s*(?:day|days)\s*(?:ago|back)")
 _WEEKS_AGO_RE = re.compile(r"(\d+)\s*(?:week|weeks)\s*(?:ago|back)")
+_ORDINAL_SUFFIX_RE = re.compile(r"\b(\d{1,2})(st|nd|rd|th)\b", re.IGNORECASE)
+
+
+def _normalize_date_text(text: str) -> str:
+    return _ORDINAL_SUFFIX_RE.sub(r"\1", text)
+
+
+def _memory_block(recent_chat: str | None) -> str:
+    if not recent_chat:
+        return ""
+    return f"RECENT CHAT MEMORY:\n{recent_chat.strip()}\n\n"
 
 
 def resolve_date_hint(hint: str | None) -> date:
@@ -60,7 +72,8 @@ def resolve_date_hint(hint: str | None) -> date:
     Falls back to today if the hint is missing or unparseable."""
     if not hint:
         return date.today()
-    h = hint.strip().lower()
+    cleaned_hint = _normalize_date_text(hint.strip())
+    h = cleaned_hint.lower()
     today = date.today()
 
     if h in ("today", "now"):
@@ -94,11 +107,23 @@ def resolve_date_hint(hint: str | None) -> date:
                 delta = 7
             return today - timedelta(days=delta)
 
-    for fmt in ("%Y-%m-%d", "%d-%m-%Y", "%d/%m/%Y", "%B %d", "%b %d"):
+    for fmt in (
+        "%Y-%m-%d",
+        "%d-%m-%Y",
+        "%d/%m/%Y",
+        "%d %B %Y",
+        "%d %b %Y",
+        "%B %d, %Y",
+        "%b %d, %Y",
+        "%B %d",
+        "%b %d",
+        "%d %B",
+        "%d %b",
+    ):
         try:
             from datetime import datetime
 
-            parsed = datetime.strptime(hint.strip(), fmt)
+            parsed = datetime.strptime(cleaned_hint, fmt)
             if "%Y" not in fmt:
                 parsed = parsed.replace(year=today.year)
             return parsed.date()
@@ -150,14 +175,14 @@ def _resolve_category_or_source(txn_type: str, raw_value: str | None, descriptio
     return "Other"
 
 
-def extract_transactions(message: str) -> list[dict]:
+def extract_transactions(message: str, recent_chat: str | None = None) -> list[dict]:
     """Returns a list of dicts: {type, amount, category_or_source, description, date}.
     Raises llm.LLMUnavailableError if both Groq and OpenRouter are down -
     callers must catch that specifically and queue the message rather than
     treating it as 'not a transaction'."""
     messages = [
         {"role": "system", "content": EXTRACTION_SYSTEM_PROMPT},
-        {"role": "user", "content": message},
+        {"role": "user", "content": f"{_memory_block(recent_chat)}MESSAGE:\n{message}"},
     ]
     raw = llm.fast_chat(messages, json_mode=True, max_tokens=400)
 
@@ -193,11 +218,11 @@ def extract_transactions(message: str) -> list[dict]:
     return results
 
 
-def extract_correction(message: str) -> dict | None:
+def extract_correction(message: str, recent_chat: str | None = None) -> dict | None:
     """Raises llm.LLMUnavailableError if both providers are down."""
     messages = [
         {"role": "system", "content": CORRECTION_SYSTEM_PROMPT},
-        {"role": "user", "content": message},
+        {"role": "user", "content": f"{_memory_block(recent_chat)}MESSAGE:\n{message}"},
     ]
     raw = llm.fast_chat(messages, json_mode=True, max_tokens=250)
 
@@ -220,6 +245,31 @@ def extract_correction(message: str) -> dict | None:
             parsed.get("search_terms"),
         ),
         "new_amount": new_amount,
+        "date": resolve_date_hint(parsed.get("date_hint")),
+        "search_terms": parsed.get("search_terms") or "",
+    }
+
+
+def extract_delete(message: str, recent_chat: str | None = None) -> dict | None:
+    """Raises llm.LLMUnavailableError if both providers are down."""
+    messages = [
+        {"role": "system", "content": DELETE_SYSTEM_PROMPT},
+        {"role": "user", "content": f"{_memory_block(recent_chat)}MESSAGE:\n{message}"},
+    ]
+    raw = llm.fast_chat(messages, json_mode=True, max_tokens=220)
+
+    parsed = llm.safe_json_parse(raw)
+    if not parsed:
+        return None
+
+    txn_type = parsed.get("type") if parsed.get("type") in ("income", "expense") else "expense"
+    return {
+        "type": txn_type,
+        "category_or_source": _resolve_category_or_source(
+            txn_type,
+            parsed.get("category_or_source"),
+            parsed.get("search_terms"),
+        ),
         "date": resolve_date_hint(parsed.get("date_hint")),
         "search_terms": parsed.get("search_terms") or "",
     }

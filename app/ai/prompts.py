@@ -15,6 +15,7 @@ Classify the user's message into exactly ONE of these intents:
 
 - "transaction" -> the user is reporting one or more income/expense events, even if phrased informally or with slang/typos (e.g. "I spent 20 on tea", "my friend transferred 1000", "paid the electricity bill", "I spnet 20", "opening balance 152.14", "add income 152.14 as my opening balance")
 - "correction" -> the user is correcting a previously logged transaction (e.g. "That petrol expense was actually 600", "Yesterday's tea was 40 not 20", "I meant 200 not 20")
+- "delete" -> the user wants to remove a previously logged transaction (e.g. "delete yesterday's tea entry", "remove the petrol expense", "cancel the salary record")
 - "question" -> the user is asking about their finances or balances (e.g. "How much do I have?", "Show my petrol expenses", "Compare June and July", "What's my balance?")
 - "report" -> the user explicitly wants a monthly/period report (e.g. "Show June report", "Give me this month's summary", "Need a July spending report")
 - "chat" -> general conversation not fitting the above (e.g. "Hi", "thanks", "what can you do")
@@ -24,9 +25,10 @@ Important:
 - Treat "opening balance" / "starting balance" / "add income as my opening balance" as a transaction, not a balance inquiry.
 - If the user says they did NOT spend/receive money, do not classify it as a transaction.
 - Choose the best non-transaction intent when the message is a question, correction, or general chat.
+- If the message is asking to remove, undo, cancel, or delete a recorded entry, classify it as "delete".
 
 Respond ONLY with JSON, no preamble, no markdown fences:
-{{"intent": "transaction" | "correction" | "question" | "report" | "chat"}}
+{{"intent": "transaction" | "correction" | "delete" | "question" | "report" | "chat"}}
 """
 
 EXTRACTION_SYSTEM_PROMPT = f"""You are a financial transaction extractor for Stash, a personal wallet app.
@@ -44,7 +46,8 @@ Rules:
 - description: a short human-readable description of the transaction
 - If the user says "opening balance" or "starting balance", treat it like an income transaction with description "Opening balance" and source "Other" unless a better source is explicit
 - If no date is mentioned, omit date_hint (it defaults to today)
-- date_hint must capture ANY time reference exactly as the user phrased it - not just "yesterday". This includes relative phrases like "2 days ago", "3 days back", "last week", "day before yesterday", weekday names like "monday" or "last monday", and explicit dates like "5 July" or "05-07-2026". Copy the phrase as written; do not convert it yourself.
+- date_hint must capture ANY time reference exactly as the user phrased it - not just "yesterday". This includes relative phrases like "2 days ago", "3 days back", "last week", "day before yesterday", weekday names like "monday" or "last monday", and explicit dates like "5 July", "1st July", or "05-07-2026". Copy the phrase as written; do not convert it yourself.
+- If a recent chat memory is provided, use it to resolve follow-up references like "that one", "same one", or "the one I mentioned earlier".
 - If the message contains nothing resembling a transaction, return an empty list
 
 Respond ONLY with JSON, no preamble, no markdown fences, in this exact shape:
@@ -59,10 +62,22 @@ The user wants to correct a previously logged transaction. Extract:
 - category_or_source: best guess category/source mentioned (expense categories: {", ".join(CATEGORIES_EXPENSE)}; income sources: {", ".join(CATEGORIES_INCOME)})
 - new_amount: the corrected amount (number)
 - date_hint: capture the time reference exactly as phrased - "today", "yesterday", "2 days ago", a weekday name, "last monday", or a specific date if mentioned, else null
+- If a recent chat memory is provided, use it to resolve follow-up references like "that tea", "the petrol one", or "the salary from last week".
 - search_terms: short string to help find the original transaction (e.g. "petrol", "tea")
 
 Respond ONLY with JSON, no preamble, no markdown fences:
 {{"type": "income"|"expense", "category_or_source": string|null, "new_amount": number, "date_hint": string|null, "search_terms": string}}
+"""
+
+DELETE_SYSTEM_PROMPT = f"""You are a delete extractor for Stash, a personal wallet app.
+The user wants to remove a previously logged transaction. Extract:
+- type: "income" or "expense" (best guess based on context)
+- category_or_source: best guess category/source mentioned (expense categories: {", ".join(CATEGORIES_EXPENSE)}; income sources: {", ".join(CATEGORIES_INCOME)})
+- date_hint: capture the time reference exactly as phrased - "today", "yesterday", "2 days ago", a weekday name, "last monday", or a specific date if mentioned, else null
+- search_terms: short string to help find the original transaction (e.g. "petrol", "tea")
+
+Respond ONLY with JSON, no preamble, no markdown fences:
+{{"type": "income"|"expense", "category_or_source": string|null, "date_hint": string|null, "search_terms": string}}
 """
 
 QA_SYSTEM_PROMPT = """You are Stash, a friendly cloud AI financial assistant inside a personal wallet app.

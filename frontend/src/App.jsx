@@ -722,7 +722,11 @@ function ChatPage({ session, onNavigate, onTouchData, refreshToken }) {
       });
       if (reply.needs_confirmation && reply.candidates) {
         addMessage('assistant', `I found ${reply.candidates.length} possible matches. Pick one below.`);
-        addMessage('assistant', JSON.stringify({ candidates: reply.candidates, pendingNewAmount: reply.data?.pending_new_amount }));
+        addMessage('assistant', JSON.stringify({
+          candidates: reply.candidates,
+          pendingNewAmount: reply.data?.pending_new_amount,
+          pendingAction: reply.data?.pending_action || (reply.intent === 'delete' ? 'delete' : 'correction'),
+        }));
       }
       onTouchData();
     } catch (err) {
@@ -746,13 +750,21 @@ function ChatPage({ session, onNavigate, onTouchData, refreshToken }) {
 
   const handleCandidateConfirm = async (candidate, pendingNewAmount) => {
     addMessage('assistant', 'Updating...');
-    const result = await apiFetch('/api/chat/confirm-correction', {
+    const pendingAction = candidatePayload?.pendingAction || (pendingNewAmount ? 'correction' : 'delete');
+    const endpoint = pendingAction === 'delete' ? '/api/chat/confirm-delete' : '/api/chat/confirm-correction';
+    const payload = pendingAction === 'delete'
+      ? {
+          transaction_id: candidate.id,
+          transaction_type: candidate.type,
+        }
+      : {
+          transaction_id: candidate.id,
+          transaction_type: candidate.type,
+          new_amount: pendingNewAmount,
+        };
+    const result = await apiFetch(endpoint, {
       method: 'POST',
-      body: JSON.stringify({
-        transaction_id: candidate.id,
-        transaction_type: candidate.type,
-        new_amount: pendingNewAmount,
-      }),
+      body: JSON.stringify(payload),
     });
     setMessages((prev) => [...prev, { role: 'assistant', content: result.reply }]);
     onTouchData();
