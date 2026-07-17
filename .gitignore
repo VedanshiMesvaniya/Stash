@@ -1,6 +1,7 @@
 # Environment / secrets
 .env
-
+.codex/
+.agent/
 # Python
 venv/
 __pycache__/

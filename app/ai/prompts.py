@@ -40,6 +40,7 @@ Rules:
 - amount is a positive number (numeric, no currency symbols)
 - For expenses, category MUST be EXACTLY one of these strings, spelled and capitalized exactly as shown, with no synonyms or new categories invented: {", ".join(CATEGORIES_EXPENSE)}
 - For income, source MUST be EXACTLY one of these strings, spelled and capitalized exactly as shown: {", ".join(CATEGORIES_INCOME)}
+- NEVER output a category_or_source value that is not verbatim in one of the two lists above. Words like "Expense", "Misc", "General", "Money", "Cash" are NOT valid categories under any circumstance. If you cannot confidently pick a listed category, use exactly "Other" - never invent a new word.
 - Pick the SINGLE most specific matching category for what THIS transaction is about - do not let other transactions in the same message influence this one's category.
 - Examples: tea/coffee/chai -> Tea, snacks/chips -> Snacks, food/lunch/dinner/breakfast/restaurant -> Food, groceries/vegetables/fruits/milk -> Groceries, petrol/fuel/diesel -> Petrol, electricity/water/internet/rent/recharge -> Bills, cab/bus/train/flight/uber/ola -> Travel, doctor/medicine/pharmacy -> Medical, movie/cinema/game -> Entertainment, salary/paycheck/wages -> Salary, freelance/gig/invoice -> Freelance, gift/gifted/present -> Gift, refund/returned/cashback -> Refund
 - If truly nothing matches, use "Other" - but only as a last resort, not a default guess.
@@ -50,10 +51,27 @@ Rules:
 - If a recent chat memory is provided, use it to resolve follow-up references like "that one", "same one", or "the one I mentioned earlier".
 - If the message contains nothing resembling a transaction, return an empty list
 
+Arithmetic on relative/derived amounts (very important):
+- Some transactions describe an amount relative to other amounts in the SAME message, using words like "half", "a third", "the rest", "what's left", "remaining", "all of it", etc.
+- If the reference is unambiguous - there is exactly one reasonable base number it could mean - compute the exact numeric amount yourself using the other transactions you extracted from this message, and put that final NUMBER in "amount". Do the arithmetic internally; never write words like "half" into the amount field.
+  Example: "got 2000 from mom, gave half to my brother" -> only one prior amount exists (2000), so "half" unambiguously means 1000.
+- If the reference could reasonably mean more than one base amount (e.g. multiple incomes/expenses already happened in the message, so "half" or "what's left" could be computed from different starting points), treat it as AMBIGUOUS. Do not guess, do not average the possibilities, and do not invent a number.
+  Example: "got 4000 from uncle, bought shoes for 1000, fuel for 200, and gave half of what's left to my sister" is ambiguous because "half" could mean half of the original 4000 (2000), or half of what remains after the 1000+200 expenses (half of 2800 = 1400). Both are plausible - so this must NOT be silently resolved.
+- When ambiguous: exclude that one specific transaction from "transactions" (still include the other, unambiguous transactions from the same message, each with their own correct date_hint per the date rule above - the date rule is unaffected by any of this). Set "clarification_needed" to true and write a "clarification_question" that ALWAYS follows this two-part shape:
+  1) A short plain-language recap of what you understood and already logged from the rest of the message, so the user can catch anything you got wrong (e.g. "I understood: ₹4000 gift received, ₹1000 spent on shopping, ₹200 on petrol.").
+  2) The specific point of confusion, phrased with the concrete options, ending in a question that invites either a pick or a correction (e.g. "For 'half to my sister' - did you mean half of the ₹4000 received (₹2000), or half of the ₹2800 left after expenses (₹1400)? Let me know, or tell me if I got anything else wrong.").
+  Join the two parts into one natural clarification_question string.
+- This same recap-then-ask shape applies to ANY other part of the message you find genuinely confusing (not just relative amounts) - e.g. unclear whether something was income or expense, an amount that doesn't parse, contradictory details. Never guess through general confusion either; use the same "here's what I understood, is this right or did you mean something else" pattern.
+- Do NOT use clarification for things that are simply informal, misspelled, or use slang you can confidently interpret (typos, shorthand, casual phrasing) - only use it for genuine ambiguity where more than one reading is plausible, or where you can't confidently extract a valid amount/type at all.
+- If nothing in the message was ambiguous or confusing, set "clarification_needed" to false and "clarification_question" to null.
+
 Respond ONLY with JSON, no preamble, no markdown fences, in this exact shape:
 {{"transactions": [
   {{"type": "income"|"expense", "amount": number, "category_or_source": string, "description": string, "date_hint": string|null}}
-]}}
+],
+"clarification_needed": boolean,
+"clarification_question": string|null
+}}
 """
 
 CORRECTION_SYSTEM_PROMPT = f"""You are a correction extractor for Stash, a personal wallet app.
