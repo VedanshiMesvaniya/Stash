@@ -32,7 +32,19 @@ EXPENSE_DISPLAY_HINTS = [
 INCOME_DISPLAY_HINTS = [
     ("Salary", ("salary", "paycheck", "pay slip", "wage", "wages")),
     ("Freelance", ("freelance", "gig", "project", "invoice", "client")),
-    ("Gift", ("gift", "gifts", "gifted", "present")),
+    (
+        "Gift",
+        (
+            "gift", "gifts", "gifted", "present",
+            # money received from a relative/friend with no other stated
+            # source reads as a gift, not "Other" - this was the gap that
+            # let "got 4000 from uncle" fall through to the old invented
+            # "Income" fallback below.
+            "uncle", "aunt", "aunty", "grandma", "grandpa", "grandmother", "grandfather",
+            "mom", "dad", "mother", "father", "parents", "brother", "sister",
+            "relative", "cousin", "friend gave", "friend transferred",
+        ),
+    ),
     ("Refund", ("refund", "returned", "cashback", "reimburse", "reimburs")),
 ]
 
@@ -47,7 +59,11 @@ def resolve_display_label(txn_type: str, label: str, description: str | None) ->
         if any(keyword in lowered for keyword in keywords):
             return category
 
-    return "Income" if txn_type == "income" else "Expense"
+    # Previously returned "Income"/"Expense" here - those aren't valid
+    # categories in prompts.CATEGORIES_INCOME/CATEGORIES_EXPENSE and showed
+    # up as a fabricated label in chat replies. "Other" is the real,
+    # already-stored fallback category, so display should match it.
+    return "Other"
 
 
 # ---------- Users ----------

@@ -64,6 +64,11 @@ def _format_date_for_reply(value) -> str:
 
 
 def _clarify_amount(message: str) -> str:
+    """Last-resort fallback ONLY - used when extraction returned nothing at
+    all AND no clarification_question came back either (e.g. the model
+    genuinely gave no signal). Whenever the extractor supplies its own
+    clarification_question, that must be used instead of this - this
+    generic guesser has no idea what the actual ambiguity was about."""
     lowered = message.lower()
     date_hint = _guess_date_hint(message)
     if any(word in lowered for word in ("salary", "paycheck", "wage", "wages")):
@@ -85,7 +90,7 @@ def handle_message(message: str, db: Session, user_id: int) -> dict:
       "intent": str,
       "reply": str,                # text Stash says back
       "data": dict | list | None,  # structured payload for the UI (e.g. created txn)
-      "needs_confirmation": bool,  # True if a correction is ambiguous and needs user pick
+      "needs_confirmation": bool,  # True if a correction/extraction is ambiguous and needs user pick
       "candidates": list | None,   # disambiguation options if needs_confirmation
     }
     """
@@ -102,17 +107,52 @@ def handle_message(message: str, db: Session, user_id: int) -> dict:
 
     if intent == "transaction":
         try:
-            transactions = extractor.extract_transactions(message, recent_chat=recent_chat or None)
+            extraction = extractor.extract_transactions(message, recent_chat=recent_chat or None)
         except LLMUnavailableError:
             return _queue_for_later(db, user_id, message)
 
-        if not transactions:
+        # extractor.extract_transactions is expected to return a dict shaped like:
+        # {"transactions": [...], "clarification_needed": bool, "clarification_question": str|None}
+        # matching prompts.EXTRACTION_SYSTEM_PROMPT's JSON schema.
+        transactions = extraction.get("transactions", [])
+        clarification_needed = extraction.get("clarification_needed", False)
+        clarification_question = extraction.get("clarification_question")
+
+        # Truly nothing extracted and no clarification offered either - only
+        # here do we fall back to the generic guesser.
+        if not transactions and not clarification_needed:
             return {
                 "intent": "chat",
                 "reply": _clarify_amount(message),
                 "data": None, "needs_confirmation": False, "candidates": None,
             }
-        created = finance.create_transactions(db, user_id, transactions, currency=currency)
+
+        created = []
+        if transactions:
+            created = finance.create_transactions(db, user_id, transactions, currency=currency)
+
+        if clarification_needed and clarification_question:
+            balance = finance.crud.get_balance(db, user_id)
+            reply_text = clarification_question
+            if created:
+                # Confirm what WAS logged before asking about the ambiguous part,
+                # so the user sees both in one reply instead of a bare question.
+                logged_summary = finance.format_transaction_reply(created, balance=balance, currency=currency)
+                reply_text = f"{logged_summary}\n\n{clarification_question}"
+            return {
+                "intent": "transaction",
+                "reply": reply_text,
+                "data": created,
+                # NOT True: needs_confirmation elsewhere in this file always
+                # pairs with a populated `candidates` list that the frontend
+                # renders as pick buttons (see correction/delete). This is a
+                # free-text follow-up question instead (the user just types
+                # a reply, same as any other chat message), so keep this
+                # False to avoid triggering picker UI with candidates=None.
+                "needs_confirmation": False,
+                "candidates": None,
+            }
+
         balance = finance.crud.get_balance(db, user_id)
         return {
             "intent": "transaction",

@@ -142,10 +142,13 @@ def fast_chat(
     messages: list[dict],
     temperature: float = 0.0,
     json_mode: bool = False,
-    max_tokens: int = 192,
+    max_tokens: int = 400,
 ) -> str:
     """Same as chat(), just a lower default max_tokens for quick extraction
-    calls (intent classification, transaction extraction)."""
+    calls (intent classification, transaction extraction). Bumped from the
+    original 192 -> 400: the extraction schema now includes
+    clarification_needed/clarification_question, and a truncated JSON
+    response here silently breaks parsing further up the chain."""
     return _chat_with_fallback(messages, temperature=temperature, json_mode=json_mode, max_tokens=max_tokens)
 
 

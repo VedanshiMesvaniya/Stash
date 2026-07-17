@@ -14,6 +14,14 @@ Two bugs this file specifically fixes vs the original single-user version:
    names/explicit dates - "2 days ago" fell through silently to today. Added
    regex handling for "N day(s) ago/back", "day before yesterday", and
    "last <weekday>".
+
+A third change (see extract_transactions): the function now returns the
+FULL parsed shape - transactions plus clarification_needed/
+clarification_question - instead of a bare list. Previously those two
+fields were parsed by the LLM but silently discarded here, which meant
+genuinely ambiguous amounts (e.g. "half" with more than one plausible base)
+never reached the user as a real question - the caller only saw an empty
+or partial transaction list and fell back to a generic hardcoded prompt.
 """
 
 import re
@@ -48,7 +56,14 @@ EXPENSE_CATEGORY_HINTS = {
 INCOME_CATEGORY_HINTS = {
     "Salary": ("salary", "paycheck", "pay slip", "pay", "wage", "wages"),
     "Freelance": ("freelance", "gig", "project", "invoice", "client"),
-    "Gift": ("gift", "gifts", "gifted", "present"),
+    "Gift": (
+        "gift", "gifts", "gifted", "present",
+        # Money received from a relative/friend with no other stated source
+        # reads as a gift, not "Other" - e.g. "got 4000 from uncle".
+        "uncle", "aunt", "aunty", "grandma", "grandpa", "grandmother", "grandfather",
+        "mom", "dad", "mother", "father", "parents", "brother", "sister",
+        "relative", "cousin", "friend gave", "friend transferred",
+    ),
     "Refund": ("refund", "returned", "cashback", "reimburs", "reimburse"),
 }
 
@@ -175,8 +190,17 @@ def _resolve_category_or_source(txn_type: str, raw_value: str | None, descriptio
     return "Other"
 
 
-def extract_transactions(message: str, recent_chat: str | None = None) -> list[dict]:
-    """Returns a list of dicts: {type, amount, category_or_source, description, date}.
+def extract_transactions(message: str, recent_chat: str | None = None) -> dict:
+    """Returns a dict: {"transactions": list[dict], "clarification_needed": bool,
+    "clarification_question": str | None}. Each transaction dict is
+    {type, amount, category_or_source, description, date}.
+
+    NOTE: this used to return a bare list[dict]. It now returns the full
+    shape so callers (parser.py) can see when the model deliberately held
+    a transaction back due to genuine ambiguity (e.g. "half of what's left"
+    when there's more than one plausible base amount) instead of that
+    signal being silently dropped.
+
     Raises llm.LLMUnavailableError if both Groq and OpenRouter are down -
     callers must catch that specifically and queue the message rather than
     treating it as 'not a transaction'."""
@@ -189,7 +213,7 @@ def extract_transactions(message: str, recent_chat: str | None = None) -> list[d
     parsed = llm.safe_json_parse(raw)
 
     if not parsed or "transactions" not in parsed:
-        return []
+        return {"transactions": [], "clarification_needed": False, "clarification_question": None}
 
     results = []
     for t in parsed["transactions"]:
@@ -215,7 +239,20 @@ def extract_transactions(message: str, recent_chat: str | None = None) -> list[d
             "description": description,
             "date": resolve_date_hint(t.get("date_hint")),
         })
-    return results
+
+    clarification_needed = bool(parsed.get("clarification_needed", False))
+    clarification_question = parsed.get("clarification_question") or None
+    # Don't claim clarification is needed if the model set the flag but gave
+    # no actual question text - that's not something parser.py can show the
+    # user, so treat it the same as "nothing to clarify".
+    if clarification_needed and not clarification_question:
+        clarification_needed = False
+
+    return {
+        "transactions": results,
+        "clarification_needed": clarification_needed,
+        "clarification_question": clarification_question,
+    }
 
 
 def extract_correction(message: str, recent_chat: str | None = None) -> dict | None:
