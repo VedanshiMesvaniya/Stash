@@ -15,6 +15,7 @@ from app.auth.auth import get_current_user
 from app.auth.password import hash_password, verify_password
 from app.services import backup as backup_service
 from app.services import sync as sync_service
+from app.services import currency as currency_service
 
 # (Session import above is used by the type hints in update_settings/sync_offline_queue)
 
@@ -63,10 +64,11 @@ class SyncPayload(BaseModel):
 
 @router.get("/settings")
 def get_settings(request: Request, user: models.User = Depends(get_current_user)):
+    currency = _normalize_currency(user.currency)
     return {
-        "monthly_alert_amount": user.monthly_alert_amount,
+        "monthly_alert_amount": currency_service.convert_amount(user.monthly_alert_amount or 0.0, "INR", currency) if user.monthly_alert_amount is not None else None,
         "salary_day": user.salary_day,
-        "currency": _normalize_currency(user.currency),
+        "currency": currency,
         "theme": _normalize_theme(user.theme),
         "lock_enabled": user.lock_enabled,
         "biometric_enabled": user.biometric_enabled,
@@ -78,6 +80,7 @@ def get_settings(request: Request, user: models.User = Depends(get_current_user)
 def update_settings(payload: SettingsUpdate, request: Request, db: Session = Depends(get_db), user: models.User = Depends(get_current_user)):
     data = payload.dict(exclude_unset=True)
     original_username = user.username
+    next_currency = _normalize_currency(data.get("currency", user.currency))
 
     username = data.pop("username", None)
     old_password = data.pop("old_password", None)
@@ -90,6 +93,8 @@ def update_settings(payload: SettingsUpdate, request: Request, db: Session = Dep
             value = _normalize_theme(value)
         if field == "currency":
             value = _normalize_currency(value)
+        if field == "monthly_alert_amount" and value is not None:
+            value = currency_service.convert_amount(value, next_currency, "INR")
         setattr(user, field, value)
 
     if username is not None:
@@ -104,6 +109,8 @@ def update_settings(payload: SettingsUpdate, request: Request, db: Session = Dep
             request.session["username"] = next_username
 
     if new_password is not None:
+        if (user.username or "").lower() == "guest":
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Guest account password cannot be changed")
         if not old_password:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Old password is required to change password")
         if not verify_password(old_password, user.password_hash):

@@ -16,6 +16,7 @@ from app.database import crud, models
 from app.auth.auth import get_current_user
 from app.ai import parser as ai_parser
 from app.services import finance, analytics
+from app.services import currency as currency_service
 
 router = APIRouter()
 
@@ -42,7 +43,7 @@ class TransactionUpdateRequest(BaseModel):
     date: DateType | None = None
 
 
-def _serialize_transaction(row, transaction_type: str) -> dict:
+def _serialize_transaction(row, transaction_type: str, currency: str | None) -> dict:
     if transaction_type == "income":
         label = row.source
         display_label = crud.resolve_display_label("income", row.source, row.description)
@@ -52,7 +53,7 @@ def _serialize_transaction(row, transaction_type: str) -> dict:
     return {
         "id": row.id,
         "type": transaction_type,
-        "amount": row.amount,
+        "amount": currency_service.convert_amount(row.amount, "INR", currency),
         "label": label,
         "display_label": display_label,
         "description": row.description,
@@ -67,7 +68,7 @@ def chat(payload: ChatRequest, request: Request, db: Session = Depends(get_db), 
     crud.save_chat_message(db, user.id, "assistant", result["reply"])
 
     response = dict(result)
-    response["balance"] = crud.get_balance(db, user.id)
+    response["balance"] = currency_service.convert_amount(crud.get_balance(db, user.id), "INR", user.currency)
     response["currency"] = user.currency or "INR"
     if result.get("intent") in ("transaction", "correction"):
         response["suggestion"] = analytics.get_smart_suggestion(db, user)
@@ -77,10 +78,10 @@ def chat(payload: ChatRequest, request: Request, db: Session = Depends(get_db), 
 @router.post("/chat/confirm-correction")
 def confirm_correction(payload: ConfirmCorrectionRequest, request: Request, db: Session = Depends(get_db), user: models.User = Depends(get_current_user)):
     result = finance.confirm_correction(
-        db, user.id, payload.transaction_id, payload.transaction_type, payload.new_amount
+        db, user.id, payload.transaction_id, payload.transaction_type, payload.new_amount, currency=user.currency
     )
     crud.save_chat_message(db, user.id, "assistant", result["reply"])
-    result["balance"] = crud.get_balance(db, user.id)
+    result["balance"] = currency_service.convert_amount(crud.get_balance(db, user.id), "INR", user.currency)
     result["currency"] = user.currency or "INR"
     result["suggestion"] = analytics.get_smart_suggestion(db, user)
     return result
@@ -104,12 +105,16 @@ def confirm_delete(payload: ConfirmDeleteRequest, request: Request, db: Session 
     ).delete(synchronize_session=False)
     db.commit()
 
+    balance = crud.get_balance(db, user.id)
     reply = f"Deleted {crud.resolve_display_label(payload.transaction_type, row.source if payload.transaction_type == 'income' else row.category, row.description)}."
+    reply += f"\nUpdated balance: {finance._fmt_money(user.currency, balance)}"
+    if balance <= 0:
+        reply += f"\nYour balance hit {finance._fmt_money(user.currency, 0)}."
     crud.save_chat_message(db, user.id, "assistant", reply)
     result = {
         "ok": True,
         "reply": reply,
-        "balance": crud.get_balance(db, user.id),
+        "balance": balance,
         "currency": user.currency or "INR",
         "suggestion": analytics.get_smart_suggestion(db, user),
     }
@@ -146,7 +151,7 @@ def timeline(request: Request, db: Session = Depends(get_db), user: models.User 
         {
             "id": t["id"],
             "type": t["type"],
-            "amount": t["amount"],
+            "amount": currency_service.convert_amount(t["amount"], "INR", user.currency),
             "label": t["label"],
             "display_label": t.get("display_label") or t["label"],
             "description": t["description"],
@@ -169,7 +174,7 @@ def update_transaction(
     if transaction_type == "income":
         fields = {}
         if "amount" in data:
-            fields["amount"] = data["amount"]
+            fields["amount"] = currency_service.convert_amount(data["amount"], user.currency, "INR")
         if "category_or_source" in data:
             next_source = data["category_or_source"].strip()
             if not next_source:
@@ -183,7 +188,7 @@ def update_transaction(
     elif transaction_type == "expense":
         fields = {}
         if "amount" in data:
-            fields["amount"] = data["amount"]
+            fields["amount"] = currency_service.convert_amount(data["amount"], user.currency, "INR")
         if "category_or_source" in data:
             next_category = data["category_or_source"].strip()
             if not next_category:
@@ -200,7 +205,7 @@ def update_transaction(
     if not row:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Transaction not found")
 
-    return {"ok": True, "transaction": _serialize_transaction(row, transaction_type)}
+    return {"ok": True, "transaction": _serialize_transaction(row, transaction_type, user.currency)}
 
 
 @router.delete("/transactions/{transaction_type}/{transaction_id}")

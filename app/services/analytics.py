@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 from app.ai import response as ai_response
 from app.ai.llm import LLMUnavailableError
 from app.database import crud
+from app.services import currency as currency_service
 
 
 def _currency_symbol(code: str | None) -> str:
@@ -35,17 +36,19 @@ def get_dashboard_data(db: Session, user) -> dict:
     month_summary = crud.get_month_summary(db, user.id, today.year, today.month)
     timeline = crud.get_timeline(db, user.id, limit=10)
     currency = user.currency or "INR"
+    currency_symbol = _currency_symbol(currency)
     return {
-        "balance": balance,
-        "income": month_summary["income"],
-        "expense": month_summary["expense"],
-        "saved": month_summary["saved"],
+        "balance": currency_service.convert_amount(balance, "INR", currency),
+        "income": currency_service.convert_amount(month_summary["income"], "INR", currency),
+        "expense": currency_service.convert_amount(month_summary["expense"], "INR", currency),
+        "saved": currency_service.convert_amount(month_summary["saved"], "INR", currency),
         "currency": currency,
+        "currency_symbol": currency_symbol,
         "suggestion": get_smart_suggestion(db, user),
         "recent_timeline": [
             {
                 "type": t["type"],
-                "amount": t["amount"],
+                "amount": currency_service.convert_amount(t["amount"], "INR", currency),
                 "label": t["label"],
                 "display_label": t.get("display_label") or t["label"],
                 "date": str(t["date"]),
@@ -66,10 +69,11 @@ def get_smart_suggestion(db: Session, user) -> str:
     balance = crud.get_balance(db, user.id)
     currency = user.currency or "INR"
 
-    alert_amount = user.monthly_alert_amount or 1000.0
-    if balance < alert_amount:
+    alert_amount = currency_service.convert_amount(user.monthly_alert_amount or 1000.0, "INR", currency)
+    converted_balance = currency_service.convert_amount(balance, "INR", currency)
+    if converted_balance < alert_amount:
         return (
-            f"Your balance is {_format_amount(currency, balance)} - below your "
+            f"Your balance is {_format_amount(currency, converted_balance)} - below your "
             f"{_format_amount(currency, alert_amount)} alert threshold. Might be worth holding off on non-essentials."
         )
 
@@ -78,12 +82,20 @@ def get_smart_suggestion(db: Session, user) -> str:
         top_amount = breakdown[top_cat]
         if summary["income"] > 0 and top_amount > 0.3 * summary["income"]:
             pct = round((top_amount / summary["income"]) * 100)
-            return f"{top_cat} spending is {_format_amount(currency, top_amount)} this month - {pct}% of your income so far."
+            return f"{top_cat} spending is {_format_amount(currency, currency_service.convert_amount(top_amount, 'INR', currency))} this month - {pct}% of your income so far."
 
     context = {
-        "balance": balance,
-        "this_month": summary,
-        "category_breakdown": breakdown,
+        "balance": currency_service.convert_amount(balance, "INR", currency),
+        "this_month": {
+            "income": currency_service.convert_amount(summary["income"], "INR", currency),
+            "expense": currency_service.convert_amount(summary["expense"], "INR", currency),
+            "saved": currency_service.convert_amount(summary["saved"], "INR", currency),
+        },
+        "category_breakdown": {
+            key: currency_service.convert_amount(value, "INR", currency) for key, value in breakdown.items()
+        },
+        "currency": currency,
+        "currency_symbol": _currency_symbol(currency),
     }
     try:
         return ai_response.generate_suggestion(context)

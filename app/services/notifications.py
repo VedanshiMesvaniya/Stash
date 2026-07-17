@@ -8,11 +8,13 @@ to the multi-user signature so it doesn't silently break if wired in later.
 
 from sqlalchemy.orm import Session
 from app.database import crud
+from app.services import currency as currency_service
 
 
 def check_low_balance_alert(db: Session, user) -> str | None:
-    threshold = user.monthly_alert_amount or 1000.0
-    balance = crud.get_balance(db, user.id)
+    currency = user.currency or "INR"
+    threshold = currency_service.convert_amount(user.monthly_alert_amount or 1000.0, "INR", currency)
+    balance = currency_service.convert_amount(crud.get_balance(db, user.id), "INR", currency)
     if balance < threshold:
-        return f"Balance is below Rs. {threshold:,.2f} (currently Rs. {balance:,.2f}). Avoid unnecessary spending."
+        return f"Balance is below {currency_service.format_amount(user.monthly_alert_amount or 1000.0, currency)} (currently {currency_service.format_amount(crud.get_balance(db, user.id), currency)}). Avoid unnecessary spending."
     return None

@@ -9,12 +9,14 @@ from sqlalchemy import extract
 from datetime import date
 import calendar
 from app.database import crud, models
+from app.services import currency as currency_service
 
 
 def get_full_report(db: Session, user, year: int, month: int) -> dict:
     summary = crud.get_month_summary(db, user.id, year, month)
     breakdown = crud.get_category_breakdown(db, user.id, year, month)
     largest = crud.get_largest_expense(db, user.id, year, month)
+    currency = user.currency or "INR"
 
     # Daily trend: sum of expenses per day of month
     days_in_month = calendar.monthrange(year, month)[1]
@@ -29,12 +31,14 @@ def get_full_report(db: Session, user, year: int, month: int) -> dict:
 
     return {
         "year": year, "month": month, "month_name": calendar.month_name[month],
-        "income": summary["income"], "expense": summary["expense"], "saved": summary["saved"],
-        "currency": user.currency or "INR",
-        "category_breakdown": breakdown,  # for pie + bar chart
-        "daily_trend": daily,  # for line chart
+        "income": currency_service.convert_amount(summary["income"], "INR", currency),
+        "expense": currency_service.convert_amount(summary["expense"], "INR", currency),
+        "saved": currency_service.convert_amount(summary["saved"], "INR", currency),
+        "currency": currency,
+        "category_breakdown": {k: currency_service.convert_amount(v, "INR", currency) for k, v in breakdown.items()},
+        "daily_trend": {k: currency_service.convert_amount(v, "INR", currency) for k, v in daily.items()},
         "largest_expense": (
-            {"category": largest.category, "amount": largest.amount, "date": str(largest.date)}
+            {"category": largest.category, "amount": currency_service.convert_amount(largest.amount, "INR", currency), "date": str(largest.date)}
             if largest else None
         ),
         "most_used_category": max(breakdown, key=breakdown.get) if breakdown else None,

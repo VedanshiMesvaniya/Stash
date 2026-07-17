@@ -84,7 +84,13 @@ async def _retry_pending_entries_loop():
                 try:
                     transactions = extractor.extract_transactions(entry.raw_message)
                     if transactions:
-                        finance_service.create_transactions(db, entry.user_id, transactions)
+                        user = crud.get_user(db, entry.user_id)
+                        finance_service.create_transactions(
+                            db,
+                            entry.user_id,
+                            transactions,
+                            currency=user.currency if user else "INR",
+                        )
                     crud.mark_pending_processed(db, entry.id)
                 except LLMUnavailableError as e:
                     crud.mark_pending_attempt_failed(db, entry.id, str(e))

@@ -12,6 +12,7 @@ import calendar
 from sqlalchemy.orm import Session
 
 from app.database import models, crud
+from app.services import currency as currency_service
 
 
 @dataclass
@@ -48,19 +49,20 @@ def _completion_percent(row: models.RecurringTransaction) -> float:
     return min(100.0, (row.cycles_completed / row.total_cycles) * 100.0)
 
 
-def _serialize_schedule(row: models.RecurringTransaction) -> dict:
+def _serialize_schedule(row: models.RecurringTransaction, currency: str | None = None) -> dict:
     current_progress = _current_cycle_progress(row)
     completion = _completion_percent(row)
     progress_percent = completion if row.total_cycles else current_progress
     status = "active" if row.active else "disabled"
     if row.total_cycles and row.cycles_completed >= row.total_cycles:
         status = "completed"
+    active_currency = currency or "INR"
     return {
         "id": row.id,
         "name": row.name,
         "category_or_source": row.category_or_source,
         "transaction_type": row.transaction_type,
-        "amount": row.amount,
+        "amount": currency_service.convert_amount(row.amount, "INR", active_currency),
         "description": row.description,
         "cadence": row.cadence,
         "start_date": str(row.start_date),
@@ -77,10 +79,12 @@ def _serialize_schedule(row: models.RecurringTransaction) -> dict:
 
 
 def list_recurring(db: Session, user_id: int) -> list[dict]:
+    user = crud.get_user(db, user_id)
+    currency = user.currency if user else "INR"
     rows = db.query(models.RecurringTransaction).filter(
         models.RecurringTransaction.user_id == user_id
     ).order_by(models.RecurringTransaction.created_at.desc()).all()
-    return [_serialize_schedule(row) for row in rows]
+    return [_serialize_schedule(row, currency) for row in rows]
 
 
 def create_recurring(
@@ -96,12 +100,14 @@ def create_recurring(
     interval_months: int = 1,
     total_cycles: int | None = None,
 ):
+    user = crud.get_user(db, user_id)
+    currency = user.currency if user else "INR"
     row = models.RecurringTransaction(
         user_id=user_id,
         name=name,
         category_or_source=category_or_source,
         transaction_type=transaction_type,
-        amount=amount,
+        amount=currency_service.convert_amount(amount, currency, "INR"),
         description=description,
         cadence="monthly" if interval_months == 1 else "custom",
         start_date=start_date,
@@ -114,7 +120,7 @@ def create_recurring(
     db.add(row)
     db.commit()
     db.refresh(row)
-    return _serialize_schedule(row)
+    return _serialize_schedule(row, currency)
 
 
 def _get_owned(db: Session, user_id: int, recurring_id: int):
@@ -125,18 +131,22 @@ def _get_owned(db: Session, user_id: int, recurring_id: int):
 
 
 def update_recurring(db: Session, user_id: int, recurring_id: int, **fields):
+    user = crud.get_user(db, user_id)
+    currency = user.currency if user else "INR"
     row = _get_owned(db, user_id, recurring_id)
     if not row:
         return None
     for key, value in fields.items():
         if value is None:
             continue
+        if key == "amount":
+            value = currency_service.convert_amount(value, currency, "INR")
         setattr(row, key, value)
     if "start_date" in fields and fields["start_date"]:
         row.next_due_date = fields["start_date"]
     db.commit()
     db.refresh(row)
-    return _serialize_schedule(row)
+    return _serialize_schedule(row, currency)
 
 
 def disable_recurring(db: Session, user_id: int, recurring_id: int):

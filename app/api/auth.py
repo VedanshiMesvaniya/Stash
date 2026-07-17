@@ -15,6 +15,7 @@ from app.auth import auth as auth_logic
 from app.auth.password import verify_password, hash_password
 from app.auth.session import login_session, logout_session, is_authenticated, current_user_id
 from app.database import crud
+from app.services import currency as currency_service
 
 router = APIRouter()
 
@@ -61,7 +62,11 @@ def session_state(request: Request, db: Session = Depends(get_db)):
             "lock_enabled": user.lock_enabled if user else False,
             "biometric_enabled": user.biometric_enabled if user else False,
             "has_lock_pin": bool(user.lock_pin_hash) if user else False,
-            "monthly_alert_amount": user.monthly_alert_amount if user else None,
+            "monthly_alert_amount": (
+                currency_service.convert_amount(user.monthly_alert_amount, "INR", user.currency)
+                if user and user.monthly_alert_amount is not None
+                else None
+            ),
             "salary_day": user.salary_day if user else None,
         } if user else None,
     }

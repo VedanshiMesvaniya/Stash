@@ -91,6 +91,8 @@ def handle_message(message: str, db: Session, user_id: int) -> dict:
     """
     from app.services import finance  # local import to avoid circular import
 
+    user = crud.get_user(db, user_id)
+    currency = user.currency if user else "INR"
     recent_chat = _recent_chat_memory(db, user_id, message)
 
     try:
@@ -110,11 +112,11 @@ def handle_message(message: str, db: Session, user_id: int) -> dict:
                 "reply": _clarify_amount(message),
                 "data": None, "needs_confirmation": False, "candidates": None,
             }
-        created = finance.create_transactions(db, user_id, transactions)
+        created = finance.create_transactions(db, user_id, transactions, currency=currency)
         balance = finance.crud.get_balance(db, user_id)
         return {
             "intent": "transaction",
-            "reply": finance.format_transaction_reply(created, balance=balance),
+            "reply": finance.format_transaction_reply(created, balance=balance, currency=currency),
             "data": created,
             "needs_confirmation": False,
             "candidates": None,
@@ -132,7 +134,7 @@ def handle_message(message: str, db: Session, user_id: int) -> dict:
                 "reply": "I couldn't tell what to correct - try something like 'petrol was actually 600'.",
                 "data": None, "needs_confirmation": False, "candidates": None,
             }
-        result = finance.apply_correction(db, user_id, correction)
+        result = finance.apply_correction(db, user_id, correction, currency=currency)
         return result
 
     if intent == "delete":
@@ -147,11 +149,11 @@ def handle_message(message: str, db: Session, user_id: int) -> dict:
                 "reply": "I couldn't tell which entry to delete - try something like 'delete yesterday's tea entry'.",
                 "data": None, "needs_confirmation": False, "candidates": None,
             }
-        result = finance.apply_delete(db, user_id, delete_request)
+        result = finance.apply_delete(db, user_id, delete_request, currency=currency)
         return result
 
     if intent == "question":
-        context = finance.build_qa_context(db, user_id, message)
+        context = finance.build_qa_context(db, user_id, message, currency=currency)
         try:
             answer = response.answer_question(message, context)
         except LLMUnavailableError:
@@ -162,7 +164,7 @@ def handle_message(message: str, db: Session, user_id: int) -> dict:
         }
 
     if intent == "report":
-        report = finance.build_report(db, user_id, message)
+        report = finance.build_report(db, user_id, message, currency=currency)
         return {
             "intent": "report", "reply": report["summary_text"], "data": report,
             "needs_confirmation": False, "candidates": None,
