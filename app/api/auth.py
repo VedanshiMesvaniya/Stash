@@ -77,7 +77,10 @@ def api_login(payload: LoginPayload, request: Request, db: Session = Depends(get
 
 
 @router.post("/api/auth/logout")
-def api_logout(request: Request):
+def api_logout(request: Request, db: Session = Depends(get_db)):
+    user = crud.get_user(db, current_user_id(request)) if is_authenticated(request) else None
+    if user and (user.username or "").lower() == "guest":
+        crud.purge_user_data(db, user.id)
     logout_session(request)
     return {"ok": True}
 

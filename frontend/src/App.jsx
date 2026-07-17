@@ -20,6 +20,12 @@ const AUTH_ROUTES = new Set(['/login']);
 const LOGO_SRC = '/static/icons/mark.png';
 const DASHBOARD_CACHE_KEY = 'stash_dashboard_cache';
 const RECURRING_CACHE_KEY = 'stash_recurring_cache';
+const STASH_STORAGE_KEYS = [
+  'stash_dashboard_cache',
+  'stash_recurring_cache',
+  'stash_session_cache',
+  'stash_theme',
+];
 
 const emptySession = {
   authenticated: false,
@@ -68,6 +74,14 @@ function writeJsonCache(key, value) {
     localStorage.setItem(key, JSON.stringify(value));
   } catch {
     // Ignore storage errors and keep rendering the live data.
+  }
+}
+
+function clearStashStorage() {
+  try {
+    STASH_STORAGE_KEYS.forEach((key) => localStorage.removeItem(key));
+  } catch {
+    // Ignore storage cleanup errors.
   }
 }
 
@@ -257,6 +271,7 @@ function App() {
 
   const logout = async () => {
     await apiFetch('/api/auth/logout', { method: 'POST', body: JSON.stringify({}) });
+    clearStashStorage();
     navigateTo('/login', true);
     await reloadSession();
   };
@@ -909,12 +924,20 @@ function Bubble({ message, role }) {
 function TimelinePage({ session }) {
   const [rows, setRows] = useState([]);
   const [error, setError] = useState('');
+  const [editingKey, setEditingKey] = useState('');
+  const [editForm, setEditForm] = useState(null);
+  const [busyKey, setBusyKey] = useState('');
+
+  const loadRows = async () => {
+    return apiFetch('/api/timeline', { method: 'GET', headers: {} });
+  };
 
   useEffect(() => {
     let alive = true;
-    apiFetch('/api/timeline', { method: 'GET', headers: {} })
+    loadRows()
       .then((data) => {
-        if (alive) setRows(data);
+        if (!alive) return;
+        setRows(data);
       })
       .catch((err) => {
         if (err.status === 401) {
@@ -927,6 +950,73 @@ function TimelinePage({ session }) {
       alive = false;
     };
   }, []);
+
+  const startEdit = (item) => {
+    const key = `${item.type}-${item.id}`;
+    setEditingKey(key);
+    setEditForm({
+      amount: String(item.amount ?? ''),
+      category_or_source: item.label || '',
+      description: item.description || '',
+      date: toDateInput(item.date),
+    });
+  };
+
+  const cancelEdit = () => {
+    setEditingKey('');
+    setEditForm(null);
+  };
+
+  const saveEdit = async (item) => {
+    if (!editForm) return;
+    const key = `${item.type}-${item.id}`;
+    setBusyKey(key);
+    setError('');
+    try {
+      await apiFetch(`/api/transactions/${item.type}/${item.id}`, {
+        method: 'PUT',
+        body: JSON.stringify({
+          amount: Number(editForm.amount),
+          category_or_source: editForm.category_or_source,
+          description: editForm.description || null,
+          date: editForm.date,
+        }),
+      });
+      cancelEdit();
+      setRows(await loadRows());
+    } catch (err) {
+      if (err.status === 401) {
+        navigate('/login', true);
+        return;
+      }
+      setError(err.message);
+    } finally {
+      setBusyKey('');
+    }
+  };
+
+  const deleteEntry = async (item) => {
+    const key = `${item.type}-${item.id}`;
+    if (!window.confirm(`Delete this ${item.type} entry?`)) return;
+    setBusyKey(key);
+    setError('');
+    try {
+      await apiFetch(`/api/transactions/${item.type}/${item.id}`, {
+        method: 'DELETE',
+        body: JSON.stringify({}),
+      });
+      if (editingKey === key) cancelEdit();
+      setRows(await loadRows());
+    } catch (err) {
+      if (err.status === 401) {
+        navigate('/login', true);
+        return;
+      }
+      setError(err.message);
+    } finally {
+      setBusyKey('');
+    }
+  };
 
   const groups = useMemo(() => {
     const byLabel = {};
@@ -948,9 +1038,96 @@ function TimelinePage({ session }) {
             <div key={label} className="stack">
               <div className="timeline-heading">{label}</div>
               <div className="stack">
-                {items.map((item) => (
-                  <TimelineItem key={`${item.id}-${item.date}`} item={item} currency={session.settings?.currency || 'INR'} />
-                ))}
+                {items.map((item) => {
+                  const key = `${item.type}-${item.id}`;
+                  const editing = editingKey === key;
+                  return (
+                    <TimelineItem
+                      key={`${item.id}-${item.date}`}
+                      item={item}
+                      currency={session.settings?.currency || 'INR'}
+                      actions={editing ? (
+                        <>
+                          <button
+                            className="btn btn-primary btn-inline"
+                            type="button"
+                            onClick={() => saveEdit(item)}
+                            disabled={busyKey === key || !editForm}
+                          >
+                            Save
+                          </button>
+                          <button
+                            className="btn btn-ghost btn-inline"
+                            type="button"
+                            onClick={cancelEdit}
+                            disabled={busyKey === key}
+                          >
+                            Cancel
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <button
+                            className="btn btn-ghost btn-inline"
+                            type="button"
+                            onClick={() => startEdit(item)}
+                            disabled={busyKey === key}
+                          >
+                            Edit
+                          </button>
+                          <button
+                            className="btn btn-danger btn-inline"
+                            type="button"
+                            onClick={() => deleteEntry(item)}
+                            disabled={busyKey === key}
+                          >
+                            Delete
+                          </button>
+                        </>
+                      )}
+                    >
+                      {editing ? (
+                        <div className="transaction-editor-grid">
+                          <label className="field">
+                            <span>Amount</span>
+                            <input
+                              className="input"
+                              type="number"
+                              value={editForm?.amount ?? ''}
+                              onChange={(event) => setEditForm((prev) => ({ ...prev, amount: event.target.value }))}
+                            />
+                          </label>
+                          <label className="field">
+                            <span>{item.type === 'income' ? 'Source' : 'Category'}</span>
+                            <input
+                              className="input"
+                              value={editForm?.category_or_source ?? ''}
+                              onChange={(event) => setEditForm((prev) => ({ ...prev, category_or_source: event.target.value }))}
+                            />
+                          </label>
+                          <label className="field">
+                            <span>Date</span>
+                            <input
+                              className="input"
+                              type="date"
+                              value={editForm?.date ?? ''}
+                              onChange={(event) => setEditForm((prev) => ({ ...prev, date: event.target.value }))}
+                            />
+                          </label>
+                          <label className="field wide">
+                            <span>Description</span>
+                            <input
+                              className="input"
+                              value={editForm?.description ?? ''}
+                              onChange={(event) => setEditForm((prev) => ({ ...prev, description: event.target.value }))}
+                              placeholder="Optional note"
+                            />
+                          </label>
+                        </div>
+                      ) : null}
+                    </TimelineItem>
+                  );
+                })}
               </div>
             </div>
           ))

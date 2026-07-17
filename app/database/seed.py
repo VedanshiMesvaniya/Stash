@@ -1,27 +1,16 @@
-"""
-seed.py
-Seeds default categories AND the 5 static family accounts. Safe to run
-multiple times (checks for existing rows before inserting).
+"""Seed default categories plus login accounts.
 
->>> TO CHANGE USERNAMES/PASSWORDS: edit FAMILY_ACCOUNTS below, then restart
-the app once. Existing users are left alone (this only creates missing
-ones) - so if you change a password here after the account already exists,
-it will NOT update the live password. Use scripts/reset_password.py for that.
-
-These are intentionally simple, easy-to-type passwords since this is a
-private family app, not a bank. Still: don't leave this file in a PUBLIC
-GitHub repo with real passwords in it - keep the repo private, or move
-these into environment variables before deploying if you're worried.
-
-If you change a live password through the app or the CLI reset tool, the
-helper below can rewrite the matching FAMILY_ACCOUNTS entry so this file
-stays in sync for tracking.
+Public demo credentials stay in this file so the shared demo can be used
+without extra setup. Personal accounts belong in the gitignored
+`private_accounts.py` file next to this module.
 """
 
+import importlib.util
 import json
-import re
 from pathlib import Path
+
 from sqlalchemy.orm import Session
+
 from app.auth.password import hash_password
 from . import models
 
@@ -34,40 +23,89 @@ DEFAULT_INCOME_CATEGORIES = [
     "Salary", "Freelance", "Gift", "Refund", "Other",
 ]
 
-# username, password, display_name - edit freely.
-FAMILY_ACCOUNTS = [
-    ("vedu",   "vedu@2026",   "Vedu"),
-    ("mummy",  "mummy@2026",  "Mummy"),
-    ("papa",   "papa@2026",   "Papa"),
-    ("family1", "family1@2026", "Family Member 1"),
-    ("family2", "family2@2026", "Family Member 2"),
+# username, password, display_name - public demo account only.
+PUBLIC_ACCOUNTS = [
+    ("guest", "12345", "Guest Demo"),
 ]
+
+PRIVATE_ACCOUNTS_FILE = Path(__file__).with_name("private_accounts.py")
+
+
+def _load_private_accounts() -> list[tuple[str, str, str]]:
+    if not PRIVATE_ACCOUNTS_FILE.exists():
+        return []
+
+    spec = importlib.util.spec_from_file_location("app.database.private_accounts", PRIVATE_ACCOUNTS_FILE)
+    if not spec or not spec.loader:
+        return []
+
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    accounts = getattr(module, "PRIVATE_ACCOUNTS", [])
+    normalized = []
+    for entry in accounts:
+        if isinstance(entry, (list, tuple)) and len(entry) == 3:
+            normalized.append((str(entry[0]), str(entry[1]), str(entry[2])))
+    return normalized
+
+
+def _write_private_accounts(rows: list[tuple[str, str, str]]) -> None:
+    PRIVATE_ACCOUNTS_FILE.parent.mkdir(parents=True, exist_ok=True)
+    content = ["PRIVATE_ACCOUNTS = [\n"]
+    for username, password, display_name in rows:
+        content.append(f"    ({json.dumps(username)}, {json.dumps(password)}, {json.dumps(display_name)}),\n")
+    content.append("]\n")
+    PRIVATE_ACCOUNTS_FILE.write_text("".join(content), encoding="utf-8")
+
+
+def upsert_private_account(username: str, password: str, display_name: str) -> bool:
+    rows = _load_private_accounts()
+    normalized_username = username.strip()
+    if not normalized_username:
+        return False
+    updated = False
+    for index, row in enumerate(rows):
+        if row[0].lower() == normalized_username.lower():
+            rows[index] = (normalized_username, password, display_name)
+            updated = True
+            break
+    if not updated:
+        rows.append((normalized_username, password, display_name))
+    _write_private_accounts(rows)
+    return True
+
+
+def delete_private_account(username: str) -> bool:
+    if not PRIVATE_ACCOUNTS_FILE.exists():
+        return False
+    rows = _load_private_accounts()
+    filtered = [row for row in rows if row[0].lower() != username.strip().lower()]
+    if len(filtered) == len(rows):
+        return False
+    _write_private_accounts(filtered)
+    return True
 
 
 def update_family_account_password(username: str, new_password: str, new_username: str | None = None) -> bool:
-    """Rewrite the matching FAMILY_ACCOUNTS row in this source file.
+    """Keep the gitignored private account list in sync with a password change."""
+    rows = _load_private_accounts()
+    if not rows:
+        return False
 
-    This keeps the seed list aligned with a live password change so the
-    account detail remains visible in one place for later review.
-    """
-    seed_path = Path(__file__).resolve()
-    lines = seed_path.read_text(encoding="utf-8").splitlines(keepends=True)
-    pattern = re.compile(
-        r'^(?P<indent>\s*)\("(?P<username>(?:\\.|[^"])*)",\s*"(?P<password>(?:\\.|[^"])*)",\s*"(?P<display_name>(?:\\.|[^"])*)"\),?(?P<suffix>\s*)$'
-    )
-
-    for index, line in enumerate(lines):
-        match = pattern.match(line.rstrip("\n"))
-        if not match or match.group("username") != username:
+    normalized_username = username.strip().lower()
+    updated = False
+    for index, row in enumerate(rows):
+        if row[0].lower() != normalized_username:
             continue
-        indent = match.group("indent")
-        next_username = new_username or match.group("username")
-        display_name = match.group("display_name")
-        lines[index] = f'{indent}({json.dumps(next_username)}, {json.dumps(new_password)}, {json.dumps(display_name)}),\n'
-        seed_path.write_text("".join(lines), encoding="utf-8")
-        return True
+        rows[index] = (new_username or row[0], new_password, row[2])
+        updated = True
+        break
 
-    return False
+    if not updated:
+        return False
+
+    _write_private_accounts(rows)
+    return True
 
 
 def seed_categories(db: Session):
@@ -89,7 +127,7 @@ def seed_categories(db: Session):
 def seed_users(db: Session):
     existing_usernames = {u.username for u in db.query(models.User).all()}
     new_rows = []
-    for username, password, display_name in FAMILY_ACCOUNTS:
+    for username, password, display_name in [*PUBLIC_ACCOUNTS, *_load_private_accounts()]:
         if username in existing_usernames:
             continue
         new_rows.append(

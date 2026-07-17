@@ -1,87 +1,171 @@
-# Stash — AI Personal Wallet (multi-user, cloud edition)
+# Stash
 
-A FastAPI + React finance tracker you talk to in plain language ("Salary 35000",
-"Tea 20", "petrol was actually 600") instead of filling out forms.
+Stash is a FastAPI + React personal wallet for tracking income, expenses, recurring transactions, reports, and AI-assisted transaction logging.
 
-> This is the multi-user, cloud-LLM version of Stash. It replaced the original
-> single-user, local-Ollama build. See `DEPLOY.md` for the full list of what
-> changed and why, plus step-by-step deployment instructions.
+Live demo: https://stash-azsp.onrender.com
 
-## Stack
+## What it does
 
-- **Backend**: FastAPI, SQLAlchemy, Postgres (Neon) in production / SQLite locally
-- **AI**: Groq (`llama-3.3-70b-versatile`) primary, OpenRouter
-  (`meta-llama/llama-3.3-70b-instruct:free`) fallback — no local model, no GPU needed
-- **Frontend**: React + Vite, built into `app/static/react/` and served by FastAPI
-- **Auth**: username + password per person, sessions via signed cookies. No self-signup —
-  accounts are pre-created in `app/database/seed.py`.
+- AI chat logging for income and expense entries
+- Dashboard with balance, monthly totals, and smart suggestions
+- Timeline view with edit and delete controls for every entry
+- Recurring transactions with auto-posting
+- Monthly reports with category charts and daily trend data
+- CSV, Excel, and PDF exports
+- Backup and restore endpoints
+- User settings for currency, theme, alert amount, and salary day
+- Signed-cookie sessions for logged-in users
+- Multi-user isolation by `user_id` on every transaction table
 
-## Quick start (local dev)
+## Demo login
+
+Use this account to test the deployed demo:
+
+- Username: `guest`
+- Password: `12345`
+
+After login, the browser stores the authenticated session in a signed cookie named `stash_session`. The password is not stored in the browser.
+
+## Private users
+
+Personal or family accounts belong in:
+
+- `app/database/private_accounts.py`
+
+That file is gitignored on purpose so you can keep your own usernames and passwords out of the repo.
+
+## Fresh clone setup
+
+1. Clone the repo.
+2. Create a virtual environment and install backend dependencies.
+3. Copy `.env.example` to `.env`.
+4. Fill in the environment values listed below.
+5. Run `npm install` and `npm run build`.
+6. Start the backend with `uvicorn app.main:app --reload`.
+
+## Environment
+
+```bash
+SECRET_KEY=...
+DATABASE_URL=
+GROQ_API_KEY=
+GROQ_MODEL=llama-3.3-70b-versatile
+OPENROUTER_API_KEY=
+OPENROUTER_MODEL=meta-llama/llama-3.3-70b-instruct:free
+ENVIRONMENT=development
+PENDING_RETRY_INTERVAL_SECONDS=300
+APP_PUBLIC_URL=http://127.0.0.1:8000
+```
+
+What each variable does:
+
+- `SECRET_KEY` is required. The app will not start without it because it signs the login cookie.
+- `DATABASE_URL` is optional locally. Leave it blank to use SQLite in `data/finance.db`. Set it to your Neon/Postgres URL in production.
+- `GROQ_API_KEY` and `OPENROUTER_API_KEY` enable AI parsing. If both are empty, messages go into the retry queue and can be processed later.
+- `GROQ_MODEL` and `OPENROUTER_MODEL` control the model names used by the backend.
+- `ENVIRONMENT=production` enables HTTPS-only cookies.
+- `PENDING_RETRY_INTERVAL_SECONDS` controls how often the background retry loop runs.
+- `APP_PUBLIC_URL` is used in outbound headers and can stay at the local default during development.
+
+Local setup command sequence:
 
 ```bash
 python -m venv venv
-venv\Scripts\activate        # or: source venv/bin/activate on Mac/Linux
+venv\Scripts\activate
 pip install -r requirements.txt
 
-cp .env.example .env
-# edit .env: set SECRET_KEY, GROQ_API_KEY, OPENROUTER_API_KEY
-# leave DATABASE_URL blank to use local SQLite
+copy .env.example .env
+# fill in SECRET_KEY first, then any LLM keys and DATABASE_URL if needed
 
 npm install
-npm run build                # builds React into app/static/react/
+npm run build
 
 uvicorn app.main:app --reload
 ```
 
-Open http://127.0.0.1:8000/login and sign in with one of the accounts defined in
-`app/database/seed.py` (`FAMILY_ACCOUNTS` list — edit usernames/passwords there
-before your first run).
+Open `http://127.0.0.1:8000/login` and sign in with the demo account or one of your private accounts.
 
-On Windows, `start.bat` does all of the above in one double-click (after you've
-copied `.env.example` to `.env` and filled in the keys once).
+## Feature list
 
-## Deploying for real (Render + Neon, both free)
+### Authentication
 
-See `DEPLOY.md` — covers environment variables, the Neon/Groq/OpenRouter signup
-steps, the Render build/start commands, and the known limits of free-tier hosting
-(cold starts, rate limits) stated plainly.
+- Username + password login
+- Signed-cookie session handling
+- No self-signup flow
+- Password changes require the current password
+
+### Transactions
+
+- Add income and expense entries through chat
+- Correct an existing entry through chat
+- Edit any transaction from the timeline
+- Delete any transaction from the timeline
+- Transaction history is always filtered by the logged-in user
+
+### Reports and analytics
+
+- Monthly income, expense, and savings summary
+- Category breakdown charts
+- Daily trend chart
+- Largest expense highlight
+- Smart dashboard suggestion
+
+### Recurring and sync
+
+- Recurring income and expense rules
+- Auto-posting when a recurring date becomes due
+- Offline queue reconciliation
+- Pending-entry retry loop when the LLM is unavailable
+
+### Export and backup
+
+- CSV export
+- Excel export
+- PDF export
+- Backup creation
+- Backup restore
+
+### UI
+
+- Dark and light themes
+- Responsive desktop and mobile layout
+- Timeline, reports, chat, and settings pages
 
 ## Project layout
 
-```
+```text
 app/
-  main.py              FastAPI app, session middleware, background pending-retry job
-  ai/
-    llm.py              Groq + OpenRouter client with automatic fallback
-    extractor.py         Turns a chat message into structured transaction(s)
-    intent_detector.py   Classifies chat intent (transaction/correction/question/report/chat)
-    parser.py            Orchestrates the above; queues to pending_entries if both LLMs are down
-    prompts.py            All system prompts in one place
-    response.py           Q&A answers + dashboard suggestions
-  api/                 FastAPI routers (auth, finance/chat, recurring, reports, settings)
-  auth/                Login, session, password hashing (no backdoor, no self-signup)
-  database/
-    models.py            User, Income, Expense, Category, ChatMessage,
-                          RecurringTransaction/Posting, PendingEntry
-    crud.py              All DB reads/writes, every query scoped by user_id
-    seed.py              Seeds default categories + the 5 family accounts
-    migrations.py         Lightweight in-place schema upgrader (no Alembic)
-  services/            Business logic: finance, recurring, reports, analytics, export, backup, sync
-scripts/
-  reset_password.py    CLI-only password reset (replaces the old network backdoor)
+  main.py              FastAPI entry point
+  ai/                  LLM, parsing, extraction, and response helpers
+  api/                 Auth, finance, recurring, reports, and settings routes
+  auth/                Password hashing and session helpers
+  database/            Models, CRUD, seed loader, and local private accounts
+  services/            Business logic for finance, recurring, reports, sync, backup, export
 frontend/
-  src/App.jsx           The whole React app (single file, by design - see comments inline)
+  src/                 React app and styles
+scripts/
+  reset_password.py    CLI password reset helper
+  manage_users.py      CLI add/delete/list helper for users
 ```
 
-## A few things worth knowing
+## Architecture 
 
-- **No balance is ever stored.** It's always `SUM(income) - SUM(expense)`, computed at
-  query time, so it can't drift out of sync with the actual transaction history.
-- **Categories/sources are validated against a fixed list** by the LLM extraction prompt,
-  with keyword-based fallback matching scoped to each individual transaction (not the
-  whole chat message) to avoid one transaction's category bleeding into another's.
-- **If both Groq and OpenRouter are down or rate-limited**, your message isn't lost — it's
-  saved to a `pending_entries` table and a background job retries it every 5 minutes
-  (configurable via `PENDING_RETRY_INTERVAL_SECONDS`).
-- **Correction messages** ("petrol was actually 600") search recent transactions and, if
-  more than one could match, ask you to pick rather than silently guessing.
+See project architecture in `ARCHITECTURE.md` for understand how project works
+
+## User management
+
+Use the console helper to manage users on your own machine:
+
+```bash
+python -m scripts.manage_users list
+python -m scripts.manage_users add alice MyStrongPassword "Alice"
+python -m scripts.manage_users delete alice
+```
+
+- `add` creates the DB user and updates `app/database/private_accounts.py` if it exists.
+- `delete` removes the DB user and deletes all of that user's transactions, chats, recurring rules, pending items, and private account entry.
+- If you only need a password reset for an existing user, use `python -m scripts.reset_password <username> <new_password>`.
+
+## Deployment
+
+See `DEPLOY.md` for environment variables, build steps, and Render/Neon deployment notes.

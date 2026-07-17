@@ -267,6 +267,7 @@ h1, h2, h3, p { margin: 0; }
 .btn-ghost:hover { color: var(--on-surface); background: var(--surface-container-high); }
 .btn-danger { background: transparent; border-color: color-mix(in srgb, var(--error) 45%, transparent); color: var(--error); }
 .btn-danger:hover { background: color-mix(in srgb, var(--error) 12%, transparent); }
+.btn-inline { padding: 7px 10px; font-size: 12px; }
 
 /* =========================================================================
    Cards / grid / metrics
@@ -540,9 +541,11 @@ h1, h2, h3, p { margin: 0; }
 .timeline-stack { display: flex; flex-direction: column; gap: var(--space-sm); }
 .timeline-heading { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--on-surface-variant); margin: var(--space-sm) 0 4px; }
 
+.transaction-stack { display: flex; flex-direction: column; gap: 8px; }
+
 .transaction {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   gap: var(--space-sm);
   padding: 14px 16px;
@@ -550,10 +553,19 @@ h1, h2, h3, p { margin: 0; }
   background: var(--surface-container);
   border: 1px solid var(--outline-soft);
 }
+.transaction-right { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; }
+.transaction-actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
 .transaction-title { font-weight: 600; font-size: 14px; color: var(--on-surface); }
 .transaction-sub { font-size: 12.5px; color: var(--on-surface-variant); margin-top: 3px; }
 .amount-up { color: var(--success); font-weight: 700; font-family: var(--font-mono); font-size: 14px; }
 .amount-down { color: var(--error); font-weight: 700; font-family: var(--font-mono); font-size: 14px; }
+.transaction-editor {
+  padding: 14px 16px;
+  border-radius: var(--radius-md);
+  background: var(--surface-container-low);
+  border: 1px solid var(--outline-soft);
+}
+.transaction-editor-grid { display: grid; gap: var(--space-sm); grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
 
 .recurring-list { grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
 .recurring-card { padding: var(--space-sm) var(--space-md); display: flex; flex-direction: column; gap: 10px; border-radius: var(--radius-lg); background: var(--surface-container); border: 1px solid var(--outline-soft); }

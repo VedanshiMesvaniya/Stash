@@ -5,7 +5,9 @@ timeline data endpoints, plus the correction-confirmation endpoint.
 All scoped to the logged-in user via get_current_user.
 """
 
-from fastapi import APIRouter, Depends, Request
+from datetime import date as DateType
+
+from fastapi import APIRouter, Depends, Request, HTTPException, status
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 
@@ -26,6 +28,31 @@ class ConfirmCorrectionRequest(BaseModel):
     transaction_id: int
     transaction_type: str  # "income" | "expense"
     new_amount: float
+
+
+class TransactionUpdateRequest(BaseModel):
+    amount: float | None = None
+    category_or_source: str | None = None
+    description: str | None = None
+    date: DateType | None = None
+
+
+def _serialize_transaction(row, transaction_type: str) -> dict:
+    if transaction_type == "income":
+        label = row.source
+        display_label = crud.resolve_display_label("income", row.source, row.description)
+    else:
+        label = row.category
+        display_label = crud.resolve_display_label("expense", row.category, row.description)
+    return {
+        "id": row.id,
+        "type": transaction_type,
+        "amount": row.amount,
+        "label": label,
+        "display_label": display_label,
+        "description": row.description,
+        "date": str(row.date),
+    }
 
 
 @router.post("/chat")
@@ -92,3 +119,76 @@ def timeline(request: Request, db: Session = Depends(get_db), user: models.User 
         }
         for t in rows
     ]
+
+
+@router.put("/transactions/{transaction_type}/{transaction_id}")
+def update_transaction(
+    transaction_type: str,
+    transaction_id: int,
+    payload: TransactionUpdateRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+    user: models.User = Depends(get_current_user),
+):
+    data = payload.model_dump(exclude_unset=True)
+    if transaction_type == "income":
+        fields = {}
+        if "amount" in data:
+            fields["amount"] = data["amount"]
+        if "category_or_source" in data:
+            next_source = data["category_or_source"].strip()
+            if not next_source:
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Source cannot be empty")
+            fields["source"] = next_source
+        if "description" in data:
+            fields["description"] = data["description"]
+        if "date" in data:
+            fields["date"] = data["date"]
+        row = crud.update_income(db, user.id, transaction_id, **fields)
+    elif transaction_type == "expense":
+        fields = {}
+        if "amount" in data:
+            fields["amount"] = data["amount"]
+        if "category_or_source" in data:
+            next_category = data["category_or_source"].strip()
+            if not next_category:
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Category cannot be empty")
+            fields["category"] = next_category
+        if "description" in data:
+            fields["description"] = data["description"]
+        if "date" in data:
+            fields["date"] = data["date"]
+        row = crud.update_expense(db, user.id, transaction_id, **fields)
+    else:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid transaction type")
+
+    if not row:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Transaction not found")
+
+    return {"ok": True, "transaction": _serialize_transaction(row, transaction_type)}
+
+
+@router.delete("/transactions/{transaction_type}/{transaction_id}")
+def delete_transaction(
+    transaction_type: str,
+    transaction_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+    user: models.User = Depends(get_current_user),
+):
+    if transaction_type == "income":
+        row = crud.delete_income(db, user.id, transaction_id)
+    elif transaction_type == "expense":
+        row = crud.delete_expense(db, user.id, transaction_id)
+    else:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid transaction type")
+
+    if not row:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Transaction not found")
+
+    db.query(models.RecurringPosting).filter(
+        models.RecurringPosting.transaction_type == transaction_type,
+        models.RecurringPosting.transaction_id == transaction_id,
+    ).delete(synchronize_session=False)
+    db.commit()
+    return {"ok": True}

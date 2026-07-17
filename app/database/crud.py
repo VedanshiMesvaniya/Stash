@@ -99,6 +99,15 @@ def update_income(db: Session, user_id: int, income_id: int, **fields):
     return row
 
 
+def delete_income(db: Session, user_id: int, income_id: int):
+    row = get_income(db, user_id, income_id)
+    if not row:
+        return None
+    db.delete(row)
+    db.commit()
+    return row
+
+
 # ---------- Expense ----------
 
 def create_expense(db: Session, user_id: int, amount: float, category: str, description: str, txn_date: date):
@@ -136,6 +145,40 @@ def update_expense(db: Session, user_id: int, expense_id: int, **fields):
     db.commit()
     db.refresh(row)
     return row
+
+
+def delete_expense(db: Session, user_id: int, expense_id: int):
+    row = get_expense(db, user_id, expense_id)
+    if not row:
+        return None
+    db.delete(row)
+    db.commit()
+    return row
+
+
+def purge_user_data(db: Session, user_id: int):
+    recurring_ids = [
+        row.id for row in db.query(models.RecurringTransaction.id).filter(models.RecurringTransaction.user_id == user_id).all()
+    ]
+    if recurring_ids:
+        db.query(models.RecurringPosting).filter(
+            models.RecurringPosting.recurring_id.in_(recurring_ids)
+        ).delete(synchronize_session=False)
+    db.query(models.ChatMessage).filter(models.ChatMessage.user_id == user_id).delete(synchronize_session=False)
+    db.query(models.PendingEntry).filter(models.PendingEntry.user_id == user_id).delete(synchronize_session=False)
+    db.query(models.Income).filter(models.Income.user_id == user_id).delete(synchronize_session=False)
+    db.query(models.Expense).filter(models.Expense.user_id == user_id).delete(synchronize_session=False)
+    db.query(models.RecurringTransaction).filter(models.RecurringTransaction.user_id == user_id).delete(synchronize_session=False)
+    user = get_user(db, user_id)
+    if user:
+        user.monthly_alert_amount = 1000.0
+        user.salary_day = 1
+        user.currency = "INR"
+        user.theme = "obsidian"
+        user.lock_enabled = False
+        user.lock_pin_hash = None
+        user.biometric_enabled = False
+    db.commit()
 
 
 # ---------- Queries used for disambiguation & timeline ----------
