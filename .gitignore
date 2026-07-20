@@ -28,3 +28,7 @@ frontend/node_modules/
 # OS/editor cruft
 .DS_Store
 .vscode/
+
+#startup
+start.bat
+stash.zip 
