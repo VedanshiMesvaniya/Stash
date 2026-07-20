@@ -136,7 +136,7 @@ def seed_users(db: Session):
                 password_hash=hash_password(password),
                 display_name=display_name,
                 currency="INR",
-                theme="obsidian",
+                theme="mist",
                 monthly_alert_amount=1000.0,
                 salary_day=1,
             )

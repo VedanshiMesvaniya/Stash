@@ -31,7 +31,7 @@ const emptySession = {
   authenticated: false,
   first_run: false,
   settings: {
-    theme: 'obsidian',
+    theme: 'mist',
     currency: 'INR',
   },
 };
@@ -131,11 +131,11 @@ function useSession() {
 }
 
 function useTheme(session) {
-  const initial = localStorage.getItem('stash_theme') || session?.settings?.theme || 'obsidian';
+  const initial = localStorage.getItem('stash_theme') || session?.settings?.theme || 'mist';
   const [theme, setTheme] = useState(normalizeTheme(initial));
 
   useEffect(() => {
-    const nextTheme = session?.settings?.theme || localStorage.getItem('stash_theme') || 'obsidian';
+    const nextTheme = session?.settings?.theme || localStorage.getItem('stash_theme') || 'mist';
     setTheme(normalizeTheme(nextTheme));
   }, [session?.settings?.theme]);
 
@@ -150,7 +150,7 @@ function useTheme(session) {
 const LIGHT_THEME_ALIASES = new Set(['light', 'mist', 'lavender']);
 
 function normalizeTheme(value) {
-  if (!value) return 'obsidian';
+  if (!value) return 'mist';
   return LIGHT_THEME_ALIASES.has(value) ? 'mist' : 'obsidian';
 }
 
@@ -1282,7 +1282,7 @@ function SettingsPage({ session, theme, onThemeChange, onSessionSync, onTouchDat
     monthly_alert_amount: '',
     salary_day: '',
     currency: 'INR',
-    theme: theme || 'obsidian',
+    theme: theme || 'mist',
   });
   const [account, setAccount] = useState({
     username: session.username || '',
@@ -1316,7 +1316,7 @@ function SettingsPage({ session, theme, onThemeChange, onSessionSync, onTouchDat
         ...prev,
         ...settingsData,
         currency: (settingsData.currency || prev.currency || 'INR').toUpperCase(),
-        theme: normalizeTheme(settingsData.theme || theme || 'obsidian'),
+        theme: normalizeTheme(settingsData.theme || theme || 'mist'),
       }));
       setRecurringRows(recurringData);
     } catch (err) {

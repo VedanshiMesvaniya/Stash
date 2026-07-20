@@ -190,7 +190,7 @@ def purge_user_data(db: Session, user_id: int):
         user.monthly_alert_amount = 1000.0
         user.salary_day = 1
         user.currency = "INR"
-        user.theme = "obsidian"
+        user.theme = "mist"
         user.lock_enabled = False
         user.lock_pin_hash = None
         user.biometric_enabled = False

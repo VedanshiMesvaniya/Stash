@@ -22,7 +22,7 @@ router = APIRouter()
 
 def _normalize_theme(theme: str | None) -> str:
     if not theme:
-        return "obsidian"
+        return "mist"
     if theme == "dark":
         return "obsidian"
     if theme == "light":
@@ -57,7 +57,7 @@ def session_state(request: Request, db: Session = Depends(get_db)):
         "username": user.username if user else None,
         "display_name": user.display_name if user else None,
         "settings": {
-            "theme": _normalize_theme(user.theme if user else "obsidian"),
+            "theme": _normalize_theme(user.theme if user else "mist"),
             "currency": user.currency if user else "INR",
             "lock_enabled": user.lock_enabled if user else False,
             "biometric_enabled": user.biometric_enabled if user else False,

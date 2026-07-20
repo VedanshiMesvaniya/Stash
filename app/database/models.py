@@ -31,7 +31,7 @@ class User(Base):
     monthly_alert_amount = Column(Float, nullable=True, default=1000.0)
     salary_day = Column(Integer, nullable=True, default=1)
     currency = Column(String, default="INR")
-    theme = Column(String, default="obsidian")
+    theme = Column(String, default="mist")
     lock_enabled = Column(Boolean, nullable=False, default=False)
     lock_pin_hash = Column(String, nullable=True)
     biometric_enabled = Column(Boolean, nullable=False, default=False)
