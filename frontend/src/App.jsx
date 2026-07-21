@@ -718,7 +718,10 @@ function ChatPage({ session, onNavigate, onTouchData, refreshToken }) {
       });
       setMessages((prev) => {
         const next = [...prev];
-        next[next.length - 1] = { role: 'assistant', content: reply.reply };
+        const reportEntries = reply.intent === 'report' && reply.data?.category_breakdown
+          ? Object.entries(reply.data.category_breakdown).sort((a, b) => b[1] - a[1])
+          : null;
+        next[next.length - 1] = { role: 'assistant', content: reply.reply, reportEntries };
         return next;
       });
       if (reply.needs_confirmation && reply.candidates) {
@@ -797,7 +800,7 @@ function ChatPage({ session, onNavigate, onTouchData, refreshToken }) {
               return null;
             }
             return (
-              <Bubble key={`${index}-${message.role}-${message.content.slice(0, 10)}`} role={message.role} onCandidate={handleCandidateConfirm} message={message} candidatePayload={candidatePayload} />
+              <Bubble key={`${index}-${message.role}-${message.content.slice(0, 10)}`} role={message.role} onCandidate={handleCandidateConfirm} message={message} candidatePayload={candidatePayload} currency={session.settings?.currency || 'INR'} />
             );
           })}
           {candidatePayload ? (
@@ -937,7 +940,25 @@ function BubbleContent({ content }) {
   return <>{nodes}</>;
 }
 
-function Bubble({ message, role }) {
+function ReportTable({ entries, currency }) {
+  return (
+    <table className="bubble-table">
+      <thead>
+        <tr><th>Category</th><th>Amount</th></tr>
+      </thead>
+      <tbody>
+        {entries.map(([label, value]) => (
+          <tr key={label}>
+            <td>{label}</td>
+            <td>{money(value, currency)}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
+function Bubble({ message, role, currency }) {
   if (message.content === '__TYPING__') {
     return (
       <div className={`bubble-row ${role}`}>
@@ -951,6 +972,14 @@ function Bubble({ message, role }) {
     <div className={`bubble-row ${role}`}>
       <div className={`bubble ${role}`}>
         <BubbleContent content={message.content} />
+        {message.reportEntries && message.reportEntries.length ? (
+          <div className="bubble-report">
+            <ReportTable entries={message.reportEntries} currency={currency || 'INR'} />
+            <div className="bubble-chart">
+              <BarViz entries={message.reportEntries} />
+            </div>
+          </div>
+        ) : null}
       </div>
     </div>
   );
