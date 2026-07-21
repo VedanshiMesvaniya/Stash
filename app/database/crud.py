@@ -78,12 +78,13 @@ def get_user_by_username(db: Session, username: str):
 
 # ---------- Income ----------
 
-def create_income(db: Session, user_id: int, amount: float, source: str, description: str, txn_date: date):
+def create_income(db: Session, user_id: int, amount: float, source: str, description: str, txn_date: date, payment_method: str | None = None):
     row = models.Income(
         user_id=user_id,
         amount=amount,
         source=source or "Other",
         description=description,
+        payment_method=payment_method,
         date=txn_date,
         month=txn_date.month,
         year=txn_date.year,
@@ -126,12 +127,13 @@ def delete_income(db: Session, user_id: int, income_id: int):
 
 # ---------- Expense ----------
 
-def create_expense(db: Session, user_id: int, amount: float, category: str, description: str, txn_date: date):
+def create_expense(db: Session, user_id: int, amount: float, category: str, description: str, txn_date: date, payment_method: str | None = None):
     row = models.Expense(
         user_id=user_id,
         amount=amount,
         category=category or "Other",
         description=description,
+        payment_method=payment_method,
         date=txn_date,
         month=txn_date.month,
         year=txn_date.year,

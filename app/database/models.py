@@ -46,6 +46,11 @@ class Income(Base):
     amount = Column(Float, nullable=False)
     source = Column(String, nullable=False, default="Other")
     description = Column(String, nullable=True)
+    # "cash" | "online" | None (unknown/not mentioned). Nullable on purpose -
+    # most historical rows and many chat messages never say how the money
+    # moved, and guessing a wallet with no signal at all is worse than
+    # leaving it blank.
+    payment_method = Column(String, nullable=True)
     date = Column(Date, nullable=False)
     month = Column(Integer, nullable=False)  # 1-12, denormalized for fast report queries
     year = Column(Integer, nullable=False)
@@ -60,6 +65,8 @@ class Expense(Base):
     amount = Column(Float, nullable=False)
     category = Column(String, nullable=False, default="Other")
     description = Column(String, nullable=True)
+    # "cash" | "online" | None - see Income.payment_method for rationale.
+    payment_method = Column(String, nullable=True)
     date = Column(Date, nullable=False)
     month = Column(Integer, nullable=False)
     year = Column(Integer, nullable=False)

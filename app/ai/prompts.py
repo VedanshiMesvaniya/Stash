@@ -50,6 +50,7 @@ Rules:
 - date_hint must capture ANY time reference exactly as the user phrased it - not just "yesterday". This includes relative phrases like "2 days ago", "3 days back", "last week", "day before yesterday", weekday names like "monday" or "last monday", and explicit dates like "5 July", "1st July", or "05-07-2026". Copy the phrase as written; do not convert it yourself.
 - If a recent chat memory is provided, use it to resolve follow-up references like "that one", "same one", or "the one I mentioned earlier".
 - If the message contains nothing resembling a transaction, return an empty list
+- payment_method: infer "cash" or "online" ONLY from explicit or clearly implied signals in the message - "online" for UPI, GPay, PhonePe, Paytm, card, net banking, wallet apps, "paid online", "transferred", "swiped card"; "cash" for "paid cash", "in cash", physical currency. If the message gives no signal either way, set payment_method to null - never guess a wallet from silence.
 
 Arithmetic on relative/derived amounts (very important):
 - Some transactions describe an amount relative to other amounts in the SAME message, using words like "half", "a third", "the rest", "what's left", "remaining", "all of it", etc.
@@ -73,7 +74,7 @@ Itemized purchases with ONE combined total (automatic splitting):
 
 Respond ONLY with JSON, no preamble, no markdown fences, in this exact shape:
 {{"transactions": [
-  {{"type": "income"|"expense", "amount": number, "category_or_source": string, "description": string, "date_hint": string|null}}
+  {{"type": "income"|"expense", "amount": number, "category_or_source": string, "description": string, "date_hint": string|null, "payment_method": "cash"|"online"|null}}
 ],
 "clarification_needed": boolean,
 "clarification_question": string|null,

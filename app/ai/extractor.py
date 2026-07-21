@@ -39,18 +39,36 @@ from .prompts import (
 WEEKDAYS = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
 
 EXPENSE_CATEGORY_HINTS = {
-    "Tea": ("tea", "coffee", "chai"),
+    "Tea": ("tea", "coffee", "chai", "cafe coffee day", "ccd", "starbucks", "chaayos"),
     "Snacks": ("snack", "snacks"),
-    "Food": ("food", "meal", "eating", "restaurant", "canteen", "tiffin", "lunch", "dinner", "breakfast"),
-    "Groceries": ("grocery", "groceries", "vegetable", "vegetables", "fruit", "fruits", "milk", "bread", "rice", "eggs"),
+    "Food": (
+        "food", "meal", "eating", "restaurant", "canteen", "tiffin", "lunch", "dinner", "breakfast",
+        # merchant semantic matching (#17) - same "Food" category regardless
+        # of which delivery/restaurant brand is actually named.
+        "swiggy", "zomato", "dominos", "domino's", "pizza hut", "mcdonald", "kfc", "burger king", "subway",
+    ),
+    "Groceries": (
+        "grocery", "groceries", "vegetable", "vegetables", "fruit", "fruits", "milk", "bread", "rice", "eggs",
+        "bigbasket", "big basket", "blinkit", "zepto", "instamart", "grofers", "dmart", "d-mart", "jiomart",
+    ),
     "Petrol": ("petrol", "fuel", "gas", "diesel"),
-    "Shopping": ("shopping", "amazon", "flipkart", "myntra", "order", "purchase", "clothes", "shirt", "pants", "shoes"),
-    "Bills": ("bill", "bills", "electricity", "power", "water", "internet", "wifi", "rent", "subscription", "mobile recharge", "recharge"),
-    "Travel": ("travel", "cab", "taxi", "uber", "ola", "bus", "train", "metro", "flight", "ticket"),
-    "Entertainment": ("movie", "movies", "cinema", "game", "games", "concert", "party", "fun"),
-    "Medical": ("medical", "doctor", "medicine", "pharmacy", "hospital", "clinic", "checkup", "treatment"),
-    "Education": ("education", "school", "college", "tuition", "fee", "course", "books", "exam"),
-    "Investment": ("investment", "invest", "sip", "stocks", "shares", "mutual fund", "fd", "gold", "crypto"),
+    "Shopping": (
+        "shopping", "amazon", "flipkart", "myntra", "order", "purchase", "clothes", "shirt", "pants", "shoes",
+        "ajio", "nykaa", "meesho",
+    ),
+    "Bills": (
+        "bill", "bills", "electricity", "power", "water", "internet", "wifi", "rent", "subscription",
+        "mobile recharge", "recharge",
+        "netflix", "spotify", "prime video", "amazon prime", "hotstar", "disney+", "airtel", "jio", "vodafone",
+    ),
+    "Travel": (
+        "travel", "cab", "taxi", "uber", "ola", "bus", "train", "metro", "flight", "ticket",
+        "rapido", "irctc", "indigo", "makemytrip", "goibibo",
+    ),
+    "Entertainment": ("movie", "movies", "cinema", "game", "games", "concert", "party", "fun", "bookmyshow", "pvr", "inox"),
+    "Medical": ("medical", "doctor", "medicine", "pharmacy", "hospital", "clinic", "checkup", "treatment", "pharmeasy", "1mg", "apollo pharmacy", "netmeds"),
+    "Education": ("education", "school", "college", "tuition", "fee", "course", "books", "exam", "byju", "udemy", "coursera"),
+    "Investment": ("investment", "invest", "sip", "stocks", "shares", "mutual fund", "fd", "gold", "crypto", "zerodha", "groww", "upstox"),
 }
 
 INCOME_CATEGORY_HINTS = {
@@ -232,12 +250,17 @@ def extract_transactions(message: str, recent_chat: str | None = None) -> dict:
             description,
         )
 
+        payment_method = t.get("payment_method")
+        if payment_method not in ("cash", "online"):
+            payment_method = None
+
         results.append({
             "type": txn_type,
             "amount": amount,
             "category_or_source": cat,
             "description": description,
             "date": resolve_date_hint(t.get("date_hint")),
+            "payment_method": payment_method,
         })
 
     clarification_needed = bool(parsed.get("clarification_needed", False))

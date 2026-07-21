@@ -79,6 +79,7 @@ def create_transactions(db: Session, user_id: int, transactions: list[dict], cur
     created = []
     for t in transactions:
         base_amount = _to_base(t["amount"], currency)
+        payment_method = t.get("payment_method")
         if t["type"] == "income":
             row = crud.create_income(
                 db,
@@ -87,6 +88,7 @@ def create_transactions(db: Session, user_id: int, transactions: list[dict], cur
                 source=t["category_or_source"],
                 description=t["description"],
                 txn_date=t["date"],
+                payment_method=payment_method,
             )
             created.append(
                 {
@@ -96,6 +98,7 @@ def create_transactions(db: Session, user_id: int, transactions: list[dict], cur
                     "label": row.source,
                     "display_label": _display_label("income", row.source, row.description),
                     "date": str(row.date),
+                    "payment_method": row.payment_method,
                 }
             )
         else:
@@ -106,6 +109,7 @@ def create_transactions(db: Session, user_id: int, transactions: list[dict], cur
                 category=t["category_or_source"],
                 description=t["description"],
                 txn_date=t["date"],
+                payment_method=payment_method,
             )
             created.append(
                 {
@@ -115,6 +119,7 @@ def create_transactions(db: Session, user_id: int, transactions: list[dict], cur
                     "label": row.category,
                     "display_label": _display_label("expense", row.category, row.description),
                     "date": str(row.date),
+                    "payment_method": row.payment_method,
                 }
             )
     return created
