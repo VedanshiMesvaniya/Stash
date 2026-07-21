@@ -408,3 +408,24 @@ def recall_merchant_category(db: Session, user_id: int, transaction_type: str, k
         return None
     best = max(rows, key=lambda r: r.hit_count)
     return best.category_or_source
+
+
+# --- Duplicate detection on the chat-creation path (feature #24) ---
+# The offline sync path (services/sync.py) already dedupes; this covers
+# the far more common path (typing straight into chat), which had no
+# such check at all.
+
+def find_possible_duplicate(db: Session, user_id: int, transaction_type: str, category_or_source: str, amount: float, txn_date):
+    if transaction_type == "income":
+        return db.query(models.Income).filter(
+            models.Income.user_id == user_id,
+            models.Income.source == category_or_source,
+            models.Income.amount == amount,
+            models.Income.date == txn_date,
+        ).first()
+    return db.query(models.Expense).filter(
+        models.Expense.user_id == user_id,
+        models.Expense.category == category_or_source,
+        models.Expense.amount == amount,
+        models.Expense.date == txn_date,
+    ).first()

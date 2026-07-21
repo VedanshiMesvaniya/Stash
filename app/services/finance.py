@@ -105,6 +105,9 @@ def _candidate_rows(
     ]
 
 
+_RECURRING_HINT_WORDS = ("salary", "rent", "emi", "subscription", "insurance", "premium")
+
+
 def create_transactions(db: Session, user_id: int, transactions: list[dict], currency: str | None = None) -> list[dict]:
     created = []
     for t in transactions:
@@ -116,6 +119,13 @@ def create_transactions(db: Session, user_id: int, transactions: list[dict], cur
             learned = crud.recall_merchant_category(db, user_id, t["type"], keywords)
             if learned:
                 category_or_source = learned
+
+        # Duplicate detection (#24) - flag, don't block. Two teas in one day
+        # can be perfectly real, so we still log it - just let the user
+        # know it looks like a repeat in case it wasn't intentional.
+        is_duplicate = crud.find_possible_duplicate(
+            db, user_id, t["type"], category_or_source, base_amount, t["date"]
+        ) is not None
 
         if t["type"] == "income":
             row = crud.create_income(
@@ -136,6 +146,7 @@ def create_transactions(db: Session, user_id: int, transactions: list[dict], cur
                     "display_label": _display_label("income", row.source, row.description),
                     "date": str(row.date),
                     "payment_method": row.payment_method,
+                    "is_duplicate": is_duplicate,
                 }
             )
         else:
@@ -157,11 +168,22 @@ def create_transactions(db: Session, user_id: int, transactions: list[dict], cur
                     "display_label": _display_label("expense", row.category, row.description),
                     "date": str(row.date),
                     "payment_method": row.payment_method,
+                    "is_duplicate": is_duplicate,
                 }
             )
         if keywords:
             for kw in keywords:
                 crud.remember_merchant_category(db, user_id, t["type"], kw, category_or_source)
+
+        # Recurring-pattern detection (#23) - a lightweight nudge only.
+        # This deliberately does NOT auto-create a schedule - it just flags
+        # that one might make sense, since silently committing the user to
+        # a recurring entry they never asked for would be presumptuous.
+        text_blob = f"{t['description']} {category_or_source}".lower()
+        looks_recurring = any(w in text_blob for w in _RECURRING_HINT_WORDS)
+        created[-1]["recurring_suggested"] = bool(
+            looks_recurring and not recurring_service.has_active_schedule_for(db, user_id, t["type"], category_or_source)
+        )
     return created
 
 
@@ -174,6 +196,7 @@ def format_transaction_reply(created: list[dict], balance: float | None = None, 
             reply += f"\nUpdated balance: {_fmt_money(currency, balance)}"
             if balance <= 0:
                 reply += f"\nYour balance hit {_fmt_money(currency, 0)}."
+        reply += _notes_suffix(created)
         return reply
 
     lines = ["Got it, logged these:"]
@@ -184,7 +207,25 @@ def format_transaction_reply(created: list[dict], balance: float | None = None, 
         lines.append(f"Updated balance: {_fmt_money(currency, balance)}")
         if balance <= 0:
             lines.append(f"Your balance hit {_fmt_money(currency, 0)}.")
-    return "\n".join(lines)
+    return "\n".join(lines) + _notes_suffix(created)
+
+
+def _notes_suffix(created: list[dict]) -> str:
+    """Appends the soft, non-blocking heads-ups for #23 (recurring nudge)
+    and #24 (duplicate flag) - kept separate from the main reply body so
+    both callers (single/multi format) share one implementation."""
+    notes = []
+    duplicates = [t for t in created if t.get("is_duplicate")]
+    if duplicates:
+        labels = ", ".join(t.get("display_label") or t["label"] for t in duplicates)
+        notes.append(f"Heads up - this looks like a repeat of an entry you already have today ({labels}). Logged it anyway in case it's real.")
+    recurring = [t for t in created if t.get("recurring_suggested")]
+    if recurring:
+        labels = ", ".join(t.get("display_label") or t["label"] for t in recurring)
+        notes.append(f"This looks like it might repeat regularly ({labels}) - want me to set it up as a recurring entry so it logs automatically?")
+    if not notes:
+        return ""
+    return "\n\n" + "\n".join(notes)
 
 
 def apply_correction(db: Session, user_id: int, correction: dict, currency: str | None = None) -> dict:
