@@ -395,11 +395,14 @@ def build_qa_context(db: Session, user_id: int, question: str, currency: str | N
     converted_breakdown = {
         key: _from_base(value, active_currency) for key, value in category_breakdown.items()
     }
+    wallet_balances_raw = crud.get_wallet_balances(db, user_id)
+    wallet_balances = {key: _from_base(value, active_currency) for key, value in wallet_balances_raw.items()}
 
     return {
         "currency": active_currency,
         "currency_symbol": currency_service.currency_symbol(active_currency),
         "current_balance": _from_base(balance, active_currency),
+        "wallet_balances": wallet_balances,
         "this_month": {
             "income": _from_base(this_month["income"], active_currency),
             "expense": _from_base(this_month["expense"], active_currency),

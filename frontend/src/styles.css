@@ -533,6 +533,23 @@ h1, h2, h3, p { margin: 0; }
 .composer-textarea:focus { border: none; box-shadow: none; }
 .composer .btn-primary { border-radius: var(--radius-full); width: 42px; height: 42px; padding: 0; flex-shrink: 0; }
 
+.composer-wallet-toggle { display: flex; gap: 6px; flex-shrink: 0; align-self: center; }
+.btn-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 12px;
+  border-radius: var(--radius-full);
+  font-size: 0.8rem;
+  line-height: 1;
+}
+.btn-pill .material-symbols-rounded { font-size: 16px; }
+.btn-pill.active { background: var(--secondary); color: var(--on-secondary, #fff); border-color: transparent; }
+@media (max-width: 640px) {
+  .composer-wallet-toggle { position: absolute; top: -40px; left: 10px; }
+  .btn-pill span:not(.material-symbols-rounded) { display: none; }
+}
+
 .empty-state { text-align: center; color: var(--on-surface-variant); font-size: 14px; padding: var(--space-xl) 0; }
 
 /* =========================================================================

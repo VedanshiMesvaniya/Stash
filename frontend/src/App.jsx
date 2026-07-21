@@ -634,6 +634,7 @@ function DashboardPage({ session, onNavigate, refreshToken, onTouchData }) {
 function ChatPage({ session, onNavigate, onTouchData, refreshToken }) {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
+  const [paymentMethod, setPaymentMethod] = useState(null); // 'cash' | 'online' | null (#33)
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -713,7 +714,7 @@ function ChatPage({ session, onNavigate, onTouchData, refreshToken }) {
     try {
       const reply = await apiFetch('/api/chat', {
         method: 'POST',
-        body: JSON.stringify({ message }),
+        body: JSON.stringify({ message, payment_method: paymentMethod }),
       });
       setMessages((prev) => {
         const next = [...prev];
@@ -826,6 +827,28 @@ function ChatPage({ session, onNavigate, onTouchData, refreshToken }) {
             sendMessage();
           }}
         >
+          <div className="composer-wallet-toggle" role="group" aria-label="Payment method">
+            <button
+              type="button"
+              className={`btn btn-ghost btn-pill${paymentMethod === 'cash' ? ' active' : ''}`}
+              aria-pressed={paymentMethod === 'cash'}
+              onClick={() => setPaymentMethod((prev) => (prev === 'cash' ? null : 'cash'))}
+              title="Log this as a cash transaction unless the message says otherwise"
+            >
+              <span className="material-symbols-rounded" aria-hidden="true">payments</span>
+              Cash
+            </button>
+            <button
+              type="button"
+              className={`btn btn-ghost btn-pill${paymentMethod === 'online' ? ' active' : ''}`}
+              aria-pressed={paymentMethod === 'online'}
+              onClick={() => setPaymentMethod((prev) => (prev === 'online' ? null : 'online'))}
+              title="Log this as an online/digital transaction unless the message says otherwise"
+            >
+              <span className="material-symbols-rounded" aria-hidden="true">contactless</span>
+              Online
+            </button>
+          </div>
           <textarea
             ref={textareaRef}
             className="input composer-textarea"

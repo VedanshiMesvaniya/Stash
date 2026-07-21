@@ -263,6 +263,26 @@ def get_balance(db: Session, user_id: int) -> float:
     return round(total_income - total_expense, 2)
 
 
+def get_wallet_balances(db: Session, user_id: int) -> dict:
+    """Running balance split by payment_method (#34 Cash Tracking, #35
+    Online Payment Tracking). "unspecified" covers every transaction
+    logged before this field existed, or where neither the message nor
+    the chat toggle said how the money moved - it's kept visible rather
+    than silently folded into one of the other two, since guessing which
+    wallet an old/ambiguous entry belongs to would misrepresent it."""
+    balances = {"cash": 0.0, "online": 0.0, "unspecified": 0.0}
+    for method in ("cash", "online", None):
+        key = method or "unspecified"
+        income = db.query(func.coalesce(func.sum(models.Income.amount), 0.0)).filter(
+            models.Income.user_id == user_id, models.Income.payment_method == method
+        ).scalar()
+        expense = db.query(func.coalesce(func.sum(models.Expense.amount), 0.0)).filter(
+            models.Expense.user_id == user_id, models.Expense.payment_method == method
+        ).scalar()
+        balances[key] = round(income - expense, 2)
+    return balances
+
+
 def get_month_summary(db: Session, user_id: int, year: int, month: int):
     income = db.query(func.coalesce(func.sum(models.Income.amount), 0.0)).filter(
         models.Income.user_id == user_id,

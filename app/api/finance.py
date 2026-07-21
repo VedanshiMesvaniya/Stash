@@ -23,6 +23,12 @@ router = APIRouter()
 
 class ChatRequest(BaseModel):
     message: str
+    # Explicit selection from the chat composer's Cash/Online toggle (#33).
+    # Only used to FILL IN when the message text itself gives no signal -
+    # if the user typed "paid cash for tea" while the UI toggle says
+    # Online, the explicit words in the message still win (see
+    # ai/parser.py handle_message).
+    payment_method: str | None = None
 
 
 class ConfirmCorrectionRequest(BaseModel):
@@ -64,7 +70,8 @@ def _serialize_transaction(row, transaction_type: str, currency: str | None) -> 
 @router.post("/chat")
 def chat(payload: ChatRequest, request: Request, db: Session = Depends(get_db), user: models.User = Depends(get_current_user)):
     crud.save_chat_message(db, user.id, "user", payload.message)
-    result = ai_parser.handle_message(payload.message, db, user.id)
+    payment_method = payload.payment_method if payload.payment_method in ("cash", "online") else None
+    result = ai_parser.handle_message(payload.message, db, user.id, payment_method_hint=payment_method)
     crud.save_chat_message(db, user.id, "assistant", result["reply"])
 
     response = dict(result)
@@ -142,6 +149,16 @@ def pending_entries(request: Request, db: Session = Depends(get_db), user: model
 @router.get("/dashboard")
 def dashboard(request: Request, db: Session = Depends(get_db), user: models.User = Depends(get_current_user)):
     return analytics.get_dashboard_data(db, user)
+
+
+@router.get("/wallets")
+def wallets(request: Request, db: Session = Depends(get_db), user: models.User = Depends(get_current_user)):
+    """Cash vs. online running balances (#34 Cash Tracking, #35 Online
+    Payment Tracking) - split view of the same underlying ledger the
+    total balance is computed from, converted to the user's display
+    currency same as everywhere else."""
+    raw = crud.get_wallet_balances(db, user.id)
+    return {key: currency_service.convert_amount(value, "INR", user.currency) for key, value in raw.items()}
 
 
 @router.get("/timeline")

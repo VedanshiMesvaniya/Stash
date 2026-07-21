@@ -83,7 +83,7 @@ def _clarify_amount(message: str) -> str:
     return f"How much {subject} should I enter?"
 
 
-def handle_message(message: str, db: Session, user_id: int) -> dict:
+def handle_message(message: str, db: Session, user_id: int, payment_method_hint: str | None = None) -> dict:
     """
     Returns a dict shaped as:
     {
@@ -93,6 +93,13 @@ def handle_message(message: str, db: Session, user_id: int) -> dict:
       "needs_confirmation": bool,  # True if a correction/extraction is ambiguous and needs user pick
       "candidates": list | None,   # disambiguation options if needs_confirmation
     }
+
+    payment_method_hint: explicit Cash/Online selection from the chat
+    composer's toggle (#33-35). Only fills in transactions where the
+    extractor found no textual signal at all - explicit words in the
+    message ("paid cash for tea") always take priority over the toggle,
+    since the toggle is a fallback default, not an override of what the
+    user actually typed.
     """
     from app.services import finance  # local import to avoid circular import
 
@@ -117,6 +124,11 @@ def handle_message(message: str, db: Session, user_id: int) -> dict:
         transactions = extraction.get("transactions", [])
         clarification_needed = extraction.get("clarification_needed", False)
         clarification_question = extraction.get("clarification_question")
+
+        if payment_method_hint:
+            for txn in transactions:
+                if not txn.get("payment_method"):
+                    txn["payment_method"] = payment_method_hint
 
         # Truly nothing extracted and no clarification offered either - only
         # here do we fall back to the generic guesser.
