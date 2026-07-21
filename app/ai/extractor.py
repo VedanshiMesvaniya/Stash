@@ -248,11 +248,49 @@ def extract_transactions(message: str, recent_chat: str | None = None) -> dict:
     if clarification_needed and not clarification_question:
         clarification_needed = False
 
+    _reconcile_split_total(results, parsed.get("split_total"))
+
     return {
         "transactions": results,
         "clarification_needed": clarification_needed,
         "clarification_question": clarification_question,
     }
+
+
+def _reconcile_split_total(results: list[dict], split_total) -> None:
+    """When the model split one stated total across several categorized
+    transactions (feature: automatic itemized-purchase splitting), its
+    per-item arithmetic can be off by a few cents/rupees due to rounding.
+    Rather than trust that silently, snap the split to add up EXACTLY to
+    the total the user actually stated - the largest line absorbs the
+    difference, since a rounding correction is least noticeable there.
+    No-op unless split_total is a positive number and there are at least
+    2 transactions of the same type to split across."""
+    try:
+        total = float(split_total)
+    except (TypeError, ValueError):
+        return
+    if total <= 0 or len(results) < 2:
+        return
+
+    # Only reconcile within a single type - a split is always same-type
+    # (e.g. groceries + medicine), never income mixed with expense.
+    for txn_type in ("expense", "income"):
+        group = [r for r in results if r["type"] == txn_type]
+        if len(group) < 2:
+            continue
+        group_sum = sum(r["amount"] for r in group)
+        # Only treat this as "the" split group if it's plausibly the whole
+        # total (within 50%) - otherwise split_total likely refers to a
+        # different subset of the message and correcting here would be a
+        # bigger guess than the drift it's meant to fix.
+        if group_sum <= 0 or abs(group_sum - total) > total * 0.5:
+            continue
+        diff = round(total - group_sum, 2)
+        if diff == 0:
+            continue
+        largest = max(group, key=lambda r: r["amount"])
+        largest["amount"] = round(largest["amount"] + diff, 2)
 
 
 def extract_correction(message: str, recent_chat: str | None = None) -> dict | None:

@@ -65,12 +65,19 @@ Arithmetic on relative/derived amounts (very important):
 - Do NOT use clarification for things that are simply informal, misspelled, or use slang you can confidently interpret (typos, shorthand, casual phrasing) - only use it for genuine ambiguity where more than one reading is plausible, or where you can't confidently extract a valid amount/type at all.
 - If nothing in the message was ambiguous or confusing, set "clarification_needed" to false and "clarification_question" to null.
 
+Itemized purchases with ONE combined total (automatic splitting):
+- Sometimes the user gives a single total covering several distinct items that belong in different categories, without a per-item price (e.g. "spent 500 at the store on groceries and medicine", "paid 1200 for dinner and a movie").
+- If you can make a reasonable, common-sense estimate of how that total divides across the categories (based on typical relative cost of the items mentioned), split it into multiple transactions - one per category - with your best-estimate amounts. The amounts MUST add up EXACTLY to the stated total (do the arithmetic yourself; adjust for rounding so they sum exactly).
+- When you do this kind of split, set the top-level "split_total" field to that original combined number so the amounts can be double-checked against it. Leave "split_total" null for anything else, including ordinary multi-transaction messages where each item already has its own stated amount (that is NOT a split - that's just multiple transactions, handled by the normal rules above).
+- If the items are too dissimilar in kind for you to estimate a sane split (e.g. no sense of which took more of the money), do NOT guess arbitrarily - instead treat it as ambiguous per the clarification rules above: recap what you understood, then ask how they'd like the total divided.
+
 Respond ONLY with JSON, no preamble, no markdown fences, in this exact shape:
 {{"transactions": [
   {{"type": "income"|"expense", "amount": number, "category_or_source": string, "description": string, "date_hint": string|null}}
 ],
 "clarification_needed": boolean,
-"clarification_question": string|null
+"clarification_question": string|null,
+"split_total": number|null
 }}
 """
 
