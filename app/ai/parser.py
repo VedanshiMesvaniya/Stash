@@ -210,10 +210,10 @@ def handle_message(message: str, db: Session, user_id: int) -> dict:
             "needs_confirmation": False, "candidates": None,
         }
 
-    # chat fallback
+    # chat fallback - greetings, thanks, jokes, "what can you do" (#25, #31, #32)
     return {
         "intent": "chat",
-        "reply": "Hi, I'm Stash - tell me what happened, for example 'Salary received 35000' or 'Tea 20'.",
+        "reply": response.casual_reply(message, recent_chat=recent_chat or None),
         "data": None, "needs_confirmation": False, "candidates": None,
     }
 
