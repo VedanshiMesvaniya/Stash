@@ -30,6 +30,36 @@ def _to_base(amount: float, currency: str | None) -> float:
     return currency_service.convert_amount(amount, currency, currency_service.BASE_CURRENCY)
 
 
+_MEMORY_STOPWORDS = {
+    "today", "yesterday", "tomorrow", "morning", "evening", "night", "spent", "paid",
+    "bought", "purchase", "purchased", "received", "expense", "income", "cash", "online",
+    "rupees", "rupee", "amount", "transaction", "gave", "took", "sent", "transfer",
+    "transferred", "with", "from", "that", "this", "have", "will", "were", "some",
+}
+
+
+def _distinctive_keywords(description: str | None, limit: int = 2) -> list[str]:
+    """Pulls out the 1-2 most distinctive words from a description to use as
+    a personalized-memory key (feature #22) - real words only (len >= 4,
+    alphabetic), skipping common filler so we're not learning against
+    "today" or "paid". Longest words first, since they're usually the
+    actual merchant/item name rather than a generic verb."""
+    if not description:
+        return []
+    import re
+
+    words = re.findall(r"[a-zA-Z]+", description.lower())
+    candidates = [w for w in words if len(w) >= 4 and w not in _MEMORY_STOPWORDS]
+    candidates.sort(key=len, reverse=True)
+    seen: list[str] = []
+    for w in candidates:
+        if w not in seen:
+            seen.append(w)
+        if len(seen) >= limit:
+            break
+    return seen
+
+
 def _from_base(amount: float, currency: str | None) -> float:
     return currency_service.convert_amount(amount, currency_service.BASE_CURRENCY, currency)
 
@@ -80,12 +110,19 @@ def create_transactions(db: Session, user_id: int, transactions: list[dict], cur
     for t in transactions:
         base_amount = _to_base(t["amount"], currency)
         payment_method = t.get("payment_method")
+        category_or_source = t["category_or_source"]
+        keywords = _distinctive_keywords(t["description"])
+        if category_or_source == "Other" and keywords:
+            learned = crud.recall_merchant_category(db, user_id, t["type"], keywords)
+            if learned:
+                category_or_source = learned
+
         if t["type"] == "income":
             row = crud.create_income(
                 db,
                 user_id,
                 amount=base_amount,
-                source=t["category_or_source"],
+                source=category_or_source,
                 description=t["description"],
                 txn_date=t["date"],
                 payment_method=payment_method,
@@ -106,7 +143,7 @@ def create_transactions(db: Session, user_id: int, transactions: list[dict], cur
                 db,
                 user_id,
                 amount=base_amount,
-                category=t["category_or_source"],
+                category=category_or_source,
                 description=t["description"],
                 txn_date=t["date"],
                 payment_method=payment_method,
@@ -122,6 +159,9 @@ def create_transactions(db: Session, user_id: int, transactions: list[dict], cur
                     "payment_method": row.payment_method,
                 }
             )
+        if keywords:
+            for kw in keywords:
+                crud.remember_merchant_category(db, user_id, t["type"], kw, category_or_source)
     return created
 
 

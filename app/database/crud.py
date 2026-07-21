@@ -356,3 +356,55 @@ def mark_pending_attempt_failed(db: Session, entry_id: int, error: str, max_atte
         if row.attempts >= max_attempts:
             row.status = "failed"
         db.commit()
+
+# --- Personalized category learning (feature #22) ---
+# Distinctive-word memory of what a category actually meant for THIS user
+# in the past, used only to resolve future "Other" fallbacks - see
+# models.MerchantMemory for the reasoning.
+
+def remember_merchant_category(db: Session, user_id: int, transaction_type: str, keyword: str, category_or_source: str):
+    keyword = keyword.lower().strip()
+    if not keyword or category_or_source == "Other":
+        return
+    row = db.query(models.MerchantMemory).filter(
+        models.MerchantMemory.user_id == user_id,
+        models.MerchantMemory.transaction_type == transaction_type,
+        models.MerchantMemory.keyword == keyword,
+    ).first()
+    if row:
+        if row.category_or_source == category_or_source:
+            row.hit_count += 1
+        else:
+            # The user's own habit shifted for this word - trust the most
+            # recent mapping rather than averaging two different answers.
+            row.category_or_source = category_or_source
+            row.hit_count = 1
+    else:
+        row = models.MerchantMemory(
+            user_id=user_id,
+            transaction_type=transaction_type,
+            keyword=keyword,
+            category_or_source=category_or_source,
+            hit_count=1,
+        )
+        db.add(row)
+    db.commit()
+
+
+def recall_merchant_category(db: Session, user_id: int, transaction_type: str, keywords: list[str], min_hits: int = 2) -> str | None:
+    """Returns the learned category for the first keyword with enough
+    confirmed history (hit_count >= min_hits), or None. min_hits=2 so a
+    single one-off word never immediately overrides "Other" - it has to
+    have shown up with a consistent category at least twice before."""
+    if not keywords:
+        return None
+    rows = db.query(models.MerchantMemory).filter(
+        models.MerchantMemory.user_id == user_id,
+        models.MerchantMemory.transaction_type == transaction_type,
+        models.MerchantMemory.keyword.in_([k.lower() for k in keywords]),
+        models.MerchantMemory.hit_count >= min_hits,
+    ).all()
+    if not rows:
+        return None
+    best = max(rows, key=lambda r: r.hit_count)
+    return best.category_or_source

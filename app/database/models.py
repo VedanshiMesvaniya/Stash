@@ -144,3 +144,23 @@ class PendingEntry(Base):
     last_error = Column(String, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     processed_at = Column(DateTime(timezone=True), nullable=True)
+
+
+class MerchantMemory(Base):
+    """Learns a user's OWN category habits over time (feature: Personalized
+    Learning). Scoped per-user - what "Ramesh Stores" means to one user
+    says nothing about another user's household. Only ever used to fill
+    in for the "Other" fallback, never to override a category the
+    extractor was actually confident about - this is a tie-breaker for
+    genuine unknowns, not a way to relearn categories the app already
+    gets right."""
+    __tablename__ = "merchant_memory"
+    __table_args__ = (UniqueConstraint("user_id", "transaction_type", "keyword", name="uq_merchant_memory_user_type_keyword"),)
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    transaction_type = Column(String, nullable=False)  # income or expense
+    keyword = Column(String, nullable=False)  # lowercased distinctive word from description
+    category_or_source = Column(String, nullable=False)
+    hit_count = Column(Integer, nullable=False, default=1)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
