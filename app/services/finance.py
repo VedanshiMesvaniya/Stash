@@ -407,6 +407,7 @@ def build_qa_context(db: Session, user_id: int, question: str, currency: str | N
     last_month_date = (today.replace(day=1) - __import__("datetime").timedelta(days=1))
     last_month = crud.get_month_summary(db, user_id, last_month_date.year, last_month_date.month)
     category_breakdown = crud.get_category_breakdown(db, user_id, today.year, today.month)
+    last_month_category_breakdown = crud.get_category_breakdown(db, user_id, last_month_date.year, last_month_date.month)
     largest = crud.get_largest_expense(db, user_id, today.year, today.month)
     timeline = crud.get_timeline(db, user_id, limit=30)
     recent_chat = crud.get_recent_chat(db, user_id, limit=11)
@@ -417,6 +418,9 @@ def build_qa_context(db: Session, user_id: int, question: str, currency: str | N
     active_currency = currency or "INR"
     converted_breakdown = {
         key: _from_base(value, active_currency) for key, value in category_breakdown.items()
+    }
+    converted_last_month_breakdown = {
+        key: _from_base(value, active_currency) for key, value in last_month_category_breakdown.items()
     }
     wallet_balances_raw = crud.get_wallet_balances(db, user_id)
     wallet_balances = {key: _from_base(value, active_currency) for key, value in wallet_balances_raw.items()}
@@ -437,6 +441,7 @@ def build_qa_context(db: Session, user_id: int, question: str, currency: str | N
             "saved": _from_base(last_month["saved"], active_currency),
         },
         "this_month_category_breakdown": converted_breakdown,
+        "last_month_category_breakdown": converted_last_month_breakdown,
         "largest_expense_this_month": (
             {"category": largest.category, "amount": _from_base(largest.amount, active_currency), "date": str(largest.date)}
             if largest
