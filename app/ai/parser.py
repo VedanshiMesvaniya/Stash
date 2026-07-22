@@ -140,6 +140,14 @@ def handle_message(message: str, db: Session, user_id: int, payment_method_hint:
     except LLMUnavailableError:
         return _queue_for_later(db, user_id, message)
 
+    # A short reformat follow-up ("in table", "as a chart", "show as graph")
+    # right after a report reply doesn't read as a fresh "report" request to
+    # the intent classifier on its own - it has no month/date/finance words
+    # in it. Force the report path so these always regenerate a fresh report
+    # (with its table + chart) instead of silently falling through to chat.
+    if intent != "report" and re.search(r"\b(table|chart|graph)\b", message.lower()) and len(message.split()) <= 6:
+        intent = "report"
+
     if intent == "transaction":
         user_hints = [(m.keyword, m.category_or_source) for m in crud.get_top_merchant_memories(db, user_id)]
         try:
