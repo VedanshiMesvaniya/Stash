@@ -494,7 +494,11 @@ h1, h2, h3, p { margin: 0; }
 .bubble-table td:last-child, .bubble-table th:last-child { text-align: right; }
 .bubble-chart { max-width: 420px; }
 .bubble-stack { display: flex; flex-direction: column; gap: 8px; width: 100%; }
-.candidate-btn { display: flex; align-items: center; justify-content: space-between; text-align: left; }
+.candidate-btn { display: flex; align-items: center; justify-content: space-between; text-align: left; gap: 10px; }
+.candidate-checkbox { font-size: 1rem; flex-shrink: 0; }
+.candidate-selected { border-color: var(--secondary); background: color-mix(in srgb, var(--secondary) 10%, transparent); }
+.candidate-actions { display: flex; justify-content: space-between; align-items: center; margin-top: 4px; }
+.candidate-actions .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
 
 .bubble-typing { padding: 6px 0; }
 .typing-indicator { display: inline-flex; gap: 4px; align-items: center; }

@@ -752,6 +752,8 @@ function ChatPage({ session, onNavigate, onTouchData, refreshToken }) {
     }
   };
 
+  const [selectedCandidateIds, setSelectedCandidateIds] = useState(() => new Set());
+
   const handleCandidateConfirm = async (candidate, pendingNewAmount) => {
     addMessage('assistant', 'Updating...');
     const pendingAction = candidatePayload?.pendingAction || (pendingNewAmount ? 'correction' : 'delete');
@@ -770,6 +772,30 @@ function ChatPage({ session, onNavigate, onTouchData, refreshToken }) {
       method: 'POST',
       body: JSON.stringify(payload),
     });
+    setSelectedCandidateIds(new Set());
+    setMessages((prev) => [...prev, { role: 'assistant', content: result.reply }]);
+    onTouchData();
+  };
+
+  const toggleCandidateSelected = (id) => {
+    setSelectedCandidateIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const confirmSelectedDeletes = async (candidates) => {
+    const items = candidates
+      .filter((c) => selectedCandidateIds.has(c.id))
+      .map((c) => ({ id: c.id, type: c.type }));
+    if (!items.length) return;
+    addMessage('assistant', 'Updating...');
+    const result = await apiFetch('/api/chat/confirm-delete', {
+      method: 'POST',
+      body: JSON.stringify({ items }),
+    });
+    setSelectedCandidateIds(new Set());
     setMessages((prev) => [...prev, { role: 'assistant', content: result.reply }]);
     onTouchData();
   };
@@ -785,6 +811,10 @@ function ChatPage({ session, onNavigate, onTouchData, refreshToken }) {
     }
     return null;
   }, [messages]);
+
+  useEffect(() => {
+    setSelectedCandidateIds(new Set());
+  }, [candidatePayload]);
 
   return (
     <div className="chat-shell chat-page-shell">
@@ -806,18 +836,55 @@ function ChatPage({ session, onNavigate, onTouchData, refreshToken }) {
           {candidatePayload ? (
             <div className="bubble-row assistant">
               <div className="bubble assistant bubble-stack">
-                {candidatePayload.candidates.map((candidate) => (
-                  <button
-                    key={candidate.id}
-                    className="btn btn-ghost btn-full candidate-btn"
-                    onClick={() => handleCandidateConfirm(candidate, candidatePayload.pendingNewAmount)}
-                  >
-                    <span>{candidate.label}</span>
-                    <span>
-                      {money(candidate.amount, session.settings?.currency || 'INR')} ({candidate.date})
-                    </span>
-                  </button>
-                ))}
+                {candidatePayload.pendingAction === 'delete' ? (
+                  <>
+                    {candidatePayload.candidates.map((candidate) => (
+                      <button
+                        key={candidate.id}
+                        className={`btn btn-ghost btn-full candidate-btn${selectedCandidateIds.has(candidate.id) ? ' candidate-selected' : ''}`}
+                        onClick={() => toggleCandidateSelected(candidate.id)}
+                      >
+                        <span className="candidate-checkbox" aria-hidden="true">
+                          {selectedCandidateIds.has(candidate.id) ? '☑' : '☐'}
+                        </span>
+                        <span>{candidate.label}</span>
+                        <span>
+                          {money(candidate.amount, session.settings?.currency || 'INR')} ({candidate.date})
+                        </span>
+                      </button>
+                    ))}
+                    <div className="candidate-actions">
+                      <button
+                        type="button"
+                        className="btn btn-ghost btn-pill"
+                        onClick={() => setSelectedCandidateIds(new Set(candidatePayload.candidates.map((c) => c.id)))}
+                      >
+                        Select all
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-primary btn-pill"
+                        disabled={!selectedCandidateIds.size}
+                        onClick={() => confirmSelectedDeletes(candidatePayload.candidates)}
+                      >
+                        Delete selected ({selectedCandidateIds.size})
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  candidatePayload.candidates.map((candidate) => (
+                    <button
+                      key={candidate.id}
+                      className="btn btn-ghost btn-full candidate-btn"
+                      onClick={() => handleCandidateConfirm(candidate, candidatePayload.pendingNewAmount)}
+                    >
+                      <span>{candidate.label}</span>
+                      <span>
+                        {money(candidate.amount, session.settings?.currency || 'INR')} ({candidate.date})
+                      </span>
+                    </button>
+                  ))
+                )}
               </div>
             </div>
           ) : null}

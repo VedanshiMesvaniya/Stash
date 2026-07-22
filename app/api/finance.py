@@ -38,8 +38,9 @@ class ConfirmCorrectionRequest(BaseModel):
 
 
 class ConfirmDeleteRequest(BaseModel):
-    transaction_id: int
-    transaction_type: str  # "income" | "expense"
+    transaction_id: int | None = None
+    transaction_type: str | None = None  # "income" | "expense" - single-item legacy shape
+    items: list[dict] | None = None  # [{"id":, "type":}] - multi-select shape
 
 
 class TransactionUpdateRequest(BaseModel):
@@ -96,24 +97,39 @@ def confirm_correction(payload: ConfirmCorrectionRequest, request: Request, db: 
 
 @router.post("/chat/confirm-delete")
 def confirm_delete(payload: ConfirmDeleteRequest, request: Request, db: Session = Depends(get_db), user: models.User = Depends(get_current_user)):
-    if payload.transaction_type == "income":
-        row = crud.delete_income(db, user.id, payload.transaction_id)
-    elif payload.transaction_type == "expense":
-        row = crud.delete_expense(db, user.id, payload.transaction_id)
-    else:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid transaction type")
+    items = payload.items if payload.items else (
+        [{"id": payload.transaction_id, "type": payload.transaction_type}] if payload.transaction_id and payload.transaction_type else None
+    )
+    if not items:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No transaction(s) specified")
 
-    if not row:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Transaction not found")
-
-    db.query(models.RecurringPosting).filter(
-        models.RecurringPosting.transaction_type == payload.transaction_type,
-        models.RecurringPosting.transaction_id == payload.transaction_id,
-    ).delete(synchronize_session=False)
+    deleted_labels = []
+    for item in items:
+        txn_type = item.get("type")
+        txn_id = item.get("id")
+        if txn_type == "income":
+            row = crud.delete_income(db, user.id, txn_id)
+        elif txn_type == "expense":
+            row = crud.delete_expense(db, user.id, txn_id)
+        else:
+            continue
+        if row:
+            db.query(models.RecurringPosting).filter(
+                models.RecurringPosting.transaction_type == txn_type,
+                models.RecurringPosting.transaction_id == txn_id,
+            ).delete(synchronize_session=False)
+            deleted_labels.append(crud.resolve_display_label(txn_type, row.source if txn_type == "income" else row.category, row.description))
     db.commit()
+    crud.clear_pending_selection(db, user.id)
+
+    if not deleted_labels:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Transaction(s) not found")
 
     balance = crud.get_balance(db, user.id)
-    reply = f"Deleted {crud.resolve_display_label(payload.transaction_type, row.source if payload.transaction_type == 'income' else row.category, row.description)}."
+    if len(deleted_labels) == 1:
+        reply = f"Deleted {deleted_labels[0]}."
+    else:
+        reply = "Deleted:\n" + "\n".join(f"- {label}" for label in deleted_labels)
     reply += f"\nUpdated balance: {finance._fmt_money(user.currency, balance)}"
     if balance <= 0:
         reply += f"\nYour balance hit {finance._fmt_money(user.currency, 0)}."

@@ -105,6 +105,34 @@ def handle_message(message: str, db: Session, user_id: int, payment_method_hint:
 
     user = crud.get_user(db, user_id)
     currency = user.currency if user else "INR"
+
+    pending = crud.get_pending_selection(db, user_id)
+    if pending and pending["kind"] == "delete":
+        resolved = _resolve_pending_selection(message, pending["options"])
+        if resolved == "cancel":
+            crud.clear_pending_selection(db, user_id)
+            return {
+                "intent": "delete", "reply": "Okay, left those alone.",
+                "data": None, "needs_confirmation": False, "candidates": None,
+            }
+        if resolved:
+            return finance.delete_selected(db, user_id, resolved, currency=currency)
+        if _looks_like_selection_attempt(message):
+            numbered = "\n".join(
+                f"{i+1}. {opt['label']} - {opt['amount']} on {opt['date']}"
+                for i, opt in enumerate(pending["options"])
+            )
+            return {
+                "intent": "delete",
+                "reply": f"I didn't catch which one(s) - could you use a number, \"both\"/\"all\", or \"none\"?\n{numbered}",
+                "data": {"pending_action": "delete"}, "needs_confirmation": True, "candidates": pending["options"],
+            }
+        # Doesn't look like an attempt to answer the pending question at all
+        # (no digits/ordinals/all/both/none) - most likely an unrelated new
+        # message, so drop the stale pending state and process normally
+        # rather than blocking the user forever.
+        crud.clear_pending_selection(db, user_id)
+
     recent_chat = _recent_chat_memory(db, user_id, message)
 
     try:
@@ -294,3 +322,97 @@ def _queue_for_later(db: Session, user_id: int, message: str) -> dict:
         "needs_confirmation": False,
         "candidates": None,
     }
+
+_ORDINAL_WORDS = {
+    "first": 1, "1st": 1, "second": 2, "2nd": 2, "third": 3, "3rd": 3,
+    "fourth": 4, "4th": 4, "fifth": 5, "5th": 5,
+}
+_ALL_WORDS = ("both", "all", "everything", "all of them", "delete all", "remove all")
+_NONE_WORDS = ("none", "cancel", "nevermind", "never mind", "don't delete", "dont delete", "keep them", "leave them")
+
+
+def _looks_like_selection_attempt(message: str) -> bool:
+    """True if the message plausibly TRIES to answer a pending
+    disambiguation (has a number/ordinal/all/both/none/delete/remove
+    signal), even if we couldn't confidently resolve it - used to decide
+    whether to re-ask vs. silently drop the pending state as a stale,
+    unrelated message."""
+    lowered = message.lower()
+    if re.search(r"\b\d+\b", lowered):
+        return True
+    if any(w in lowered for w in _ORDINAL_WORDS):
+        return True
+    if any(w in lowered for w in _ALL_WORDS + _NONE_WORDS):
+        return True
+    if any(w in lowered for w in ("delete", "remove")):
+        return True
+    return False
+
+
+def _resolve_pending_selection(message: str, options: list[dict]) -> list[dict] | str | None:
+    """Resolves a typed follow-up against real pending candidates instead
+    of re-running extraction from scratch (which had no way to know a
+    disambiguation was even in progress). Returns:
+      - a list of the matched option dicts (1 or more)
+      - the literal string "cancel" if the user backed out
+      - None if nothing could be confidently resolved
+
+    Deliberately deterministic/regex-based rather than another LLM call -
+    this only ever runs against a small, already-narrowed candidate list
+    (at most ~10 items), so simple pattern matching is both cheap and, for
+    this narrow job, more reliable than an LLM guess."""
+    lowered = message.lower().strip()
+
+    if any(w in lowered for w in _NONE_WORDS):
+        return "cancel"
+
+    if any(w in lowered for w in _ALL_WORDS):
+        return list(options)
+
+    matched_indices: set[int] = set()
+
+    for word, idx in _ORDINAL_WORDS.items():
+        if not re.search(rf"\b{word}\b", lowered):
+            continue
+        # Position-based: "the second one" usually means the 2nd item shown.
+        if idx <= len(options):
+            matched_indices.add(idx - 1)
+        # Description-based: but if an option's OWN description literally
+        # contains this number ("cup payment part 2"), that's very likely
+        # what "second"/"2nd" actually refers to, even if it's not the 2nd
+        # item in the candidate list - e.g. a 3-way split where only parts
+        # 2 and 3 are still pending shows up as a 2-item list, but "second
+        # part" means the literal part 2, not list-position 2. Union both
+        # readings rather than picking one, since either being right means
+        # the user gets what they asked for; the risk of a false-positive
+        # union match is low given this only runs against an already
+        # tightly-scoped candidate list.
+        for i, opt in enumerate(options):
+            haystack = f"{opt.get('label','')} {opt.get('description','')}".lower()
+            if re.search(rf"\b{idx}\b", haystack):
+                matched_indices.add(i)
+
+    if lowered in ("last", "the last one", "last one"):
+        matched_indices.add(len(options) - 1)
+
+    for num in re.findall(r"\b(\d+)\b", lowered):
+        idx = int(num)
+        if 1 <= idx <= len(options):
+            matched_indices.add(idx - 1)
+
+    if matched_indices:
+        return [options[i] for i in sorted(matched_indices)]
+
+    # Loose text match: does the message mention a distinctive word from a
+    # specific candidate's own label/description? (e.g. "remove the petrol
+    # one", or the option's own display label)
+    text_matched = []
+    for opt in options:
+        haystack = f"{opt.get('label','')} {opt.get('description','')}".lower()
+        words = [w for w in re.findall(r"[a-z]+", haystack) if len(w) >= 4]
+        if any(w in lowered for w in words):
+            text_matched.append(opt)
+    if text_matched:
+        return text_matched
+
+    return None

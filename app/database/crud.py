@@ -12,6 +12,7 @@ this rewrite was meant to close.
 from sqlalchemy.orm import Session
 from sqlalchemy import func, extract
 from datetime import date, datetime, timedelta
+import json
 from . import models
 
 EXPENSE_DISPLAY_HINTS = [
@@ -536,3 +537,30 @@ def get_savings_progress_since(db: Session, user_id: int, since) -> float:
         models.Expense.user_id == user_id, models.Expense.date >= since_date,
     ).scalar()
     return round(income - expense, 2)
+
+
+# --- Pending disambiguation selections (multi-candidate delete fix) ---
+
+def set_pending_selection(db: Session, user_id: int, kind: str, options: list[dict]):
+    row = db.query(models.PendingSelection).filter(models.PendingSelection.user_id == user_id).first()
+    payload = json.dumps(options, default=str)
+    if row:
+        row.kind = kind
+        row.options_json = payload
+        row.created_at = datetime.utcnow()
+    else:
+        row = models.PendingSelection(user_id=user_id, kind=kind, options_json=payload)
+        db.add(row)
+    db.commit()
+
+
+def get_pending_selection(db: Session, user_id: int):
+    row = db.query(models.PendingSelection).filter(models.PendingSelection.user_id == user_id).first()
+    if not row:
+        return None
+    return {"kind": row.kind, "options": json.loads(row.options_json)}
+
+
+def clear_pending_selection(db: Session, user_id: int):
+    db.query(models.PendingSelection).filter(models.PendingSelection.user_id == user_id).delete()
+    db.commit()

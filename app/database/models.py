@@ -196,3 +196,21 @@ class SavingsGoal(Base):
     target_date = Column(Date, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     active = Column(Boolean, nullable=False, default=True)
+
+
+class PendingSelection(Base):
+    """When a delete (or other disambiguation) has more than one matching
+    transaction, the options shown to the user are persisted here so a
+    typed follow-up ("both", "the second and third one", "all of them")
+    can be resolved against the REAL candidate set - not re-guessed from
+    scratch as a brand new message, which is what was happening before
+    (the candidates only existed in the one HTTP response and the chat
+    text, neither of which the next message's intent/extraction pass
+    could reliably reconstruct)."""
+    __tablename__ = "pending_selections"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, unique=True, index=True)
+    kind = Column(String, nullable=False)  # "delete" for now; extensible
+    options_json = Column(String, nullable=False)  # JSON list of {id, type, label, amount, date}
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
