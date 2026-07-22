@@ -100,6 +100,22 @@ def _memory_block(recent_chat: str | None) -> str:
     return f"RECENT CHAT MEMORY:\n{recent_chat.strip()}\n\n"
 
 
+def _habits_block(user_hints: list[tuple[str, str]] | None) -> str:
+    """Feature #30 Adaptive Prompting - renders the user's own learned
+    merchant habits (see crud.get_top_merchant_memories) into the prompt
+    so the LLM's OWN category guess adapts to this specific user's
+    history, not just the deterministic post-hoc override in
+    services/finance.py. Advisory only - the prompt still lets the LLM
+    override with a stronger literal cue in the message itself."""
+    if not user_hints:
+        return ""
+    lines = "\n".join(f'- "{keyword}" has usually meant {category} for this user' for keyword, category in user_hints)
+    return (
+        "THIS USER'S OWN PAST HABITS (use as a soft prior when the message doesn't clearly say otherwise - "
+        "an explicit category/merchant in the message itself still wins over this):\n" + lines + "\n\n"
+    )
+
+
 def resolve_date_hint(hint: str | None) -> date:
     """Best-effort conversion of a natural language date hint into a real date.
     Falls back to today if the hint is missing or unparseable."""
@@ -235,10 +251,15 @@ def explain_category(txn_type: str, category_or_source: str, description: str | 
     return ("no_match", None)
 
 
-def extract_transactions(message: str, recent_chat: str | None = None) -> dict:
+def extract_transactions(message: str, recent_chat: str | None = None, user_hints: list[tuple[str, str]] | None = None) -> dict:
     """Returns a dict: {"transactions": list[dict], "clarification_needed": bool,
     "clarification_question": str | None}. Each transaction dict is
     {type, amount, category_or_source, description, date}.
+
+    user_hints: optional list of (keyword, category_or_source) pairs - this
+    user's own strongest learned habits (#30 Adaptive Prompting) - fed into
+    the prompt as a soft prior so the LLM's first guess adapts to this
+    user's history, not just the deterministic override that runs later.
 
     NOTE: this used to return a bare list[dict]. It now returns the full
     shape so callers (parser.py) can see when the model deliberately held
@@ -251,7 +272,7 @@ def extract_transactions(message: str, recent_chat: str | None = None) -> dict:
     treating it as 'not a transaction'."""
     messages = [
         {"role": "system", "content": EXTRACTION_SYSTEM_PROMPT},
-        {"role": "user", "content": f"{_memory_block(recent_chat)}MESSAGE:\n{message}"},
+        {"role": "user", "content": f"{_habits_block(user_hints)}{_memory_block(recent_chat)}MESSAGE:\n{message}"},
     ]
     raw = llm.fast_chat(messages, json_mode=True, max_tokens=400)
 

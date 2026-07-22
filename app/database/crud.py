@@ -486,3 +486,15 @@ def get_category_spend_this_month(db: Session, user_id: int, category: str, year
         extract("month", models.Expense.date) == month,
     ).scalar()
     return round(total, 2)
+
+
+def get_top_merchant_memories(db: Session, user_id: int, limit: int = 15):
+    """Feature #30 Adaptive Prompting - the user's own strongest learned
+    habits, fed into the extraction prompt itself so the LLM's OWN first
+    guess adapts to this user's history (not just the post-hoc 'Other'
+    override in finance.create_transactions, which only ever kicks in
+    after the fact)."""
+    return db.query(models.MerchantMemory).filter(
+        models.MerchantMemory.user_id == user_id,
+        models.MerchantMemory.hit_count >= 2,
+    ).order_by(models.MerchantMemory.hit_count.desc()).limit(limit).all()

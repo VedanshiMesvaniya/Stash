@@ -113,8 +113,9 @@ def handle_message(message: str, db: Session, user_id: int, payment_method_hint:
         return _queue_for_later(db, user_id, message)
 
     if intent == "transaction":
+        user_hints = [(m.keyword, m.category_or_source) for m in crud.get_top_merchant_memories(db, user_id)]
         try:
-            extraction = extractor.extract_transactions(message, recent_chat=recent_chat or None)
+            extraction = extractor.extract_transactions(message, recent_chat=recent_chat or None, user_hints=user_hints or None)
         except LLMUnavailableError:
             return _queue_for_later(db, user_id, message)
 
@@ -146,11 +147,23 @@ def handle_message(message: str, db: Session, user_id: int, payment_method_hint:
         if clarification_needed and clarification_question:
             balance = finance.crud.get_balance(db, user_id)
             reply_text = clarification_question
+
+            # Expense Prediction (#29) - offer the user's own learned habit
+            # as a suggested default before they have to answer manually,
+            # rather than a bare open-ended question with no starting point.
+            keywords = finance._distinctive_keywords(message)
+            if keywords:
+                for txn_type in ("expense", "income"):
+                    predicted = crud.recall_merchant_category(db, user_id, txn_type, keywords, min_hits=2)
+                    if predicted:
+                        reply_text = f"{clarification_question} (My best guess based on your past entries: {predicted} - just confirm or tell me the right one.)"
+                        break
+
             if created:
                 # Confirm what WAS logged before asking about the ambiguous part,
                 # so the user sees both in one reply instead of a bare question.
                 logged_summary = finance.format_transaction_reply(created, balance=balance, currency=currency)
-                reply_text = f"{logged_summary}\n\n{clarification_question}"
+                reply_text = f"{logged_summary}\n\n{reply_text}"
             return {
                 "intent": "transaction",
                 "reply": reply_text,
