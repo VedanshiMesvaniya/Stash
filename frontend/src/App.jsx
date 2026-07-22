@@ -634,6 +634,7 @@ function DashboardPage({ session, onNavigate, refreshToken, onTouchData }) {
 function ChatPage({ session, onNavigate, onTouchData, refreshToken }) {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
+  const [paymentMethod, setPaymentMethod] = useState(null); // 'cash' | 'online' | null (#33)
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -713,11 +714,14 @@ function ChatPage({ session, onNavigate, onTouchData, refreshToken }) {
     try {
       const reply = await apiFetch('/api/chat', {
         method: 'POST',
-        body: JSON.stringify({ message }),
+        body: JSON.stringify({ message, payment_method: paymentMethod }),
       });
       setMessages((prev) => {
         const next = [...prev];
-        next[next.length - 1] = { role: 'assistant', content: reply.reply };
+        const reportEntries = reply.intent === 'report' && reply.data?.category_breakdown
+          ? Object.entries(reply.data.category_breakdown).sort((a, b) => b[1] - a[1])
+          : null;
+        next[next.length - 1] = { role: 'assistant', content: reply.reply, reportEntries };
         return next;
       });
       if (reply.needs_confirmation && reply.candidates) {
@@ -796,7 +800,7 @@ function ChatPage({ session, onNavigate, onTouchData, refreshToken }) {
               return null;
             }
             return (
-              <Bubble key={`${index}-${message.role}-${message.content.slice(0, 10)}`} role={message.role} onCandidate={handleCandidateConfirm} message={message} candidatePayload={candidatePayload} />
+              <Bubble key={`${index}-${message.role}-${message.content.slice(0, 10)}`} role={message.role} onCandidate={handleCandidateConfirm} message={message} candidatePayload={candidatePayload} currency={session.settings?.currency || 'INR'} />
             );
           })}
           {candidatePayload ? (
@@ -826,6 +830,28 @@ function ChatPage({ session, onNavigate, onTouchData, refreshToken }) {
             sendMessage();
           }}
         >
+          <div className="composer-wallet-toggle" role="group" aria-label="Payment method">
+            <button
+              type="button"
+              className={`btn btn-ghost btn-pill${paymentMethod === 'cash' ? ' active' : ''}`}
+              aria-pressed={paymentMethod === 'cash'}
+              onClick={() => setPaymentMethod((prev) => (prev === 'cash' ? null : 'cash'))}
+              title="Log this as a cash transaction unless the message says otherwise"
+            >
+              <span className="material-symbols-rounded" aria-hidden="true">payments</span>
+              Cash
+            </button>
+            <button
+              type="button"
+              className={`btn btn-ghost btn-pill${paymentMethod === 'online' ? ' active' : ''}`}
+              aria-pressed={paymentMethod === 'online'}
+              onClick={() => setPaymentMethod((prev) => (prev === 'online' ? null : 'online'))}
+              title="Log this as an online/digital transaction unless the message says otherwise"
+            >
+              <span className="material-symbols-rounded" aria-hidden="true">contactless</span>
+              Online
+            </button>
+          </div>
           <textarea
             ref={textareaRef}
             className="input composer-textarea"
@@ -914,7 +940,25 @@ function BubbleContent({ content }) {
   return <>{nodes}</>;
 }
 
-function Bubble({ message, role }) {
+function ReportTable({ entries, currency }) {
+  return (
+    <table className="bubble-table">
+      <thead>
+        <tr><th>Category</th><th>Amount</th></tr>
+      </thead>
+      <tbody>
+        {entries.map(([label, value]) => (
+          <tr key={label}>
+            <td>{label}</td>
+            <td>{money(value, currency)}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
+function Bubble({ message, role, currency }) {
   if (message.content === '__TYPING__') {
     return (
       <div className={`bubble-row ${role}`}>
@@ -928,6 +972,14 @@ function Bubble({ message, role }) {
     <div className={`bubble-row ${role}`}>
       <div className={`bubble ${role}`}>
         <BubbleContent content={message.content} />
+        {message.reportEntries && message.reportEntries.length ? (
+          <div className="bubble-report">
+            <ReportTable entries={message.reportEntries} currency={currency || 'INR'} />
+            <div className="bubble-chart">
+              <BarViz entries={message.reportEntries} />
+            </div>
+          </div>
+        ) : null}
       </div>
     </div>
   );

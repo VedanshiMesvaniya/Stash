@@ -78,12 +78,13 @@ def get_user_by_username(db: Session, username: str):
 
 # ---------- Income ----------
 
-def create_income(db: Session, user_id: int, amount: float, source: str, description: str, txn_date: date):
+def create_income(db: Session, user_id: int, amount: float, source: str, description: str, txn_date: date, payment_method: str | None = None):
     row = models.Income(
         user_id=user_id,
         amount=amount,
         source=source or "Other",
         description=description,
+        payment_method=payment_method,
         date=txn_date,
         month=txn_date.month,
         year=txn_date.year,
@@ -126,12 +127,13 @@ def delete_income(db: Session, user_id: int, income_id: int):
 
 # ---------- Expense ----------
 
-def create_expense(db: Session, user_id: int, amount: float, category: str, description: str, txn_date: date):
+def create_expense(db: Session, user_id: int, amount: float, category: str, description: str, txn_date: date, payment_method: str | None = None):
     row = models.Expense(
         user_id=user_id,
         amount=amount,
         category=category or "Other",
         description=description,
+        payment_method=payment_method,
         date=txn_date,
         month=txn_date.month,
         year=txn_date.year,
@@ -261,6 +263,26 @@ def get_balance(db: Session, user_id: int) -> float:
     return round(total_income - total_expense, 2)
 
 
+def get_wallet_balances(db: Session, user_id: int) -> dict:
+    """Running balance split by payment_method (#34 Cash Tracking, #35
+    Online Payment Tracking). "unspecified" covers every transaction
+    logged before this field existed, or where neither the message nor
+    the chat toggle said how the money moved - it's kept visible rather
+    than silently folded into one of the other two, since guessing which
+    wallet an old/ambiguous entry belongs to would misrepresent it."""
+    balances = {"cash": 0.0, "online": 0.0, "unspecified": 0.0}
+    for method in ("cash", "online", None):
+        key = method or "unspecified"
+        income = db.query(func.coalesce(func.sum(models.Income.amount), 0.0)).filter(
+            models.Income.user_id == user_id, models.Income.payment_method == method
+        ).scalar()
+        expense = db.query(func.coalesce(func.sum(models.Expense.amount), 0.0)).filter(
+            models.Expense.user_id == user_id, models.Expense.payment_method == method
+        ).scalar()
+        balances[key] = round(income - expense, 2)
+    return balances
+
+
 def get_month_summary(db: Session, user_id: int, year: int, month: int):
     income = db.query(func.coalesce(func.sum(models.Income.amount), 0.0)).filter(
         models.Income.user_id == user_id,
@@ -354,3 +376,163 @@ def mark_pending_attempt_failed(db: Session, entry_id: int, error: str, max_atte
         if row.attempts >= max_attempts:
             row.status = "failed"
         db.commit()
+
+# --- Personalized category learning (feature #22) ---
+# Distinctive-word memory of what a category actually meant for THIS user
+# in the past, used only to resolve future "Other" fallbacks - see
+# models.MerchantMemory for the reasoning.
+
+def remember_merchant_category(db: Session, user_id: int, transaction_type: str, keyword: str, category_or_source: str):
+    keyword = keyword.lower().strip()
+    if not keyword or category_or_source == "Other":
+        return
+    row = db.query(models.MerchantMemory).filter(
+        models.MerchantMemory.user_id == user_id,
+        models.MerchantMemory.transaction_type == transaction_type,
+        models.MerchantMemory.keyword == keyword,
+    ).first()
+    if row:
+        if row.category_or_source == category_or_source:
+            row.hit_count += 1
+        else:
+            # The user's own habit shifted for this word - trust the most
+            # recent mapping rather than averaging two different answers.
+            row.category_or_source = category_or_source
+            row.hit_count = 1
+    else:
+        row = models.MerchantMemory(
+            user_id=user_id,
+            transaction_type=transaction_type,
+            keyword=keyword,
+            category_or_source=category_or_source,
+            hit_count=1,
+        )
+        db.add(row)
+    db.commit()
+
+
+def recall_merchant_category(db: Session, user_id: int, transaction_type: str, keywords: list[str], min_hits: int = 2) -> str | None:
+    """Returns the learned category for the first keyword with enough
+    confirmed history (hit_count >= min_hits), or None. min_hits=2 so a
+    single one-off word never immediately overrides "Other" - it has to
+    have shown up with a consistent category at least twice before."""
+    if not keywords:
+        return None
+    rows = db.query(models.MerchantMemory).filter(
+        models.MerchantMemory.user_id == user_id,
+        models.MerchantMemory.transaction_type == transaction_type,
+        models.MerchantMemory.keyword.in_([k.lower() for k in keywords]),
+        models.MerchantMemory.hit_count >= min_hits,
+    ).all()
+    if not rows:
+        return None
+    best = max(rows, key=lambda r: r.hit_count)
+    return best.category_or_source
+
+
+# --- Duplicate detection on the chat-creation path (feature #24) ---
+# The offline sync path (services/sync.py) already dedupes; this covers
+# the far more common path (typing straight into chat), which had no
+# such check at all.
+
+def find_possible_duplicate(db: Session, user_id: int, transaction_type: str, category_or_source: str, amount: float, txn_date):
+    if transaction_type == "income":
+        return db.query(models.Income).filter(
+            models.Income.user_id == user_id,
+            models.Income.source == category_or_source,
+            models.Income.amount == amount,
+            models.Income.date == txn_date,
+        ).first()
+    return db.query(models.Expense).filter(
+        models.Expense.user_id == user_id,
+        models.Expense.category == category_or_source,
+        models.Expense.amount == amount,
+        models.Expense.date == txn_date,
+    ).first()
+
+
+# --- Category budgets (feature #28) ---
+
+def get_budgets(db: Session, user_id: int) -> dict:
+    rows = db.query(models.CategoryBudget).filter(models.CategoryBudget.user_id == user_id).all()
+    return {row.category: row.monthly_limit for row in rows}
+
+
+def set_budget(db: Session, user_id: int, category: str, monthly_limit: float | None):
+    row = db.query(models.CategoryBudget).filter(
+        models.CategoryBudget.user_id == user_id,
+        models.CategoryBudget.category == category,
+    ).first()
+    if monthly_limit is None:
+        if row:
+            db.delete(row)
+            db.commit()
+        return None
+    if row:
+        row.monthly_limit = monthly_limit
+    else:
+        row = models.CategoryBudget(user_id=user_id, category=category, monthly_limit=monthly_limit)
+        db.add(row)
+    db.commit()
+    db.refresh(row)
+    return row.monthly_limit
+
+
+def get_category_spend_this_month(db: Session, user_id: int, category: str, year: int, month: int) -> float:
+    total = db.query(func.coalesce(func.sum(models.Expense.amount), 0.0)).filter(
+        models.Expense.user_id == user_id,
+        models.Expense.category == category,
+        extract("year", models.Expense.date) == year,
+        extract("month", models.Expense.date) == month,
+    ).scalar()
+    return round(total, 2)
+
+
+def get_top_merchant_memories(db: Session, user_id: int, limit: int = 15):
+    """Feature #30 Adaptive Prompting - the user's own strongest learned
+    habits, fed into the extraction prompt itself so the LLM's OWN first
+    guess adapts to this user's history (not just the post-hoc 'Other'
+    override in finance.create_transactions, which only ever kicks in
+    after the fact)."""
+    return db.query(models.MerchantMemory).filter(
+        models.MerchantMemory.user_id == user_id,
+        models.MerchantMemory.hit_count >= 2,
+    ).order_by(models.MerchantMemory.hit_count.desc()).limit(limit).all()
+
+
+# --- Financial Goal Tracking ---
+
+def set_savings_goal(db: Session, user_id: int, target_amount: float, target_date=None):
+    row = db.query(models.SavingsGoal).filter(models.SavingsGoal.user_id == user_id).first()
+    if row:
+        row.target_amount = target_amount
+        row.target_date = target_date
+        row.active = True
+        row.created_at = datetime.utcnow()  # restart progress tracking against the new target
+    else:
+        row = models.SavingsGoal(user_id=user_id, target_amount=target_amount, target_date=target_date)
+        db.add(row)
+    db.commit()
+    db.refresh(row)
+    return row
+
+
+def get_savings_goal(db: Session, user_id: int):
+    return db.query(models.SavingsGoal).filter(
+        models.SavingsGoal.user_id == user_id, models.SavingsGoal.active.is_(True)
+    ).first()
+
+
+def get_savings_progress_since(db: Session, user_id: int, since) -> float:
+    """Net saved (income - expense) from `since` (a datetime/date) to now -
+    the actual progress toward a savings goal, always derived live from
+    the ledger rather than a separately-tracked running total that could
+    drift out of sync."""
+    since_date = since.date() if hasattr(since, "date") else since
+    income = db.query(func.coalesce(func.sum(models.Income.amount), 0.0)).filter(
+        models.Income.user_id == user_id, models.Income.date >= since_date,
+    ).scalar()
+    expense = db.query(func.coalesce(func.sum(models.Expense.amount), 0.0)).filter(
+        models.Expense.user_id == user_id, models.Expense.date >= since_date,
+    ).scalar()
+    return round(income - expense, 2)

@@ -46,6 +46,11 @@ class Income(Base):
     amount = Column(Float, nullable=False)
     source = Column(String, nullable=False, default="Other")
     description = Column(String, nullable=True)
+    # "cash" | "online" | None (unknown/not mentioned). Nullable on purpose -
+    # most historical rows and many chat messages never say how the money
+    # moved, and guessing a wallet with no signal at all is worse than
+    # leaving it blank.
+    payment_method = Column(String, nullable=True)
     date = Column(Date, nullable=False)
     month = Column(Integer, nullable=False)  # 1-12, denormalized for fast report queries
     year = Column(Integer, nullable=False)
@@ -60,6 +65,8 @@ class Expense(Base):
     amount = Column(Float, nullable=False)
     category = Column(String, nullable=False, default="Other")
     description = Column(String, nullable=True)
+    # "cash" | "online" | None - see Income.payment_method for rationale.
+    payment_method = Column(String, nullable=True)
     date = Column(Date, nullable=False)
     month = Column(Integer, nullable=False)
     year = Column(Integer, nullable=False)
@@ -137,3 +144,55 @@ class PendingEntry(Base):
     last_error = Column(String, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     processed_at = Column(DateTime(timezone=True), nullable=True)
+
+
+class MerchantMemory(Base):
+    """Learns a user's OWN category habits over time (feature: Personalized
+    Learning). Scoped per-user - what "Ramesh Stores" means to one user
+    says nothing about another user's household. Only ever used to fill
+    in for the "Other" fallback, never to override a category the
+    extractor was actually confident about - this is a tie-breaker for
+    genuine unknowns, not a way to relearn categories the app already
+    gets right."""
+    __tablename__ = "merchant_memory"
+    __table_args__ = (UniqueConstraint("user_id", "transaction_type", "keyword", name="uq_merchant_memory_user_type_keyword"),)
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    transaction_type = Column(String, nullable=False)  # income or expense
+    keyword = Column(String, nullable=False)  # lowercased distinctive word from description
+    category_or_source = Column(String, nullable=False)
+    hit_count = Column(Integer, nullable=False, default=1)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+
+class CategoryBudget(Base):
+    """A user-set monthly spending ceiling per expense category (feature
+    #28 Budget-Aware Suggestions). Deliberately per-category, not one
+    lump total - "how much can I spend on Food this month" is the
+    question people actually ask, and a single overall number is already
+    covered by User.monthly_alert_amount (a balance floor, not a spend
+    ceiling - the two are complementary, not duplicates)."""
+    __tablename__ = "category_budgets"
+    __table_args__ = (UniqueConstraint("user_id", "category", name="uq_category_budget_user_category"),)
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    category = Column(String, nullable=False)
+    monthly_limit = Column(Float, nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+
+class SavingsGoal(Base):
+    """One active savings goal per user (Financial Goal Tracking). Keeping
+    it to one active goal at a time (not a list) matches how people
+    actually talk about this conversationally - "how's my savings goal
+    going" assumes a single answer, not a pick-a-list situation."""
+    __tablename__ = "savings_goals"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, unique=True, index=True)
+    target_amount = Column(Float, nullable=False)
+    target_date = Column(Date, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    active = Column(Boolean, nullable=False, default=True)

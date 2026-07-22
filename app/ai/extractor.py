@@ -34,23 +34,47 @@ from .prompts import (
     CORRECTION_SYSTEM_PROMPT,
     DELETE_SYSTEM_PROMPT,
     EXTRACTION_SYSTEM_PROMPT,
+    GOAL_SYSTEM_PROMPT,
 )
+
+MONTH_NAMES = [
+    "january", "february", "march", "april", "may", "june",
+    "july", "august", "september", "october", "november", "december",
+]
 
 WEEKDAYS = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
 
 EXPENSE_CATEGORY_HINTS = {
-    "Tea": ("tea", "coffee", "chai"),
+    "Tea": ("tea", "coffee", "chai", "cafe coffee day", "ccd", "starbucks", "chaayos"),
     "Snacks": ("snack", "snacks"),
-    "Food": ("food", "meal", "eating", "restaurant", "canteen", "tiffin", "lunch", "dinner", "breakfast"),
-    "Groceries": ("grocery", "groceries", "vegetable", "vegetables", "fruit", "fruits", "milk", "bread", "rice", "eggs"),
+    "Food": (
+        "food", "meal", "eating", "restaurant", "canteen", "tiffin", "lunch", "dinner", "breakfast",
+        # merchant semantic matching (#17) - same "Food" category regardless
+        # of which delivery/restaurant brand is actually named.
+        "swiggy", "zomato", "dominos", "domino's", "pizza hut", "mcdonald", "kfc", "burger king", "subway",
+    ),
+    "Groceries": (
+        "grocery", "groceries", "vegetable", "vegetables", "fruit", "fruits", "milk", "bread", "rice", "eggs",
+        "bigbasket", "big basket", "blinkit", "zepto", "instamart", "grofers", "dmart", "d-mart", "jiomart",
+    ),
     "Petrol": ("petrol", "fuel", "gas", "diesel"),
-    "Shopping": ("shopping", "amazon", "flipkart", "myntra", "order", "purchase", "clothes", "shirt", "pants", "shoes"),
-    "Bills": ("bill", "bills", "electricity", "power", "water", "internet", "wifi", "rent", "subscription", "mobile recharge", "recharge"),
-    "Travel": ("travel", "cab", "taxi", "uber", "ola", "bus", "train", "metro", "flight", "ticket"),
-    "Entertainment": ("movie", "movies", "cinema", "game", "games", "concert", "party", "fun"),
-    "Medical": ("medical", "doctor", "medicine", "pharmacy", "hospital", "clinic", "checkup", "treatment"),
-    "Education": ("education", "school", "college", "tuition", "fee", "course", "books", "exam"),
-    "Investment": ("investment", "invest", "sip", "stocks", "shares", "mutual fund", "fd", "gold", "crypto"),
+    "Shopping": (
+        "shopping", "amazon", "flipkart", "myntra", "order", "purchase", "clothes", "shirt", "pants", "shoes",
+        "ajio", "nykaa", "meesho",
+    ),
+    "Bills": (
+        "bill", "bills", "electricity", "power", "water", "internet", "wifi", "rent", "subscription",
+        "mobile recharge", "recharge",
+        "netflix", "spotify", "prime video", "amazon prime", "hotstar", "disney+", "airtel", "jio", "vodafone",
+    ),
+    "Travel": (
+        "travel", "cab", "taxi", "uber", "ola", "bus", "train", "metro", "flight", "ticket",
+        "rapido", "irctc", "indigo", "makemytrip", "goibibo",
+    ),
+    "Entertainment": ("movie", "movies", "cinema", "game", "games", "concert", "party", "fun", "bookmyshow", "pvr", "inox"),
+    "Medical": ("medical", "doctor", "medicine", "pharmacy", "hospital", "clinic", "checkup", "treatment", "pharmeasy", "1mg", "apollo pharmacy", "netmeds"),
+    "Education": ("education", "school", "college", "tuition", "fee", "course", "books", "exam", "byju", "udemy", "coursera"),
+    "Investment": ("investment", "invest", "sip", "stocks", "shares", "mutual fund", "fd", "gold", "crypto", "zerodha", "groww", "upstox"),
 }
 
 INCOME_CATEGORY_HINTS = {
@@ -80,6 +104,22 @@ def _memory_block(recent_chat: str | None) -> str:
     if not recent_chat:
         return ""
     return f"RECENT CHAT MEMORY:\n{recent_chat.strip()}\n\n"
+
+
+def _habits_block(user_hints: list[tuple[str, str]] | None) -> str:
+    """Feature #30 Adaptive Prompting - renders the user's own learned
+    merchant habits (see crud.get_top_merchant_memories) into the prompt
+    so the LLM's OWN category guess adapts to this specific user's
+    history, not just the deterministic post-hoc override in
+    services/finance.py. Advisory only - the prompt still lets the LLM
+    override with a stronger literal cue in the message itself."""
+    if not user_hints:
+        return ""
+    lines = "\n".join(f'- "{keyword}" has usually meant {category} for this user' for keyword, category in user_hints)
+    return (
+        "THIS USER'S OWN PAST HABITS (use as a soft prior when the message doesn't clearly say otherwise - "
+        "an explicit category/merchant in the message itself still wins over this):\n" + lines + "\n\n"
+    )
 
 
 def resolve_date_hint(hint: str | None) -> date:
@@ -190,10 +230,42 @@ def _resolve_category_or_source(txn_type: str, raw_value: str | None, descriptio
     return "Other"
 
 
-def extract_transactions(message: str, recent_chat: str | None = None) -> dict:
+def explain_category(txn_type: str, category_or_source: str, description: str | None) -> tuple[str, str | None]:
+    """Feature #26 - Explain AI Decisions. Recomputes, against the SAME
+    hint tables used at extraction time, whether the category came from a
+    recognizable keyword. Returns (reason_kind, keyword):
+      - ("hint_match", keyword)   - description contains a known keyword/merchant
+      - ("no_match", None)        - no keyword matched; category_or_source was
+                                     either explicitly stated or an LLM guess
+    Deliberately does NOT talk to the LLM or the DB - this must describe
+    the actual deterministic rule that ran, not a plausible-sounding story
+    made up after the fact. Personalized-memory reasons (learned habits)
+    are checked separately in services/finance.py, which has DB access."""
+    if not description:
+        return ("no_match", None)
+    hint_map = INCOME_CATEGORY_HINTS if txn_type == "income" else EXPENSE_CATEGORY_HINTS
+    hints = hint_map.get(category_or_source, ())
+    lowered = description.lower()
+    matched_keyword = None
+    best_len = 0
+    for hint in hints:
+        if hint in lowered and len(hint) > best_len:
+            matched_keyword = hint
+            best_len = len(hint)
+    if matched_keyword:
+        return ("hint_match", matched_keyword)
+    return ("no_match", None)
+
+
+def extract_transactions(message: str, recent_chat: str | None = None, user_hints: list[tuple[str, str]] | None = None) -> dict:
     """Returns a dict: {"transactions": list[dict], "clarification_needed": bool,
     "clarification_question": str | None}. Each transaction dict is
     {type, amount, category_or_source, description, date}.
+
+    user_hints: optional list of (keyword, category_or_source) pairs - this
+    user's own strongest learned habits (#30 Adaptive Prompting) - fed into
+    the prompt as a soft prior so the LLM's first guess adapts to this
+    user's history, not just the deterministic override that runs later.
 
     NOTE: this used to return a bare list[dict]. It now returns the full
     shape so callers (parser.py) can see when the model deliberately held
@@ -206,7 +278,7 @@ def extract_transactions(message: str, recent_chat: str | None = None) -> dict:
     treating it as 'not a transaction'."""
     messages = [
         {"role": "system", "content": EXTRACTION_SYSTEM_PROMPT},
-        {"role": "user", "content": f"{_memory_block(recent_chat)}MESSAGE:\n{message}"},
+        {"role": "user", "content": f"{_habits_block(user_hints)}{_memory_block(recent_chat)}MESSAGE:\n{message}"},
     ]
     raw = llm.fast_chat(messages, json_mode=True, max_tokens=400)
 
@@ -232,12 +304,17 @@ def extract_transactions(message: str, recent_chat: str | None = None) -> dict:
             description,
         )
 
+        payment_method = t.get("payment_method")
+        if payment_method not in ("cash", "online"):
+            payment_method = None
+
         results.append({
             "type": txn_type,
             "amount": amount,
             "category_or_source": cat,
             "description": description,
             "date": resolve_date_hint(t.get("date_hint")),
+            "payment_method": payment_method,
         })
 
     clarification_needed = bool(parsed.get("clarification_needed", False))
@@ -347,4 +424,60 @@ def extract_delete(message: str, recent_chat: str | None = None) -> dict | None:
         ),
         "date": resolve_date_hint(parsed.get("date_hint")),
         "search_terms": parsed.get("search_terms") or "",
+    }
+
+def resolve_goal_deadline(hint: str | None) -> date | None:
+    """Parses a savings-goal DEADLINE (a future date), which is a different
+    problem from resolve_date_hint (always resolves PAST transaction
+    dates) - reusing that function here would silently misinterpret "by
+    December" as today. Returns None (no deadline) rather than guessing
+    when the phrase isn't recognized - a wrong invented deadline is worse
+    than no deadline at all for a savings goal."""
+    if not hint:
+        return None
+    h = hint.strip().lower()
+    today = date.today()
+
+    if "this month" in h:
+        y, m = (today.year, today.month + 1) if today.month < 12 else (today.year + 1, 1)
+        return date(y, m, 1) - timedelta(days=1)
+    if "next month" in h:
+        y, m = (today.year, today.month + 2) if today.month < 11 else (today.year + 1, today.month - 10)
+        return date(y, m, 1) - timedelta(days=1)
+
+    months_match = re.search(r"in\s+(\d+)\s+months?", h)
+    if months_match:
+        n = int(months_match.group(1))
+        total = today.month - 1 + n
+        y = today.year + total // 12
+        m = total % 12 + 1
+        return date(y, m, 1)
+
+    for idx, name in enumerate(MONTH_NAMES, start=1):
+        if re.search(rf"\b{name}\b", h):
+            year = today.year if idx >= today.month else today.year + 1
+            return date(year, idx, 1)
+
+    return None
+
+
+def extract_goal(message: str) -> dict:
+    """Feature: Financial Goal Tracking. Returns {"target_amount": float|None,
+    "target_date": date|None}. Raises llm.LLMUnavailableError if both
+    providers are down - callers should queue/retry rather than silently
+    failing to set the goal."""
+    messages = [
+        {"role": "system", "content": GOAL_SYSTEM_PROMPT},
+        {"role": "user", "content": message},
+    ]
+    raw = llm.fast_chat(messages, json_mode=True, max_tokens=80)
+    parsed = llm.safe_json_parse(raw) or {}
+    target_amount = parsed.get("target_amount")
+    try:
+        target_amount = float(target_amount) if target_amount is not None else None
+    except (TypeError, ValueError):
+        target_amount = None
+    return {
+        "target_amount": target_amount,
+        "target_date": resolve_goal_deadline(parsed.get("date_hint")),
     }

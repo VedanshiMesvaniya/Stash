@@ -7,7 +7,7 @@ report, chat.
 from . import llm
 from .prompts import INTENT_SYSTEM_PROMPT
 
-VALID_INTENTS = {"transaction", "correction", "delete", "question", "report", "chat"}
+VALID_INTENTS = {"transaction", "correction", "delete", "question", "report", "goal", "chat"}
 
 
 def detect_intent(message: str, recent_chat: str | None = None) -> str:

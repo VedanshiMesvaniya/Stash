@@ -37,3 +37,5 @@ def run_migrations():
 
     with engine.begin() as connection:
         _add_column_if_missing(connection, "users", "display_name", "display_name VARCHAR")
+        _add_column_if_missing(connection, "income", "payment_method", "payment_method VARCHAR")
+        _add_column_if_missing(connection, "expense", "payment_method", "payment_method VARCHAR")

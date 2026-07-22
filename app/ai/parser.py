@@ -83,7 +83,7 @@ def _clarify_amount(message: str) -> str:
     return f"How much {subject} should I enter?"
 
 
-def handle_message(message: str, db: Session, user_id: int) -> dict:
+def handle_message(message: str, db: Session, user_id: int, payment_method_hint: str | None = None) -> dict:
     """
     Returns a dict shaped as:
     {
@@ -93,6 +93,13 @@ def handle_message(message: str, db: Session, user_id: int) -> dict:
       "needs_confirmation": bool,  # True if a correction/extraction is ambiguous and needs user pick
       "candidates": list | None,   # disambiguation options if needs_confirmation
     }
+
+    payment_method_hint: explicit Cash/Online selection from the chat
+    composer's toggle (#33-35). Only fills in transactions where the
+    extractor found no textual signal at all - explicit words in the
+    message ("paid cash for tea") always take priority over the toggle,
+    since the toggle is a fallback default, not an override of what the
+    user actually typed.
     """
     from app.services import finance  # local import to avoid circular import
 
@@ -106,8 +113,9 @@ def handle_message(message: str, db: Session, user_id: int) -> dict:
         return _queue_for_later(db, user_id, message)
 
     if intent == "transaction":
+        user_hints = [(m.keyword, m.category_or_source) for m in crud.get_top_merchant_memories(db, user_id)]
         try:
-            extraction = extractor.extract_transactions(message, recent_chat=recent_chat or None)
+            extraction = extractor.extract_transactions(message, recent_chat=recent_chat or None, user_hints=user_hints or None)
         except LLMUnavailableError:
             return _queue_for_later(db, user_id, message)
 
@@ -117,6 +125,11 @@ def handle_message(message: str, db: Session, user_id: int) -> dict:
         transactions = extraction.get("transactions", [])
         clarification_needed = extraction.get("clarification_needed", False)
         clarification_question = extraction.get("clarification_question")
+
+        if payment_method_hint:
+            for txn in transactions:
+                if not txn.get("payment_method"):
+                    txn["payment_method"] = payment_method_hint
 
         # Truly nothing extracted and no clarification offered either - only
         # here do we fall back to the generic guesser.
@@ -134,11 +147,23 @@ def handle_message(message: str, db: Session, user_id: int) -> dict:
         if clarification_needed and clarification_question:
             balance = finance.crud.get_balance(db, user_id)
             reply_text = clarification_question
+
+            # Expense Prediction (#29) - offer the user's own learned habit
+            # as a suggested default before they have to answer manually,
+            # rather than a bare open-ended question with no starting point.
+            keywords = finance._distinctive_keywords(message)
+            if keywords:
+                for txn_type in ("expense", "income"):
+                    predicted = crud.recall_merchant_category(db, user_id, txn_type, keywords, min_hits=2)
+                    if predicted:
+                        reply_text = f"{clarification_question} (My best guess based on your past entries: {predicted} - just confirm or tell me the right one.)"
+                        break
+
             if created:
                 # Confirm what WAS logged before asking about the ambiguous part,
                 # so the user sees both in one reply instead of a bare question.
                 logged_summary = finance.format_transaction_reply(created, balance=balance, currency=currency)
-                reply_text = f"{logged_summary}\n\n{clarification_question}"
+                reply_text = f"{logged_summary}\n\n{reply_text}"
             return {
                 "intent": "transaction",
                 "reply": reply_text,
@@ -192,7 +217,42 @@ def handle_message(message: str, db: Session, user_id: int) -> dict:
         result = finance.apply_delete(db, user_id, delete_request, currency=currency)
         return result
 
+    if intent == "goal":
+        try:
+            goal = extractor.extract_goal(message)
+        except LLMUnavailableError:
+            return _queue_for_later(db, user_id, message)
+
+        if not goal.get("target_amount"):
+            return {
+                "intent": "goal",
+                "reply": "How much would you like to save, and by when (optional)? For example: \"save 10000 by December\".",
+                "data": None, "needs_confirmation": False, "candidates": None,
+            }
+
+        from app.services import finance  # local import to avoid circular import
+
+        row = crud.set_savings_goal(db, user_id, goal["target_amount"], goal.get("target_date"))
+        target_display = finance._fmt_money(currency, finance._from_base(row.target_amount, currency))
+        reply = f"Goal set: save {target_display}"
+        if row.target_date:
+            reply += f" by {row.target_date.strftime('%d %b %Y')}"
+        reply += ". I'll track your net savings toward it - ask me anytime how it's going."
+        return {
+            "intent": "goal", "reply": reply,
+            "data": {"target_amount": row.target_amount, "target_date": str(row.target_date) if row.target_date else None},
+            "needs_confirmation": False, "candidates": None,
+        }
+
     if intent == "question":
+        # "Why did you categorize/classify/call this X" - answered from the
+        # actual deterministic rule that ran (#26), not a generic LLM guess.
+        lowered_msg = message.lower()
+        if "why" in lowered_msg and any(w in lowered_msg for w in ("categor", "classif", "call it", "call this", "put it", "put this", "mark it", "mark this")):
+            return {
+                "intent": "question", "reply": finance.explain_last_categorization(db, user_id),
+                "data": None, "needs_confirmation": False, "candidates": None,
+            }
         context = finance.build_qa_context(db, user_id, message, currency=currency)
         try:
             answer = response.answer_question(message, context)
@@ -210,10 +270,10 @@ def handle_message(message: str, db: Session, user_id: int) -> dict:
             "needs_confirmation": False, "candidates": None,
         }
 
-    # chat fallback
+    # chat fallback - greetings, thanks, jokes, "what can you do" (#25, #31, #32)
     return {
         "intent": "chat",
-        "reply": "Hi, I'm Stash - tell me what happened, for example 'Salary received 35000' or 'Tea 20'.",
+        "reply": response.casual_reply(message, recent_chat=recent_chat or None),
         "data": None, "needs_confirmation": False, "candidates": None,
     }
 

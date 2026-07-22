@@ -25,6 +25,17 @@ class RecurringProgress:
     next_due_date: date
 
 
+def has_active_schedule_for(db: Session, user_id: int, transaction_type: str, category_or_source: str) -> bool:
+    """Used by the recurring-detection nudge (feature #23) to avoid
+    suggesting a schedule the user already has set up."""
+    return db.query(models.RecurringTransaction).filter(
+        models.RecurringTransaction.user_id == user_id,
+        models.RecurringTransaction.transaction_type == transaction_type,
+        models.RecurringTransaction.category_or_source == category_or_source,
+        models.RecurringTransaction.active.is_(True),
+    ).first() is not None
+
+
 def _add_months(source_date: date, months: int) -> date:
     month = source_date.month - 1 + months
     year = source_date.year + month // 12
