@@ -20,6 +20,7 @@ const AUTH_ROUTES = new Set(['/login']);
 const LOGO_SRC = '/static/icons/mark.png';
 const DASHBOARD_CACHE_KEY = 'stash_dashboard_cache';
 const RECURRING_CACHE_KEY = 'stash_recurring_cache';
+const WALLETS_CACHE_KEY = 'stash_wallets_cache';
 const STASH_STORAGE_KEYS = [
   'stash_dashboard_cache',
   'stash_recurring_cache',
@@ -525,6 +526,7 @@ function Page({ route, theme, session, onNavigate, onTouchData, refreshToken, on
 function DashboardPage({ session, onNavigate, refreshToken, onTouchData }) {
   const [data, setData] = useState(() => readJsonCache(DASHBOARD_CACHE_KEY, null));
   const [recurring, setRecurring] = useState(() => readJsonCache(RECURRING_CACHE_KEY, []));
+  const [wallets, setWallets] = useState(() => readJsonCache(WALLETS_CACHE_KEY, null));
   const [error, setError] = useState('');
 
   useEffect(() => {
@@ -532,9 +534,10 @@ function DashboardPage({ session, onNavigate, refreshToken, onTouchData }) {
     setError('');
     const loadDashboard = async () => {
       try {
-        const [dashboardResult, recurringResult] = await Promise.allSettled([
+        const [dashboardResult, recurringResult, walletsResult] = await Promise.allSettled([
           apiFetch('/api/dashboard', { method: 'GET', headers: {} }),
           apiFetch('/api/recurring', { method: 'GET', headers: {} }),
+          apiFetch('/api/wallets', { method: 'GET', headers: {} }),
         ]);
         if (!alive) return;
 
@@ -557,6 +560,13 @@ function DashboardPage({ session, onNavigate, refreshToken, onTouchData }) {
         } else if (recurringResult.reason && !dashboardResult.reason) {
           setError(recurringResult.reason.message);
         }
+
+        if (walletsResult.status === 'fulfilled') {
+          setWallets(walletsResult.value);
+          writeJsonCache(WALLETS_CACHE_KEY, walletsResult.value);
+        }
+        // Wallet fetch failing isn't fatal to the whole dashboard - the
+        // widget below just quietly falls back to cached/zero values.
       } catch (err) {
         if (alive) setError(err.message);
       }
@@ -588,6 +598,40 @@ function DashboardPage({ session, onNavigate, refreshToken, onTouchData }) {
         <MetricCard label="This Month Income" value={money(data?.income || 0, currency)} tone="good" />
         <MetricCard label="This Month Expense" value={money(data?.expense || 0, currency)} tone="bad" />
         <MetricCard label="Savings" value={money(data?.saved || 0, currency)} tone="accent" />
+      </section>
+
+      <section className="card card-pad wallet-widget">
+        <div className="card-head">
+          <div>
+            <h2 className="card-title">Wallets</h2>
+            <div className="card-note">Split by how each transaction was paid</div>
+          </div>
+        </div>
+        <div className="wallet-widget-grid">
+          <div className="wallet-tile wallet-tile-cash">
+            <span className="material-symbols-rounded" aria-hidden="true">payments</span>
+            <div>
+              <div className="wallet-tile-label">Cash Wallet</div>
+              <div className="wallet-tile-value">{money(wallets?.cash ?? 0, currency)}</div>
+            </div>
+          </div>
+          <div className="wallet-tile wallet-tile-online">
+            <span className="material-symbols-rounded" aria-hidden="true">contactless</span>
+            <div>
+              <div className="wallet-tile-label">Online Wallet</div>
+              <div className="wallet-tile-value">{money(wallets?.online ?? 0, currency)}</div>
+            </div>
+          </div>
+          {wallets?.unspecified ? (
+            <div className="wallet-tile wallet-tile-unspecified">
+              <span className="material-symbols-rounded" aria-hidden="true">help</span>
+              <div>
+                <div className="wallet-tile-label">Unspecified</div>
+                <div className="wallet-tile-value">{money(wallets.unspecified, currency)}</div>
+              </div>
+            </div>
+          ) : null}
+        </div>
       </section>
 
       {data?.suggestion ? <div className="card card-pad insight-card">{data.suggestion}</div> : null}
@@ -634,11 +678,24 @@ function DashboardPage({ session, onNavigate, refreshToken, onTouchData }) {
 function ChatPage({ session, onNavigate, onTouchData, refreshToken }) {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
-  const [paymentMethod, setPaymentMethod] = useState(null); // 'cash' | 'online' | null (#33)
+  const [paymentMethod, setPaymentMethod] = useState('online'); // 'cash' | 'online' - defaults to online (#33)
+  const [walletMenuOpen, setWalletMenuOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const textareaRef = useRef(null);
+  const walletMenuRef = useRef(null);
+
+  useEffect(() => {
+    if (!walletMenuOpen) return undefined;
+    const handleOutsideClick = (event) => {
+      if (walletMenuRef.current && !walletMenuRef.current.contains(event.target)) {
+        setWalletMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleOutsideClick);
+    return () => document.removeEventListener('mousedown', handleOutsideClick);
+  }, [walletMenuOpen]);
 
   const resizeComposer = () => {
     const el = textareaRef.current;
@@ -752,6 +809,8 @@ function ChatPage({ session, onNavigate, onTouchData, refreshToken }) {
     }
   };
 
+  const [selectedCandidateIds, setSelectedCandidateIds] = useState(() => new Set());
+
   const handleCandidateConfirm = async (candidate, pendingNewAmount) => {
     addMessage('assistant', 'Updating...');
     const pendingAction = candidatePayload?.pendingAction || (pendingNewAmount ? 'correction' : 'delete');
@@ -770,6 +829,30 @@ function ChatPage({ session, onNavigate, onTouchData, refreshToken }) {
       method: 'POST',
       body: JSON.stringify(payload),
     });
+    setSelectedCandidateIds(new Set());
+    setMessages((prev) => [...prev, { role: 'assistant', content: result.reply }]);
+    onTouchData();
+  };
+
+  const toggleCandidateSelected = (id) => {
+    setSelectedCandidateIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const confirmSelectedDeletes = async (candidates) => {
+    const items = candidates
+      .filter((c) => selectedCandidateIds.has(c.id))
+      .map((c) => ({ id: c.id, type: c.type }));
+    if (!items.length) return;
+    addMessage('assistant', 'Updating...');
+    const result = await apiFetch('/api/chat/confirm-delete', {
+      method: 'POST',
+      body: JSON.stringify({ items }),
+    });
+    setSelectedCandidateIds(new Set());
     setMessages((prev) => [...prev, { role: 'assistant', content: result.reply }]);
     onTouchData();
   };
@@ -785,6 +868,10 @@ function ChatPage({ session, onNavigate, onTouchData, refreshToken }) {
     }
     return null;
   }, [messages]);
+
+  useEffect(() => {
+    setSelectedCandidateIds(new Set());
+  }, [candidatePayload]);
 
   return (
     <div className="chat-shell chat-page-shell">
@@ -806,18 +893,55 @@ function ChatPage({ session, onNavigate, onTouchData, refreshToken }) {
           {candidatePayload ? (
             <div className="bubble-row assistant">
               <div className="bubble assistant bubble-stack">
-                {candidatePayload.candidates.map((candidate) => (
-                  <button
-                    key={candidate.id}
-                    className="btn btn-ghost btn-full candidate-btn"
-                    onClick={() => handleCandidateConfirm(candidate, candidatePayload.pendingNewAmount)}
-                  >
-                    <span>{candidate.label}</span>
-                    <span>
-                      {money(candidate.amount, session.settings?.currency || 'INR')} ({candidate.date})
-                    </span>
-                  </button>
-                ))}
+                {candidatePayload.pendingAction === 'delete' ? (
+                  <>
+                    {candidatePayload.candidates.map((candidate) => (
+                      <button
+                        key={candidate.id}
+                        className={`btn btn-ghost btn-full candidate-btn${selectedCandidateIds.has(candidate.id) ? ' candidate-selected' : ''}`}
+                        onClick={() => toggleCandidateSelected(candidate.id)}
+                      >
+                        <span className="candidate-checkbox" aria-hidden="true">
+                          {selectedCandidateIds.has(candidate.id) ? '☑' : '☐'}
+                        </span>
+                        <span>{candidate.label}</span>
+                        <span>
+                          {money(candidate.amount, session.settings?.currency || 'INR')} ({candidate.date})
+                        </span>
+                      </button>
+                    ))}
+                    <div className="candidate-actions">
+                      <button
+                        type="button"
+                        className="btn btn-ghost btn-pill"
+                        onClick={() => setSelectedCandidateIds(new Set(candidatePayload.candidates.map((c) => c.id)))}
+                      >
+                        Select all
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-primary btn-pill"
+                        disabled={!selectedCandidateIds.size}
+                        onClick={() => confirmSelectedDeletes(candidatePayload.candidates)}
+                      >
+                        Delete selected ({selectedCandidateIds.size})
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  candidatePayload.candidates.map((candidate) => (
+                    <button
+                      key={candidate.id}
+                      className="btn btn-ghost btn-full candidate-btn"
+                      onClick={() => handleCandidateConfirm(candidate, candidatePayload.pendingNewAmount)}
+                    >
+                      <span>{candidate.label}</span>
+                      <span>
+                        {money(candidate.amount, session.settings?.currency || 'INR')} ({candidate.date})
+                      </span>
+                    </button>
+                  ))
+                )}
               </div>
             </div>
           ) : null}
@@ -830,27 +954,51 @@ function ChatPage({ session, onNavigate, onTouchData, refreshToken }) {
             sendMessage();
           }}
         >
-          <div className="composer-wallet-toggle" role="group" aria-label="Payment method">
+          <div className="composer-wallet-menu" ref={walletMenuRef}>
             <button
               type="button"
-              className={`btn btn-ghost btn-pill${paymentMethod === 'cash' ? ' active' : ''}`}
-              aria-pressed={paymentMethod === 'cash'}
-              onClick={() => setPaymentMethod((prev) => (prev === 'cash' ? null : 'cash'))}
-              title="Log this as a cash transaction unless the message says otherwise"
+              className={`btn btn-ghost btn-icon composer-plus${walletMenuOpen ? ' active' : ''}`}
+              aria-haspopup="true"
+              aria-expanded={walletMenuOpen}
+              aria-label="Payment method options"
+              onClick={() => setWalletMenuOpen((prev) => !prev)}
             >
-              <span className="material-symbols-rounded" aria-hidden="true">payments</span>
-              Cash
+              <span className="material-symbols-rounded" aria-hidden="true">add</span>
             </button>
-            <button
-              type="button"
-              className={`btn btn-ghost btn-pill${paymentMethod === 'online' ? ' active' : ''}`}
-              aria-pressed={paymentMethod === 'online'}
-              onClick={() => setPaymentMethod((prev) => (prev === 'online' ? null : 'online'))}
-              title="Log this as an online/digital transaction unless the message says otherwise"
+            <span
+              key={paymentMethod}
+              className={`wallet-selected-badge wallet-selected-${paymentMethod} composer-pulse`}
+              title={`Logging as ${paymentMethod === 'cash' ? 'Cash' : 'Online'} unless the message says otherwise`}
             >
-              <span className="material-symbols-rounded" aria-hidden="true">contactless</span>
-              Online
-            </button>
+              <span className="material-symbols-rounded" aria-hidden="true">
+                {paymentMethod === 'cash' ? 'payments' : 'contactless'}
+              </span>
+              {paymentMethod === 'cash' ? 'Cash' : 'Online'}
+            </span>
+            {walletMenuOpen ? (
+              <div className="composer-wallet-popover" role="menu">
+                <button
+                  type="button"
+                  role="menuitemradio"
+                  aria-checked={paymentMethod === 'cash'}
+                  className={`composer-wallet-option${paymentMethod === 'cash' ? ' active' : ''}`}
+                  onClick={() => { setPaymentMethod('cash'); setWalletMenuOpen(false); }}
+                >
+                  <span className="material-symbols-rounded" aria-hidden="true">payments</span>
+                  Cash
+                </button>
+                <button
+                  type="button"
+                  role="menuitemradio"
+                  aria-checked={paymentMethod === 'online'}
+                  className={`composer-wallet-option${paymentMethod === 'online' ? ' active' : ''}`}
+                  onClick={() => { setPaymentMethod('online'); setWalletMenuOpen(false); }}
+                >
+                  <span className="material-symbols-rounded" aria-hidden="true">contactless</span>
+                  Online
+                </button>
+              </div>
+            ) : null}
           </div>
           <textarea
             ref={textareaRef}

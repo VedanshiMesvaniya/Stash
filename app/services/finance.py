@@ -372,12 +372,56 @@ def apply_delete(db: Session, user_id: int, delete_request: dict, currency: str 
                 "description": row.description,
             }
         )
+    crud.set_pending_selection(db, user_id, "delete", options)
+    numbered = "\n".join(
+        f"{i+1}. {opt['label']} - {_fmt_money(currency, opt['amount'])} on {opt['date']}"
+        for i, opt in enumerate(options)
+    )
     return {
         "intent": "delete",
-        "reply": f"I found {len(options)} matching transactions - which one should I delete?",
+        "reply": (
+            f"I found {len(options)} matching transactions - which one(s) should I delete?\n{numbered}\n\n"
+            f"You can pick a button below, or just tell me - e.g. \"1\", \"the second one\", \"both\", or \"all\"."
+        ),
         "data": {"pending_action": "delete"},
         "needs_confirmation": True,
         "candidates": options,
+    }
+
+
+def delete_selected(db: Session, user_id: int, items: list[dict], currency: str | None = None) -> dict:
+    """Deletes one or more transactions at once (fixes the earlier
+    one-at-a-time-only delete flow, which had no way to act on "both" or
+    "the second and third one"). `items` is [{"id":, "type":}, ...]."""
+    deleted_labels = []
+    for item in items:
+        txn_type = item["type"]
+        row = crud.delete_income(db, user_id, item["id"]) if txn_type == "income" else crud.delete_expense(db, user_id, item["id"])
+        if row:
+            label = _display_label(txn_type, row.source if txn_type == "income" else row.category, row.description)
+            deleted_labels.append(f"{label} ({row.date})")
+
+    crud.clear_pending_selection(db, user_id)
+
+    if not deleted_labels:
+        return {
+            "intent": "delete",
+            "reply": "Those entries were already gone - nothing left to delete.",
+            "data": None, "needs_confirmation": False, "candidates": None,
+        }
+
+    balance = crud.get_balance(db, user_id)
+    if len(deleted_labels) == 1:
+        reply = f"Deleted {deleted_labels[0]}."
+    else:
+        reply = "Deleted:\n" + "\n".join(f"- {label}" for label in deleted_labels)
+    reply += f"\nUpdated balance: {_fmt_money(currency, balance)}"
+    if balance <= 0:
+        reply += f"\nYour balance hit {_fmt_money(currency, 0)}."
+    return {
+        "intent": "delete", "reply": reply,
+        "data": {"deleted_count": len(deleted_labels)},
+        "needs_confirmation": False, "candidates": None,
     }
 
 
