@@ -34,7 +34,13 @@ from .prompts import (
     CORRECTION_SYSTEM_PROMPT,
     DELETE_SYSTEM_PROMPT,
     EXTRACTION_SYSTEM_PROMPT,
+    GOAL_SYSTEM_PROMPT,
 )
+
+MONTH_NAMES = [
+    "january", "february", "march", "april", "may", "june",
+    "july", "august", "september", "october", "november", "december",
+]
 
 WEEKDAYS = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
 
@@ -418,4 +424,60 @@ def extract_delete(message: str, recent_chat: str | None = None) -> dict | None:
         ),
         "date": resolve_date_hint(parsed.get("date_hint")),
         "search_terms": parsed.get("search_terms") or "",
+    }
+
+def resolve_goal_deadline(hint: str | None) -> date | None:
+    """Parses a savings-goal DEADLINE (a future date), which is a different
+    problem from resolve_date_hint (always resolves PAST transaction
+    dates) - reusing that function here would silently misinterpret "by
+    December" as today. Returns None (no deadline) rather than guessing
+    when the phrase isn't recognized - a wrong invented deadline is worse
+    than no deadline at all for a savings goal."""
+    if not hint:
+        return None
+    h = hint.strip().lower()
+    today = date.today()
+
+    if "this month" in h:
+        y, m = (today.year, today.month + 1) if today.month < 12 else (today.year + 1, 1)
+        return date(y, m, 1) - timedelta(days=1)
+    if "next month" in h:
+        y, m = (today.year, today.month + 2) if today.month < 11 else (today.year + 1, today.month - 10)
+        return date(y, m, 1) - timedelta(days=1)
+
+    months_match = re.search(r"in\s+(\d+)\s+months?", h)
+    if months_match:
+        n = int(months_match.group(1))
+        total = today.month - 1 + n
+        y = today.year + total // 12
+        m = total % 12 + 1
+        return date(y, m, 1)
+
+    for idx, name in enumerate(MONTH_NAMES, start=1):
+        if re.search(rf"\b{name}\b", h):
+            year = today.year if idx >= today.month else today.year + 1
+            return date(year, idx, 1)
+
+    return None
+
+
+def extract_goal(message: str) -> dict:
+    """Feature: Financial Goal Tracking. Returns {"target_amount": float|None,
+    "target_date": date|None}. Raises llm.LLMUnavailableError if both
+    providers are down - callers should queue/retry rather than silently
+    failing to set the goal."""
+    messages = [
+        {"role": "system", "content": GOAL_SYSTEM_PROMPT},
+        {"role": "user", "content": message},
+    ]
+    raw = llm.fast_chat(messages, json_mode=True, max_tokens=80)
+    parsed = llm.safe_json_parse(raw) or {}
+    target_amount = parsed.get("target_amount")
+    try:
+        target_amount = float(target_amount) if target_amount is not None else None
+    except (TypeError, ValueError):
+        target_amount = None
+    return {
+        "target_amount": target_amount,
+        "target_date": resolve_goal_deadline(parsed.get("date_hint")),
     }

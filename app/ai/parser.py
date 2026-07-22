@@ -217,6 +217,33 @@ def handle_message(message: str, db: Session, user_id: int, payment_method_hint:
         result = finance.apply_delete(db, user_id, delete_request, currency=currency)
         return result
 
+    if intent == "goal":
+        try:
+            goal = extractor.extract_goal(message)
+        except LLMUnavailableError:
+            return _queue_for_later(db, user_id, message)
+
+        if not goal.get("target_amount"):
+            return {
+                "intent": "goal",
+                "reply": "How much would you like to save, and by when (optional)? For example: \"save 10000 by December\".",
+                "data": None, "needs_confirmation": False, "candidates": None,
+            }
+
+        from app.services import finance  # local import to avoid circular import
+
+        row = crud.set_savings_goal(db, user_id, goal["target_amount"], goal.get("target_date"))
+        target_display = finance._fmt_money(currency, finance._from_base(row.target_amount, currency))
+        reply = f"Goal set: save {target_display}"
+        if row.target_date:
+            reply += f" by {row.target_date.strftime('%d %b %Y')}"
+        reply += ". I'll track your net savings toward it - ask me anytime how it's going."
+        return {
+            "intent": "goal", "reply": reply,
+            "data": {"target_amount": row.target_amount, "target_date": str(row.target_date) if row.target_date else None},
+            "needs_confirmation": False, "candidates": None,
+        }
+
     if intent == "question":
         # "Why did you categorize/classify/call this X" - answered from the
         # actual deterministic rule that ran (#26), not a generic LLM guess.

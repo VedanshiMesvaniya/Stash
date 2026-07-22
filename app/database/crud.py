@@ -498,3 +498,41 @@ def get_top_merchant_memories(db: Session, user_id: int, limit: int = 15):
         models.MerchantMemory.user_id == user_id,
         models.MerchantMemory.hit_count >= 2,
     ).order_by(models.MerchantMemory.hit_count.desc()).limit(limit).all()
+
+
+# --- Financial Goal Tracking ---
+
+def set_savings_goal(db: Session, user_id: int, target_amount: float, target_date=None):
+    row = db.query(models.SavingsGoal).filter(models.SavingsGoal.user_id == user_id).first()
+    if row:
+        row.target_amount = target_amount
+        row.target_date = target_date
+        row.active = True
+        row.created_at = datetime.utcnow()  # restart progress tracking against the new target
+    else:
+        row = models.SavingsGoal(user_id=user_id, target_amount=target_amount, target_date=target_date)
+        db.add(row)
+    db.commit()
+    db.refresh(row)
+    return row
+
+
+def get_savings_goal(db: Session, user_id: int):
+    return db.query(models.SavingsGoal).filter(
+        models.SavingsGoal.user_id == user_id, models.SavingsGoal.active.is_(True)
+    ).first()
+
+
+def get_savings_progress_since(db: Session, user_id: int, since) -> float:
+    """Net saved (income - expense) from `since` (a datetime/date) to now -
+    the actual progress toward a savings goal, always derived live from
+    the ledger rather than a separately-tracked running total that could
+    drift out of sync."""
+    since_date = since.date() if hasattr(since, "date") else since
+    income = db.query(func.coalesce(func.sum(models.Income.amount), 0.0)).filter(
+        models.Income.user_id == user_id, models.Income.date >= since_date,
+    ).scalar()
+    expense = db.query(func.coalesce(func.sum(models.Expense.amount), 0.0)).filter(
+        models.Expense.user_id == user_id, models.Expense.date >= since_date,
+    ).scalar()
+    return round(income - expense, 2)

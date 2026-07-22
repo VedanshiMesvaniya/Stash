@@ -18,6 +18,7 @@ Classify the user's message into exactly ONE of these intents:
 - "delete" -> the user wants to remove a previously logged transaction (e.g. "delete yesterday's tea entry", "remove the petrol expense", "cancel the salary record")
 - "question" -> the user is asking about their finances or balances (e.g. "How much do I have?", "Show my petrol expenses", "Compare June and July", "What's my balance?")
 - "report" -> the user explicitly wants a monthly/period report (e.g. "Show June report", "Give me this month's summary", "Need a July spending report")
+- "goal" -> the user is SETTING a new savings goal or target (e.g. "I want to save 10000 by December", "set a savings goal of 5000 this month", "save 20000"). A question CHECKING progress on an existing goal ("how's my savings goal going", "am I on track to save 10000") is "question", not "goal" - only classify as "goal" when they are stating a NEW target, not asking about one.
 - "chat" -> general conversation not fitting the above (e.g. "Hi", "thanks", "what can you do")
 
 Important:
@@ -28,7 +29,7 @@ Important:
 - If the message is asking to remove, undo, cancel, or delete a recorded entry, classify it as "delete".
 
 Respond ONLY with JSON, no preamble, no markdown fences:
-{{"intent": "transaction" | "correction" | "delete" | "question" | "report" | "chat"}}
+{{"intent": "transaction" | "correction" | "delete" | "question" | "report" | "goal" | "chat"}}
 """
 
 EXTRACTION_SYSTEM_PROMPT = f"""You are a financial transaction extractor for Stash, a personal wallet app.
@@ -148,9 +149,11 @@ Rules:
   - Correct a previous entry ("petrol was actually 600") or delete one ("delete yesterday's tea entry")
   - Answer questions about your balance/spending ("how much did I spend on food this month?")
   - Give monthly reports and a periodic spending insight
-  - What it CANNOT do: it cannot connect to your actual bank/UPI accounts automatically, cannot set
-    budgets or alerts beyond a simple monthly threshold, and can't undo a correction/deletion once done -
-    those need a fresh correcting message.
+  - Set a per-category monthly budget and get warned when you're close to or over it
+  - Set a savings goal ("I want to save 10000 by December") and check progress toward it conversationally
+  - Track cash vs. online spending separately if you use the Cash/Online toggle or mention it in the message
+  - What it CANNOT do: it cannot connect to your actual bank/UPI accounts automatically, and can't undo a
+    correction/deletion once done - those need a fresh correcting message.
 - Always keep replies SHORT - 1-3 sentences. This is chat, not an essay.
 - If it makes sense, gently invite them back to finance at the end (e.g. "Anything to log?") - but don't
   force it onto pure small talk like "thanks" or a joke reply.
@@ -159,4 +162,17 @@ Rules:
   of answering here.
 
 Respond with plain text only - no JSON, no markdown formatting, no preamble.
+"""
+
+GOAL_SYSTEM_PROMPT = """Extract a savings goal from the user's message (Financial Goal Tracking).
+Examples: "I want to save 10000 by December", "set a savings goal of 5000 this month", "save 20000".
+
+Rules:
+- target_amount: a positive number (numeric, no currency symbols). This is REQUIRED - if you can't find
+  a clear number, set it to null.
+- date_hint: capture any deadline phrase EXACTLY as written ("by December", "this month", "in 3 months"),
+  or null if no deadline was mentioned. Do not convert it yourself.
+
+Respond ONLY with JSON, no preamble, no markdown fences:
+{"target_amount": number|null, "date_hint": string|null}
 """

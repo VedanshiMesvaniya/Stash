@@ -181,3 +181,18 @@ class CategoryBudget(Base):
     category = Column(String, nullable=False)
     monthly_limit = Column(Float, nullable=False)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+
+class SavingsGoal(Base):
+    """One active savings goal per user (Financial Goal Tracking). Keeping
+    it to one active goal at a time (not a list) matches how people
+    actually talk about this conversationally - "how's my savings goal
+    going" assumes a single answer, not a pick-a-list situation."""
+    __tablename__ = "savings_goals"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, unique=True, index=True)
+    target_amount = Column(Float, nullable=False)
+    target_date = Column(Date, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    active = Column(Boolean, nullable=False, default=True)

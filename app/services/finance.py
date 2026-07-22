@@ -425,11 +425,23 @@ def build_qa_context(db: Session, user_id: int, question: str, currency: str | N
     wallet_balances_raw = crud.get_wallet_balances(db, user_id)
     wallet_balances = {key: _from_base(value, active_currency) for key, value in wallet_balances_raw.items()}
 
+    goal = crud.get_savings_goal(db, user_id)
+    savings_goal = None
+    if goal:
+        progress = crud.get_savings_progress_since(db, user_id, goal.created_at)
+        savings_goal = {
+            "target_amount": _from_base(goal.target_amount, active_currency),
+            "target_date": str(goal.target_date) if goal.target_date else None,
+            "saved_so_far": _from_base(progress, active_currency),
+            "started_tracking_on": str(goal.created_at.date()) if goal.created_at else None,
+        }
+
     return {
         "currency": active_currency,
         "currency_symbol": currency_service.currency_symbol(active_currency),
         "current_balance": _from_base(balance, active_currency),
         "wallet_balances": wallet_balances,
+        "savings_goal": savings_goal,
         "this_month": {
             "income": _from_base(this_month["income"], active_currency),
             "expense": _from_base(this_month["expense"], active_currency),
