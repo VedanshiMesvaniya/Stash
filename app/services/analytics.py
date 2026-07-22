@@ -58,6 +58,56 @@ def get_dashboard_data(db: Session, user) -> dict:
     }
 
 
+def _prev_month(year: int, month: int, back: int) -> tuple[int, int]:
+    m = month - back
+    y = year
+    while m <= 0:
+        m += 12
+        y -= 1
+    return y, m
+
+
+def _detect_unusual_spending(db: Session, user, this_month_breakdown: dict, currency: str) -> str:
+    """Combines Spending Pattern Detection and Smart Saving Suggestions -
+    spotting a category that's unusually elevated vs. the user's own
+    recent average IS the actionable saving opportunity, so one rule
+    covers both rather than two separate heuristics saying the same thing
+    two different ways.
+
+    Requires a meaningful baseline (>=200 in base currency across the last
+    2 months) before calling anything "unusual" - a category that simply
+    didn't exist before isn't a pattern, it's a new expense, and flagging
+    every first-time category would just be noise."""
+    today = date.today()
+    y1, m1 = _prev_month(today.year, today.month, 1)
+    y2, m2 = _prev_month(today.year, today.month, 2)
+    prev1 = crud.get_category_breakdown(db, user.id, y1, m1)
+    prev2 = crud.get_category_breakdown(db, user.id, y2, m2)
+    if not prev1 and not prev2:
+        return ""
+
+    best = None
+    for cat, amount in this_month_breakdown.items():
+        avg = (prev1.get(cat, 0.0) + prev2.get(cat, 0.0)) / 2
+        if avg < 200.0:
+            continue
+        if amount >= avg * 1.5 and (amount - avg) >= 300.0:
+            ratio = amount / avg
+            if not best or ratio > best[2]:
+                best = (cat, amount, ratio, avg)
+    if not best:
+        return ""
+
+    cat, amount, ratio, avg = best
+    pct = round((ratio - 1) * 100)
+    amount_c = currency_service.convert_amount(amount, "INR", currency)
+    avg_c = currency_service.convert_amount(avg, "INR", currency)
+    return (
+        f"{cat} spending is up {pct}% this month ({_format_amount(currency, amount_c)} vs your recent average of "
+        f"{_format_amount(currency, avg_c)}) - worth a look if it wasn't planned, and an easy place to cut back if you need to save more."
+    )
+
+
 def get_smart_suggestion(db: Session, user) -> str:
     """Generates one short insight. Cheap heuristics first; falls back to the
     LLM only if nothing rule-based stands out, to avoid a cloud API call on
@@ -83,6 +133,10 @@ def get_smart_suggestion(db: Session, user) -> str:
         if summary["income"] > 0 and top_amount > 0.3 * summary["income"]:
             pct = round((top_amount / summary["income"]) * 100)
             return f"{top_cat} spending is {_format_amount(currency, currency_service.convert_amount(top_amount, 'INR', currency))} this month - {pct}% of your income so far."
+
+    unusual = _detect_unusual_spending(db, user, breakdown, currency)
+    if unusual:
+        return unusual
 
     context = {
         "balance": currency_service.convert_amount(balance, "INR", currency),
