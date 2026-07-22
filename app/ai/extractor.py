@@ -208,6 +208,33 @@ def _resolve_category_or_source(txn_type: str, raw_value: str | None, descriptio
     return "Other"
 
 
+def explain_category(txn_type: str, category_or_source: str, description: str | None) -> tuple[str, str | None]:
+    """Feature #26 - Explain AI Decisions. Recomputes, against the SAME
+    hint tables used at extraction time, whether the category came from a
+    recognizable keyword. Returns (reason_kind, keyword):
+      - ("hint_match", keyword)   - description contains a known keyword/merchant
+      - ("no_match", None)        - no keyword matched; category_or_source was
+                                     either explicitly stated or an LLM guess
+    Deliberately does NOT talk to the LLM or the DB - this must describe
+    the actual deterministic rule that ran, not a plausible-sounding story
+    made up after the fact. Personalized-memory reasons (learned habits)
+    are checked separately in services/finance.py, which has DB access."""
+    if not description:
+        return ("no_match", None)
+    hint_map = INCOME_CATEGORY_HINTS if txn_type == "income" else EXPENSE_CATEGORY_HINTS
+    hints = hint_map.get(category_or_source, ())
+    lowered = description.lower()
+    matched_keyword = None
+    best_len = 0
+    for hint in hints:
+        if hint in lowered and len(hint) > best_len:
+            matched_keyword = hint
+            best_len = len(hint)
+    if matched_keyword:
+        return ("hint_match", matched_keyword)
+    return ("no_match", None)
+
+
 def extract_transactions(message: str, recent_chat: str | None = None) -> dict:
     """Returns a dict: {"transactions": list[dict], "clarification_needed": bool,
     "clarification_question": str | None}. Each transaction dict is

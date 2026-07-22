@@ -482,3 +482,40 @@ def build_report(db: Session, user_id: int, message: str, currency: str | None =
         "most_used_category": most_used_category,
         "summary_text": summary_text,
     }
+
+
+def explain_last_categorization(db: Session, user_id: int) -> str:
+    """Feature #26 - Explain AI Decisions. Answers 'why did you categorize
+    that as X' honestly, using the actual rule that ran (hint keyword match,
+    personalized learned habit, or "no exact rule - best interpretation of
+    the full message") rather than asking the LLM to invent a plausible-
+    sounding justification after the fact."""
+    from app.ai import extractor
+
+    timeline = crud.get_timeline(db, user_id, limit=1)
+    if not timeline:
+        return "I haven't logged anything for you yet, so there's nothing to explain."
+
+    txn = timeline[0]
+    reason_kind, keyword = extractor.explain_category(txn["type"], txn["label"], txn["description"])
+
+    if reason_kind == "hint_match":
+        return (
+            f"Your last entry ({txn.get('display_label') or txn['label']}, {txn['amount']}) was categorized as "
+            f"\"{txn['label']}\" because the description contained \"{keyword}\", which I map to that category."
+        )
+
+    keywords = _distinctive_keywords(txn["description"])
+    if keywords:
+        learned = crud.recall_merchant_category(db, user_id, txn["type"], keywords, min_hits=1)
+        if learned == txn["label"]:
+            return (
+                f"Your last entry ({txn.get('display_label') or txn['label']}, {txn['amount']}) was categorized as "
+                f"\"{txn['label']}\" because you've logged similar items that way before - I remembered your own pattern for this."
+            )
+
+    return (
+        f"Your last entry ({txn.get('display_label') or txn['label']}, {txn['amount']}) was categorized as "
+        f"\"{txn['label']}\" - there wasn't an exact keyword match, so that was my best interpretation of the full message. "
+        f"If it's wrong, just tell me the right category and I'll fix it."
+    )

@@ -205,6 +205,14 @@ def handle_message(message: str, db: Session, user_id: int, payment_method_hint:
         return result
 
     if intent == "question":
+        # "Why did you categorize/classify/call this X" - answered from the
+        # actual deterministic rule that ran (#26), not a generic LLM guess.
+        lowered_msg = message.lower()
+        if "why" in lowered_msg and any(w in lowered_msg for w in ("categor", "classif", "call it", "call this", "put it", "put this", "mark it", "mark this")):
+            return {
+                "intent": "question", "reply": finance.explain_last_categorization(db, user_id),
+                "data": None, "needs_confirmation": False, "candidates": None,
+            }
         context = finance.build_qa_context(db, user_id, message, currency=currency)
         try:
             answer = response.answer_question(message, context)
