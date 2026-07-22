@@ -20,6 +20,7 @@ const AUTH_ROUTES = new Set(['/login']);
 const LOGO_SRC = '/static/icons/mark.png';
 const DASHBOARD_CACHE_KEY = 'stash_dashboard_cache';
 const RECURRING_CACHE_KEY = 'stash_recurring_cache';
+const WALLETS_CACHE_KEY = 'stash_wallets_cache';
 const STASH_STORAGE_KEYS = [
   'stash_dashboard_cache',
   'stash_recurring_cache',
@@ -525,6 +526,7 @@ function Page({ route, theme, session, onNavigate, onTouchData, refreshToken, on
 function DashboardPage({ session, onNavigate, refreshToken, onTouchData }) {
   const [data, setData] = useState(() => readJsonCache(DASHBOARD_CACHE_KEY, null));
   const [recurring, setRecurring] = useState(() => readJsonCache(RECURRING_CACHE_KEY, []));
+  const [wallets, setWallets] = useState(() => readJsonCache(WALLETS_CACHE_KEY, null));
   const [error, setError] = useState('');
 
   useEffect(() => {
@@ -532,9 +534,10 @@ function DashboardPage({ session, onNavigate, refreshToken, onTouchData }) {
     setError('');
     const loadDashboard = async () => {
       try {
-        const [dashboardResult, recurringResult] = await Promise.allSettled([
+        const [dashboardResult, recurringResult, walletsResult] = await Promise.allSettled([
           apiFetch('/api/dashboard', { method: 'GET', headers: {} }),
           apiFetch('/api/recurring', { method: 'GET', headers: {} }),
+          apiFetch('/api/wallets', { method: 'GET', headers: {} }),
         ]);
         if (!alive) return;
 
@@ -557,6 +560,13 @@ function DashboardPage({ session, onNavigate, refreshToken, onTouchData }) {
         } else if (recurringResult.reason && !dashboardResult.reason) {
           setError(recurringResult.reason.message);
         }
+
+        if (walletsResult.status === 'fulfilled') {
+          setWallets(walletsResult.value);
+          writeJsonCache(WALLETS_CACHE_KEY, walletsResult.value);
+        }
+        // Wallet fetch failing isn't fatal to the whole dashboard - the
+        // widget below just quietly falls back to cached/zero values.
       } catch (err) {
         if (alive) setError(err.message);
       }
@@ -588,6 +598,40 @@ function DashboardPage({ session, onNavigate, refreshToken, onTouchData }) {
         <MetricCard label="This Month Income" value={money(data?.income || 0, currency)} tone="good" />
         <MetricCard label="This Month Expense" value={money(data?.expense || 0, currency)} tone="bad" />
         <MetricCard label="Savings" value={money(data?.saved || 0, currency)} tone="accent" />
+      </section>
+
+      <section className="card card-pad wallet-widget">
+        <div className="card-head">
+          <div>
+            <h2 className="card-title">Wallets</h2>
+            <div className="card-note">Split by how each transaction was paid</div>
+          </div>
+        </div>
+        <div className="wallet-widget-grid">
+          <div className="wallet-tile wallet-tile-cash">
+            <span className="material-symbols-rounded" aria-hidden="true">payments</span>
+            <div>
+              <div className="wallet-tile-label">Cash Wallet</div>
+              <div className="wallet-tile-value">{money(wallets?.cash ?? 0, currency)}</div>
+            </div>
+          </div>
+          <div className="wallet-tile wallet-tile-online">
+            <span className="material-symbols-rounded" aria-hidden="true">contactless</span>
+            <div>
+              <div className="wallet-tile-label">Online Wallet</div>
+              <div className="wallet-tile-value">{money(wallets?.online ?? 0, currency)}</div>
+            </div>
+          </div>
+          {wallets?.unspecified ? (
+            <div className="wallet-tile wallet-tile-unspecified">
+              <span className="material-symbols-rounded" aria-hidden="true">help</span>
+              <div>
+                <div className="wallet-tile-label">Unspecified</div>
+                <div className="wallet-tile-value">{money(wallets.unspecified, currency)}</div>
+              </div>
+            </div>
+          ) : null}
+        </div>
       </section>
 
       {data?.suggestion ? <div className="card card-pad insight-card">{data.suggestion}</div> : null}

@@ -316,6 +316,23 @@ h1, h2, h3, p { margin: 0; }
   box-shadow: 0 0 0 1px transparent, 0 0 18px color-mix(in srgb, var(--secondary) 8%, transparent);
 }
 
+.wallet-widget-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: var(--space-sm); }
+.wallet-tile {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: var(--space-sm) var(--space-md);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--outline-soft);
+  background: var(--surface-container);
+}
+.wallet-tile .material-symbols-rounded { font-size: 26px; flex-shrink: 0; }
+.wallet-tile-label { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--on-surface-variant); }
+.wallet-tile-value { font-size: 19px; font-weight: 700; margin-top: 2px; color: var(--on-surface); }
+.wallet-tile-cash .material-symbols-rounded { color: #b45309; }
+.wallet-tile-online .material-symbols-rounded { color: var(--secondary); }
+.wallet-tile-unspecified .material-symbols-rounded { color: var(--on-surface-variant); }
+
 /* =========================================================================
    Forms / inputs / dropdowns
    ========================================================================= */
