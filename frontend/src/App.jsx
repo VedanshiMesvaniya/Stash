@@ -634,11 +634,24 @@ function DashboardPage({ session, onNavigate, refreshToken, onTouchData }) {
 function ChatPage({ session, onNavigate, onTouchData, refreshToken }) {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
-  const [paymentMethod, setPaymentMethod] = useState(null); // 'cash' | 'online' | null (#33)
+  const [paymentMethod, setPaymentMethod] = useState('online'); // 'cash' | 'online' - defaults to online (#33)
+  const [walletMenuOpen, setWalletMenuOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const textareaRef = useRef(null);
+  const walletMenuRef = useRef(null);
+
+  useEffect(() => {
+    if (!walletMenuOpen) return undefined;
+    const handleOutsideClick = (event) => {
+      if (walletMenuRef.current && !walletMenuRef.current.contains(event.target)) {
+        setWalletMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleOutsideClick);
+    return () => document.removeEventListener('mousedown', handleOutsideClick);
+  }, [walletMenuOpen]);
 
   const resizeComposer = () => {
     const el = textareaRef.current;
@@ -897,27 +910,51 @@ function ChatPage({ session, onNavigate, onTouchData, refreshToken }) {
             sendMessage();
           }}
         >
-          <div className="composer-wallet-toggle" role="group" aria-label="Payment method">
+          <div className="composer-wallet-menu" ref={walletMenuRef}>
             <button
               type="button"
-              className={`btn btn-ghost btn-pill${paymentMethod === 'cash' ? ' active' : ''}`}
-              aria-pressed={paymentMethod === 'cash'}
-              onClick={() => setPaymentMethod((prev) => (prev === 'cash' ? null : 'cash'))}
-              title="Log this as a cash transaction unless the message says otherwise"
+              className={`btn btn-ghost btn-icon composer-plus${walletMenuOpen ? ' active' : ''}`}
+              aria-haspopup="true"
+              aria-expanded={walletMenuOpen}
+              aria-label="Payment method options"
+              onClick={() => setWalletMenuOpen((prev) => !prev)}
             >
-              <span className="material-symbols-rounded" aria-hidden="true">payments</span>
-              Cash
+              <span className="material-symbols-rounded" aria-hidden="true">add</span>
             </button>
-            <button
-              type="button"
-              className={`btn btn-ghost btn-pill${paymentMethod === 'online' ? ' active' : ''}`}
-              aria-pressed={paymentMethod === 'online'}
-              onClick={() => setPaymentMethod((prev) => (prev === 'online' ? null : 'online'))}
-              title="Log this as an online/digital transaction unless the message says otherwise"
+            <span
+              key={paymentMethod}
+              className={`wallet-selected-badge wallet-selected-${paymentMethod} composer-pulse`}
+              title={`Logging as ${paymentMethod === 'cash' ? 'Cash' : 'Online'} unless the message says otherwise`}
             >
-              <span className="material-symbols-rounded" aria-hidden="true">contactless</span>
-              Online
-            </button>
+              <span className="material-symbols-rounded" aria-hidden="true">
+                {paymentMethod === 'cash' ? 'payments' : 'contactless'}
+              </span>
+              {paymentMethod === 'cash' ? 'Cash' : 'Online'}
+            </span>
+            {walletMenuOpen ? (
+              <div className="composer-wallet-popover" role="menu">
+                <button
+                  type="button"
+                  role="menuitemradio"
+                  aria-checked={paymentMethod === 'cash'}
+                  className={`composer-wallet-option${paymentMethod === 'cash' ? ' active' : ''}`}
+                  onClick={() => { setPaymentMethod('cash'); setWalletMenuOpen(false); }}
+                >
+                  <span className="material-symbols-rounded" aria-hidden="true">payments</span>
+                  Cash
+                </button>
+                <button
+                  type="button"
+                  role="menuitemradio"
+                  aria-checked={paymentMethod === 'online'}
+                  className={`composer-wallet-option${paymentMethod === 'online' ? ' active' : ''}`}
+                  onClick={() => { setPaymentMethod('online'); setWalletMenuOpen(false); }}
+                >
+                  <span className="material-symbols-rounded" aria-hidden="true">contactless</span>
+                  Online
+                </button>
+              </div>
+            ) : null}
           </div>
           <textarea
             ref={textareaRef}

@@ -543,7 +543,6 @@ h1, h2, h3, p { margin: 0; }
 .composer-textarea:focus { border: none; box-shadow: none; }
 .composer .btn-primary { border-radius: var(--radius-full); width: 42px; height: 42px; padding: 0; flex-shrink: 0; }
 
-.composer-wallet-toggle { display: flex; gap: 6px; flex-shrink: 0; align-self: center; }
 .btn-pill {
   display: inline-flex;
   align-items: center;
@@ -555,9 +554,83 @@ h1, h2, h3, p { margin: 0; }
 }
 .btn-pill .material-symbols-rounded { font-size: 16px; }
 .btn-pill.active { background: var(--secondary); color: var(--on-secondary, #fff); border-color: transparent; }
+
+.composer-wallet-menu { position: relative; display: flex; align-items: center; gap: 8px; flex-shrink: 0; align-self: center; }
+.btn-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-full);
+  padding: 0;
+  flex-shrink: 0;
+}
+.composer-plus.active { background: var(--surface-container-high); border-color: var(--secondary); }
+.composer-plus .material-symbols-rounded { font-size: 20px; transition: transform 0.15s ease; }
+.composer-plus.active .material-symbols-rounded { transform: rotate(45deg); }
+
+.wallet-selected-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 10px;
+  border-radius: var(--radius-full);
+  font-size: 0.75rem;
+  font-weight: 600;
+  border: 1px solid var(--outline-soft);
+  color: var(--on-surface-variant);
+  white-space: nowrap;
+}
+.wallet-selected-badge .material-symbols-rounded { font-size: 15px; }
+.wallet-selected-online { border-color: color-mix(in srgb, var(--secondary) 45%, transparent); color: var(--secondary); }
+.wallet-selected-cash { border-color: color-mix(in srgb, #d97706 45%, transparent); color: #b45309; }
+
+/* Pulse draws the eye to the fact that a payment method is selected and
+   about to be applied - fires once on mount/change, not forever, so it
+   doesn't get annoying during a long chat session. */
+@keyframes wallet-pulse {
+  0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--secondary) 45%, transparent); }
+  70% { box-shadow: 0 0 0 8px color-mix(in srgb, var(--secondary) 0%, transparent); }
+  100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--secondary) 0%, transparent); }
+}
+.composer-pulse { animation: wallet-pulse 1.4s ease-out 2; }
+
+.composer-wallet-popover {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 0;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  background: var(--surface-container-high);
+  border: 1px solid var(--outline-soft);
+  border-radius: var(--radius-lg);
+  padding: 6px;
+  box-shadow: var(--shadow-md);
+  min-width: 160px;
+}
+.composer-wallet-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: var(--radius-md);
+  border: none;
+  background: transparent;
+  color: var(--on-surface);
+  font-size: 0.85rem;
+  cursor: pointer;
+  text-align: left;
+}
+.composer-wallet-option:hover { background: var(--surface-container-highest, var(--surface-container-high)); }
+.composer-wallet-option.active { color: var(--secondary); font-weight: 600; }
+.composer-wallet-option .material-symbols-rounded { font-size: 18px; }
+
 @media (max-width: 640px) {
-  .composer-wallet-toggle { position: absolute; top: -40px; left: 10px; }
-  .btn-pill span:not(.material-symbols-rounded) { display: none; }
+  .composer-wallet-menu { position: absolute; top: -46px; left: 10px; }
+  .wallet-selected-badge span:not(.material-symbols-rounded) { display: none; }
 }
 
 .empty-state { text-align: center; color: var(--on-surface-variant); font-size: 14px; padding: var(--space-xl) 0; }
