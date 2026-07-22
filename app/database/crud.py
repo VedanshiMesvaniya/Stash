@@ -449,3 +449,40 @@ def find_possible_duplicate(db: Session, user_id: int, transaction_type: str, ca
         models.Expense.amount == amount,
         models.Expense.date == txn_date,
     ).first()
+
+
+# --- Category budgets (feature #28) ---
+
+def get_budgets(db: Session, user_id: int) -> dict:
+    rows = db.query(models.CategoryBudget).filter(models.CategoryBudget.user_id == user_id).all()
+    return {row.category: row.monthly_limit for row in rows}
+
+
+def set_budget(db: Session, user_id: int, category: str, monthly_limit: float | None):
+    row = db.query(models.CategoryBudget).filter(
+        models.CategoryBudget.user_id == user_id,
+        models.CategoryBudget.category == category,
+    ).first()
+    if monthly_limit is None:
+        if row:
+            db.delete(row)
+            db.commit()
+        return None
+    if row:
+        row.monthly_limit = monthly_limit
+    else:
+        row = models.CategoryBudget(user_id=user_id, category=category, monthly_limit=monthly_limit)
+        db.add(row)
+    db.commit()
+    db.refresh(row)
+    return row.monthly_limit
+
+
+def get_category_spend_this_month(db: Session, user_id: int, category: str, year: int, month: int) -> float:
+    total = db.query(func.coalesce(func.sum(models.Expense.amount), 0.0)).filter(
+        models.Expense.user_id == user_id,
+        models.Expense.category == category,
+        extract("year", models.Expense.date) == year,
+        extract("month", models.Expense.date) == month,
+    ).scalar()
+    return round(total, 2)

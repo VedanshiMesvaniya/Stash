@@ -159,6 +159,16 @@ def create_transactions(db: Session, user_id: int, transactions: list[dict], cur
                 txn_date=t["date"],
                 payment_method=payment_method,
             )
+            budget_status = None
+            budgets = crud.get_budgets(db, user_id)
+            limit = budgets.get(category_or_source)
+            if limit:
+                spend = crud.get_category_spend_this_month(db, user_id, category_or_source, row.date.year, row.date.month)
+                ratio = spend / limit if limit else 0
+                if ratio >= 1:
+                    budget_status = {"status": "exceeded", "spend": spend, "limit": limit}
+                elif ratio >= 0.8:
+                    budget_status = {"status": "approaching", "spend": spend, "limit": limit}
             created.append(
                 {
                     "type": "expense",
@@ -169,6 +179,7 @@ def create_transactions(db: Session, user_id: int, transactions: list[dict], cur
                     "date": str(row.date),
                     "payment_method": row.payment_method,
                     "is_duplicate": is_duplicate,
+                    "budget_status": budget_status,
                 }
             )
         if keywords:
@@ -196,7 +207,7 @@ def format_transaction_reply(created: list[dict], balance: float | None = None, 
             reply += f"\nUpdated balance: {_fmt_money(currency, balance)}"
             if balance <= 0:
                 reply += f"\nYour balance hit {_fmt_money(currency, 0)}."
-        reply += _notes_suffix(created)
+        reply += _notes_suffix(created, currency)
         return reply
 
     lines = ["Got it, logged these:"]
@@ -207,13 +218,14 @@ def format_transaction_reply(created: list[dict], balance: float | None = None, 
         lines.append(f"Updated balance: {_fmt_money(currency, balance)}")
         if balance <= 0:
             lines.append(f"Your balance hit {_fmt_money(currency, 0)}.")
-    return "\n".join(lines) + _notes_suffix(created)
+    return "\n".join(lines) + _notes_suffix(created, currency)
 
 
-def _notes_suffix(created: list[dict]) -> str:
-    """Appends the soft, non-blocking heads-ups for #23 (recurring nudge)
-    and #24 (duplicate flag) - kept separate from the main reply body so
-    both callers (single/multi format) share one implementation."""
+def _notes_suffix(created: list[dict], currency: str | None = None) -> str:
+    """Appends the soft, non-blocking heads-ups for #23 (recurring nudge),
+    #24 (duplicate flag), and #28 (budget status) - kept separate from the
+    main reply body so both callers (single/multi format) share one
+    implementation."""
     notes = []
     duplicates = [t for t in created if t.get("is_duplicate")]
     if duplicates:
@@ -223,6 +235,17 @@ def _notes_suffix(created: list[dict]) -> str:
     if recurring:
         labels = ", ".join(t.get("display_label") or t["label"] for t in recurring)
         notes.append(f"This looks like it might repeat regularly ({labels}) - want me to set it up as a recurring entry so it logs automatically?")
+    for t in created:
+        budget_status = t.get("budget_status")
+        if not budget_status:
+            continue
+        label = t.get("display_label") or t["label"]
+        spend_str = _fmt_money(currency, budget_status["spend"])
+        limit_str = _fmt_money(currency, budget_status["limit"])
+        if budget_status["status"] == "exceeded":
+            notes.append(f"You've gone over your {label} budget this month - {spend_str} spent against a {limit_str} limit.")
+        else:
+            notes.append(f"Heads up - you're close to your {label} budget this month ({spend_str} of {limit_str}).")
     if not notes:
         return ""
     return "\n\n" + "\n".join(notes)

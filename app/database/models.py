@@ -164,3 +164,20 @@ class MerchantMemory(Base):
     category_or_source = Column(String, nullable=False)
     hit_count = Column(Integer, nullable=False, default=1)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+
+class CategoryBudget(Base):
+    """A user-set monthly spending ceiling per expense category (feature
+    #28 Budget-Aware Suggestions). Deliberately per-category, not one
+    lump total - "how much can I spend on Food this month" is the
+    question people actually ask, and a single overall number is already
+    covered by User.monthly_alert_amount (a balance floor, not a spend
+    ceiling - the two are complementary, not duplicates)."""
+    __tablename__ = "category_budgets"
+    __table_args__ = (UniqueConstraint("user_id", "category", name="uq_category_budget_user_category"),)
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    category = Column(String, nullable=False)
+    monthly_limit = Column(Float, nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())

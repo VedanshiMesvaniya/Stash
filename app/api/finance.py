@@ -161,6 +161,32 @@ def wallets(request: Request, db: Session = Depends(get_db), user: models.User =
     return {key: currency_service.convert_amount(value, "INR", user.currency) for key, value in raw.items()}
 
 
+class BudgetUpdateRequest(BaseModel):
+    category: str
+    monthly_limit: float | None = None  # None removes the budget for that category
+
+
+@router.get("/budgets")
+def get_budgets(request: Request, db: Session = Depends(get_db), user: models.User = Depends(get_current_user)):
+    """Per-category monthly spending ceilings (#28), converted to the
+    user's display currency - stored in INR internally like everything else."""
+    raw = crud.get_budgets(db, user.id)
+    return {cat: currency_service.convert_amount(limit, "INR", user.currency) for cat, limit in raw.items()}
+
+
+@router.post("/budgets")
+def set_budget(payload: BudgetUpdateRequest, request: Request, db: Session = Depends(get_db), user: models.User = Depends(get_current_user)):
+    limit_in_base = (
+        currency_service.convert_amount(payload.monthly_limit, user.currency, "INR")
+        if payload.monthly_limit is not None else None
+    )
+    result = crud.set_budget(db, user.id, payload.category, limit_in_base)
+    return {
+        "category": payload.category,
+        "monthly_limit": currency_service.convert_amount(result, "INR", user.currency) if result is not None else None,
+    }
+
+
 @router.get("/timeline")
 def timeline(request: Request, db: Session = Depends(get_db), user: models.User = Depends(get_current_user)):
     rows = crud.get_timeline(db, user.id, limit=200)
