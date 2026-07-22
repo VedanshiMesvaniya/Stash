@@ -73,8 +73,14 @@
 6. Edit usernames/passwords in `seed.py` BEFORE first deploy — once an account exists,
    changing this file won't update its password. Use `python -m scripts.reset_password
    <username> <new_password>` via Render's shell for that instead.
-7. Frontend build: `cd frontend && npm install && npm run build` — copy the build output
-   into `app/static/react/` (already wired up in `main.py`'s `_frontend_response`).
+7. Frontend build: run `npm install && npm run build` from the **repo root** (not `frontend/`
+   - there's no `package.json` in `frontend/`; it only holds the source). The root
+   `vite.config.js` already points `outDir` at `app/static/react` and sets the correct
+   `/static/react/` base path, so the build output lands in the right place with correct
+   asset URLs automatically - just run it and commit whatever changed under
+   `app/static/react/`. Consider folding this into Render's Build Command (e.g.
+   `npm install && npm run build && pip install -r requirements.txt`) so a frontend change
+   can't be deployed without also rebuilding the bundle that's actually served.
 
 ## Known limits, stated plainly
 
