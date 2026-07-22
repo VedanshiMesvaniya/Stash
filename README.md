@@ -1,171 +1,260 @@
-# Stash
+# Stash — Multi-user AI Personal Finance App
 
-Stash is a FastAPI + React personal wallet for tracking income, expenses, recurring transactions, reports, and AI-assisted transaction logging.
+Stash is a FastAPI + React web application for tracking income, expenses, recurring transactions, and generating financial reports with AI-assisted transaction logging and multi-user isolation.
 
-Live demo: https://stash-azsp.onrender.com
+**Live demo**: https://stash-azsp.onrender.com
 
-## What it does
+## Features
 
-- AI chat logging for income and expense entries
-- Dashboard with balance, monthly totals, and smart suggestions
-- Timeline view with edit and delete controls for every entry
-- Recurring transactions with auto-posting
-- Monthly reports with category charts and daily trend data
-- CSV, Excel, and PDF exports
-- Backup and restore endpoints
-- User settings for currency, theme, alert amount, and salary day
-- Signed-cookie sessions for logged-in users
-- Multi-user isolation by `user_id` on every transaction table
+### Core functionality
+
+- **AI chat-based entry logging**: Natural language input ("spent 50 on groceries yesterday") → AI extracts transaction details
+- **Multi-user families**: Up to 5 family members, completely isolated by user_id; one member cannot see another's transactions
+- **Transaction management**:
+  - Timeline view with edit/delete controls
+  - Chat-based transaction correction
+  - Transaction history with full description and metadata
+- **Recurring transactions**: Set-and-forget income/expense rules with auto-posting
+- **Smart dashboard**:
+  - Current balance and monthly summary
+  - Top spending categories
+  - Low-balance alerts
+  - Actionable financial insights
+- **Reports**: Monthly breakdowns by category, daily trend charts, income vs. expense trends
+- **Export formats**: CSV, Excel (XLSX), PDF—all scoped per user
+- **Backup/restore**: Full database snapshots (local SQLite only; use Neon's branching on production)
+- **Multi-currency support**: Live exchange rates, display in INR/USD/GBP/JPY/CNY/KRW/EUR
+
+### Technical resilience
+
+- **Multi-LLM fallback**: Groq → OpenRouter → pending queue (automatic retry)
+- **Offline-first transactions**: Browser IndexedDB queue, syncs on reconnect
+- **Pending entry queue**: If both LLM providers are down, messages wait and retry every 5 minutes
+- **Signed session cookies**: 30-day expiry, tamper-proof, HTTPS-only in production
+- **Database flexibility**: SQLite locally, PostgreSQL (Neon) in production
 
 ## Demo login
 
-Use this account to test the deployed demo:
+Test the live demo at https://stash-azsp.onrender.com:
 
-- Username: `guest`
-- Password: `12345`
+- **Username**: `guest`
+- **Password**: `12345`
 
-After login, the browser stores the authenticated session in a signed cookie named `stash_session`. The password is not stored in the browser.
+This account has pre-loaded sample data. The password is never stored in the browser—only a signed session cookie is maintained.
 
-## Private users
+## Private accounts (local development)
 
 Personal or family accounts belong in:
 
-- `app/database/private_accounts.py`
+```
+app/database/private_accounts.py
+```
 
-That file is gitignored on purpose so you can keep your own usernames and passwords out of the repo.
+This file is gitignored on purpose so you can keep your own usernames and passwords out of the repo. Format:
+
+```python
+PRIVATE_ACCOUNTS = [
+    {"username": "alice", "password": "AlicePass123", "name": "Alice"},
+    {"username": "bob", "password": "BobPass456", "name": "Bob"},
+]
+```
+
+These accounts are seeded automatically on first startup.
 
 ## Fresh clone setup
 
-1. Clone the repo.
-2. Create a virtual environment and install backend dependencies.
-3. Copy `.env.example` to `.env`.
-4. Fill in the environment values listed below.
-5. Run `npm install` and `npm run build`.
-6. Start the backend with `uvicorn app.main:app --reload`.
+### Prerequisites
 
-## Environment
+- Python 3.9+
+- Node.js 16+ (for frontend build)
+- SQLite (included with Python) or Postgres/Neon (for production)
 
-```bash
-SECRET_KEY=...
-DATABASE_URL=
-GROQ_API_KEY=
-GROQ_MODEL=llama-3.3-70b-versatile
-OPENROUTER_API_KEY=
-OPENROUTER_MODEL=meta-llama/llama-3.3-70b-instruct:free
-ENVIRONMENT=development
-PENDING_RETRY_INTERVAL_SECONDS=300
-APP_PUBLIC_URL=http://127.0.0.1:8000
+### Steps
+
+1. **Clone and navigate to the project**:
+   ```bash
+   git clone <repo-url>
+   cd Stash_multiuser_updated
+   ```
+
+2. **Create Python virtual environment**:
+   ```bash
+   python -m venv venv
+   venv\Scripts\activate
+   ```
+
+3. **Install backend dependencies**:
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+4. **Configure environment**:
+   ```bash
+   copy .env.example .env
+   # Then edit .env with your values (see table below)
+   ```
+
+5. **Generate SECRET_KEY** (required; app won't start without it):
+   ```bash
+   python -c "import secrets; print(secrets.token_hex(32))"
+   # Copy the output and paste into .env as SECRET_KEY=...
+   ```
+
+6. **Install frontend dependencies and build**:
+   ```bash
+   npm install
+   npm run build
+   # Vite output lands in app/static/react/ automatically
+   ```
+
+7. **Start the backend**:
+   ```bash
+   uvicorn app.main:app --reload
+   ```
+
+8. **Open in browser**:
+   ```
+   http://127.0.0.1:8000/login
+   ```
+   Sign in with `guest` / `12345` or your private account credentials.
+
+## Environment variables
+
+Copy `.env.example` to `.env` and fill in the values below. All keys are optional EXCEPT `SECRET_KEY`.
+
+| Variable | Required | Default | Notes |
+|---|---|---|---|
+| `SECRET_KEY` | **Yes** | — | `python -c "import secrets; print(secrets.token_hex(32))"` |
+| `DATABASE_URL` | No | (SQLite) | Leave blank for local SQLite in `data/finance.db`; set to Neon connection string for production |
+| `GROQ_API_KEY` | No (recommended) | — | Get from https://console.groq.com/keys; enables fast AI parsing |
+| `GROQ_MODEL` | No | `llama-3.3-70b-versatile` | Groq model name |
+| `OPENROUTER_API_KEY` | No (recommended) | — | Get from https://openrouter.ai/keys; fallback LLM provider |
+| `OPENROUTER_MODEL` | No | `meta-llama/llama-3.3-70b-instruct:free` | OpenRouter model name |
+| `ENVIRONMENT` | No | `development` | Set to `production` to enable HTTPS-only session cookies |
+| `PENDING_RETRY_INTERVAL_SECONDS` | No | `300` | How often to retry queued LLM messages (seconds) |
+| `APP_PUBLIC_URL` | No | `http://127.0.0.1:8000` | Used for outbound headers; local default is fine during dev |
+
+### LLM setup notes
+
+- Both Groq and OpenRouter are optional, but at least one is recommended.
+- If both are missing or down, chat messages queue to `pending_entries` and retry automatically.
+- For OpenRouter, do a one-time $10 credit top-up to raise your daily cap from 50 to 1,000 requests.
+
+## Project structure
+
 ```
-
-What each variable does:
-
-- `SECRET_KEY` is required. The app will not start without it because it signs the login cookie.
-- `DATABASE_URL` is optional locally. Leave it blank to use SQLite in `data/finance.db`. Set it to your Neon/Postgres URL in production.
-- `GROQ_API_KEY` and `OPENROUTER_API_KEY` enable AI parsing. If both are empty, messages go into the retry queue and can be processed later.
-- `GROQ_MODEL` and `OPENROUTER_MODEL` control the model names used by the backend.
-- `ENVIRONMENT=production` enables HTTPS-only cookies.
-- `PENDING_RETRY_INTERVAL_SECONDS` controls how often the background retry loop runs.
-- `APP_PUBLIC_URL` is used in outbound headers and can stay at the local default during development.
-
-Local setup command sequence:
-
-```bash
-python -m venv venv
-venv\Scripts\activate
-pip install -r requirements.txt
-
-copy .env.example .env
-# fill in SECRET_KEY first, then any LLM keys and DATABASE_URL if needed
-
-npm install
-npm run build
-
-uvicorn app.main:app --reload
-```
-
-Open `http://127.0.0.1:8000/login` and sign in with the demo account or one of your private accounts.
-
-## Feature list
-
-### Authentication
-
-- Username + password login
-- Signed-cookie session handling
-- No self-signup flow
-- Password changes require the current password
-
-### Transactions
-
-- Add income and expense entries through chat
-- Correct an existing entry through chat
-- Edit any transaction from the timeline
-- Delete any transaction from the timeline
-- Transaction history is always filtered by the logged-in user
-
-### Reports and analytics
-
-- Monthly income, expense, and savings summary
-- Category breakdown charts
-- Daily trend chart
-- Largest expense highlight
-- Smart dashboard suggestion
-
-### Recurring and sync
-
-- Recurring income and expense rules
-- Auto-posting when a recurring date becomes due
-- Offline queue reconciliation
-- Pending-entry retry loop when the LLM is unavailable
-
-### Export and backup
-
-- CSV export
-- Excel export
-- PDF export
-- Backup creation
-- Backup restore
-
-### UI
-
-- Dark and light themes
-- Responsive desktop and mobile layout
-- Timeline, reports, chat, and settings pages
-
-## Project layout
-
-```text
 app/
-  main.py              FastAPI entry point
-  ai/                  LLM, parsing, extraction, and response helpers
-  api/                 Auth, finance, recurring, reports, and settings routes
-  auth/                Password hashing and session helpers
-  database/            Models, CRUD, seed loader, and local private accounts
-  services/            Business logic for finance, recurring, reports, sync, backup, export
+  main.py                 FastAPI entry point, middleware setup, background tasks
+  ai/
+    llm.py                LLM calls (Groq/OpenRouter with fallback)
+    extractor.py          Parse LLM response into structured transactions
+    intent_detector.py    Classify user intent (add, ask, etc.)
+    parser.py             Date parsing (N days ago, last week, etc.)
+    response.py           QA prompt handler for non-transaction questions
+    prompts.py            Centralized prompt templates
+  api/
+    auth.py               POST /login, /logout, /session
+    finance.py            POST /api/chat, GET /api/timeline, PUT /api/transactions/{id}, etc.
+    recurring.py          Recurring transaction CRUD and sync
+    reports.py            Monthly reports and category breakdowns
+    settings.py           User settings, export, offline-sync, backup/restore
+    routes.py             Router aggregation
+  auth/
+    auth.py               Session helpers
+    password.py           bcrypt password hashing
+    session.py            Session validation and user extraction
+  database/
+    models.py             SQLAlchemy ORM (User, Income, Expense, etc.)
+    database.py           Engine, session factory, migration runner
+    crud.py               CRUD queries (all scoped by user_id)
+    seed.py               Default categories and accounts
+    migrations.py         SQL schema
+    private_accounts.py   Local-only user accounts (gitignored)
+  services/
+    finance.py            Transaction creation from chat
+    recurring.py          Auto-posting recurring transactions
+    analytics.py          Dashboard data and smart suggestions
+    export.py             CSV, Excel, PDF export
+    sync.py               Offline queue reconciliation
+    currency.py           Exchange rate lookups and formatting
+    backup.py             Database backup/restore helpers
+    notifications.py      Low-balance alert checks
+  static/
+    react/                Vite-built React app (app/static/react/)
+    service-worker.js     Service worker for offline support
+    manifest.json         PWA manifest
 frontend/
-  src/                 React app and styles
+  src/
+    App.jsx               React app root
+    main.jsx              React entry point
+    api.js                API fetch wrapper
+    styles.css            Global styles
+    components/           React components (charts, UI widgets, etc.)
+  index.html              HTML template
 scripts/
-  reset_password.py    CLI password reset helper
-  manage_users.py      CLI add/delete/list helper for users
+  manage_users.py         CLI tool to add/delete/list users
+  reset_password.py       CLI tool to reset a user's password
 ```
-
-## Architecture 
-
-See project architecture in `ARCHITECTURE.md` for understand how project works
 
 ## User management
 
-Use the console helper to manage users on your own machine:
+Manage users via the CLI tool:
 
 ```bash
+# List all users
 python -m scripts.manage_users list
-python -m scripts.manage_users add alice MyStrongPassword "Alice"
+
+# Add a new user
+python -m scripts.manage_users add alice "MyStrongPassword" "Alice"
+
+# Delete a user (removes all their transactions, chats, recurring rules)
 python -m scripts.manage_users delete alice
+
+# Reset password for an existing user
+python -m scripts.reset_password alice NewPassword123
 ```
 
-- `add` creates the DB user and updates `app/database/private_accounts.py` if it exists.
-- `delete` removes the DB user and deletes all of that user's transactions, chats, recurring rules, pending items, and private account entry.
-- If you only need a password reset for an existing user, use `python -m scripts.reset_password <username> <new_password>`.
+When you add a user locally, the tool also updates `app/database/private_accounts.py` (if it exists) so the account is seeded on next app startup.
 
-## Deployment
+## API endpoints
 
-See `DEPLOY.md` for environment variables, build steps, and Render/Neon deployment notes.
+### Authentication (no /api prefix)
+
+- `POST /login` — Form submission; username + password → signed session cookie
+- `POST /logout` — Clears session cookie
+- `GET /session` — Returns current logged-in user info
+
+### Finance (`/api/finance`)
+
+- `POST /api/chat` — Send user message; AI parses and returns structured response + transactions
+- `GET /api/timeline` — Get transaction history (paginated, scoped to current user)
+- `GET /api/dashboard` — Get balance, monthly summary, smart suggestions
+- `PUT /api/transactions/{id}` — Edit existing transaction
+- `DELETE /api/transactions/{id}` — Delete transaction
+
+### Recurring (`/api/recurring`)
+
+- `GET /api/recurring` — List recurring transaction rules
+- `POST /api/recurring` — Create new rule
+- `PUT /api/recurring/{id}` — Edit rule
+- `DELETE /api/recurring/{id}` — Delete rule
+- `POST /api/recurring/sync` — Manually trigger auto-posting
+
+### Reports (`/api/reports`)
+
+- `GET /api/reports/months` — List available month/year pairs
+- `GET /api/reports/month/{year}/{month}` — Category breakdown and daily trends
+
+### Settings (`/api/settings`)
+
+- `GET /api/settings` — User profile (currency, preferences, theme)
+- `PUT /api/settings` — Update profile
+- `POST /api/password/change` — Change password (requires old password)
+- `POST /api/settings/export/{format}` — Export as csv/excel/pdf
+- `POST /api/settings/offline-sync` — Reconcile browser IndexedDB queue
+- `POST /api/backup` — Create database backup (SQLite only)
+- `GET /api/restore` — Restore from backup (SQLite only)
+
+## Architecture
+
+See [ARCHITECTURE.md](ARCHITECTURE.md) for a detailed breakdown of the multi-user isolation model, LLM fallback logic, offline sync, and all service modules.
