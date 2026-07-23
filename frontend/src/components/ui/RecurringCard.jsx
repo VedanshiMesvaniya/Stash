@@ -1,7 +1,7 @@
 import React from 'react';
 import { clamp, money, shortDate } from '../../api';
 
-export default function RecurringCard({ row, currency, onDisable }) {
+export default function RecurringCard({ row, currency, onDisable, onEdit }) {
   const progress = clamp(Number(row.progress_percent || 0), 0, 100);
   return (
     <div className="recurring-card">
@@ -25,10 +25,20 @@ export default function RecurringCard({ row, currency, onDisable }) {
         <span>{row.category_or_source}</span>
         <span>{Math.round(progress)}%</span>
       </div>
-      {onDisable ? (
-        <button className="btn btn-ghost btn-full" onClick={() => onDisable(row.id)}>
-          Disable
-        </button>
+      {onEdit || onDisable ? (
+        <div className="recurring-actions">
+          {onEdit ? (
+            <button className="btn btn-ghost" onClick={() => onEdit(row)}>
+              <span className="material-symbols-rounded" aria-hidden="true" style={{ fontSize: 16 }}>edit</span>
+              Edit
+            </button>
+          ) : null}
+          {onDisable ? (
+            <button className="btn btn-ghost" onClick={() => onDisable(row.id)}>
+              Disable
+            </button>
+          ) : null}
+        </div>
       ) : null}
     </div>
   );

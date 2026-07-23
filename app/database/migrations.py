@@ -39,3 +39,7 @@ def run_migrations():
         _add_column_if_missing(connection, "users", "display_name", "display_name VARCHAR")
         _add_column_if_missing(connection, "income", "payment_method", "payment_method VARCHAR")
         _add_column_if_missing(connection, "expense", "payment_method", "payment_method VARCHAR")
+        _add_column_if_missing(
+            connection, "recurring_transactions", "auto_post",
+            "auto_post BOOLEAN NOT NULL DEFAULT TRUE",
+        )
