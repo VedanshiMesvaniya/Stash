@@ -1,19 +1,9 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { money } from '../../api';
 
 export const PIE_COLORS = ['#4f9d8e', '#74b49b', '#f2a65a', '#e76f51', '#4a90e2', '#7b6fc2', '#c95d87', '#1f7a8c'];
 
-// One accent per trend period so the bar chart reads differently at a
-// glance depending on the selected range, while staying inside the app's
-// existing palette (no colors outside PIE_COLORS/theme accents).
-export const TREND_PERIOD_COLORS = {
-  weekly: '#4f9d8e',
-  monthly: '#f2a65a',
-  yearly: '#4a90e2',
-};
-
 export function PieViz({ entries }) {
-  const [legendOpen, setLegendOpen] = useState(false);
   if (!entries.length) {
     return <div className="empty-state">No category data yet.</div>;
   }
@@ -30,30 +20,19 @@ export function PieViz({ entries }) {
   const gradient = `conic-gradient(${segments.map((segment) => `${segment.color} ${segment.start}deg ${segment.end}deg`).join(', ')})`;
 
   return (
-    <div className="chart-layout chart-layout-centered">
-      <button
-        type="button"
-        className="pie-info-btn"
-        aria-label={legendOpen ? 'Hide legend' : 'Show legend'}
-        aria-expanded={legendOpen}
-        onClick={() => setLegendOpen((prev) => !prev)}
-      >
-        <span className="material-symbols-rounded" aria-hidden="true">info</span>
-      </button>
+    <div className="chart-layout">
       <div className="pie-ring" style={{ background: gradient }}>
         <div className="pie-center">{Math.round(total)}</div>
       </div>
-      {legendOpen ? (
-        <div className="legend-list legend-list-popover">
-          {segments.map((segment) => (
-            <div className="legend-row" key={segment.label}>
-              <span className="legend-swatch" style={{ background: segment.color }} />
-              <span className="legend-label">{segment.label}</span>
-              <strong>{money(segment.value)}</strong>
-            </div>
-          ))}
-        </div>
-      ) : null}
+      <div className="legend-list">
+        {segments.map((segment) => (
+          <div className="legend-row" key={segment.label}>
+            <span className="legend-swatch" style={{ background: segment.color }} />
+            <span className="legend-label">{segment.label}</span>
+            <strong>{money(segment.value)}</strong>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -73,28 +52,6 @@ export function BarViz({ entries }) {
             <div className="chart-bar-fill" style={{ width: `${(Number(value || 0) / max) * 100}%`, background: PIE_COLORS[index % PIE_COLORS.length] }} />
           </div>
           <strong>{money(value)}</strong>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-export function TrendBarViz({ entries, period = 'monthly' }) {
-  if (!entries.length) return <div className="empty-state">No trend data yet.</div>;
-  const color = TREND_PERIOD_COLORS[period] || TREND_PERIOD_COLORS.monthly;
-  const max = Math.max(...entries.map(([, value]) => Number(value || 0)), 1);
-  return (
-    <div className="trend-bars">
-      {entries.map(([label, value]) => (
-        <div className="trend-bar-col" key={label}>
-          <div className="trend-bar-track">
-            <div
-              className="trend-bar-fill"
-              style={{ height: `${(Number(value || 0) / max) * 100}%`, background: color }}
-              title={money(value)}
-            />
-          </div>
-          <span className="trend-bar-label">{label}</span>
         </div>
       ))}
     </div>

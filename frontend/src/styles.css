@@ -689,28 +689,6 @@ h1, h2, h3, p { margin: 0; }
 .recurring-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
 .recurring-meta { display: flex; align-items: center; justify-content: space-between; font-size: 12.5px; color: var(--on-surface-variant); }
 .recurring-meta.subtle { opacity: 0.75; font-family: var(--font-mono); font-size: 11px; }
-.recurring-actions { display: flex; gap: 8px; }
-.recurring-actions .btn { flex: 1; }
-.recurring-due-banner { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 12px; border-radius: var(--radius-md); background: color-mix(in srgb, var(--primary) 12%, var(--surface-container)); border: 1px solid var(--outline-soft); }
-.recurring-due-info { display: flex; flex-direction: column; gap: 2px; }
-.recurring-due-name { font-weight: 600; font-size: 13px; color: var(--on-surface); }
-.recurring-due-sub { font-size: 11.5px; color: var(--on-surface-variant); }
-.recurring-confirm-btn {
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  border: none;
-  background: var(--primary);
-  color: var(--on-primary, #fff);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  flex-shrink: 0;
-}
-.recurring-confirm-btn:hover { filter: brightness(1.05); }
-
-.btn-group { display: flex; gap: 8px; }
 .status-pill {
   font-family: var(--font-mono);
   font-size: 10.5px;
@@ -757,55 +735,6 @@ h1, h2, h3, p { margin: 0; }
 .line-path { fill: none; stroke: var(--secondary); stroke-width: 2; }
 .line-dot { fill: var(--secondary); }
 .line-labels { display: flex; justify-content: space-between; font-size: 11px; color: var(--on-surface-variant); margin-top: 6px; font-family: var(--font-mono); }
-
-.chart-layout-centered {
-  position: relative;
-  justify-content: center;
-  min-height: 200px;
-}
-.pie-info-btn {
-  position: absolute;
-  top: 0;
-  right: 0;
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  border: 1px solid var(--outline-soft);
-  background: var(--surface-container);
-  color: var(--on-surface-variant);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-}
-.pie-info-btn .material-symbols-rounded { font-size: 18px; }
-.pie-info-btn:hover { color: var(--on-surface); border-color: var(--primary); }
-.legend-list-popover {
-  position: absolute;
-  top: 36px;
-  right: 0;
-  z-index: 5;
-  background: var(--surface-container);
-  border: 1px solid var(--outline-soft);
-  border-radius: var(--radius-md);
-  padding: var(--space-sm);
-  box-shadow: var(--shadow-lg);
-  min-width: 180px;
-}
-
-.trend-period-select { min-width: 120px; }
-.trend-bars {
-  display: flex;
-  align-items: flex-end;
-  gap: 6px;
-  width: 100%;
-  height: 200px;
-  padding-top: 8px;
-}
-.trend-bar-col { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; gap: 6px; }
-.trend-bar-track { width: 100%; height: 100%; display: flex; align-items: flex-end; }
-.trend-bar-fill { width: 100%; min-height: 2px; border-radius: 4px 4px 0 0; transition: height 0.2s ease; }
-.trend-bar-label { font-size: 10px; color: var(--on-surface-variant); font-family: var(--font-mono); }
 
 .export-grid { display: grid; gap: var(--space-sm); grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); }
 
