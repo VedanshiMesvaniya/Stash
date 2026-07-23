@@ -26,7 +26,6 @@ class RecurringCreate(BaseModel):
     start_date: date
     interval_months: int = 1
     total_cycles: int | None = None
-    auto_post: bool | None = None
 
 
 class RecurringUpdate(BaseModel):
@@ -39,12 +38,6 @@ class RecurringUpdate(BaseModel):
     interval_months: int | None = None
     total_cycles: int | None = None
     active: bool | None = None
-    auto_post: bool | None = None
-
-
-class RecurringConfirmPost(BaseModel):
-    amount: float | None = None
-    post_date: date | None = None
 
 
 @router.get("/recurring")
@@ -70,24 +63,3 @@ def disable_recurring(recurring_id: int, request: Request, db: Session = Depends
 @router.post("/recurring/sync")
 def sync_recurring(request: Request, db: Session = Depends(get_db), user: models.User = Depends(get_current_user)):
     return recurring_service.sync_due_recurring(db, user.id)
-
-
-@router.get("/recurring/due")
-def due_recurring(request: Request, db: Session = Depends(get_db), user: models.User = Depends(get_current_user)):
-    """Salary/Rent (or any manual auto_post=False) schedules that are due
-    and waiting for the user to confirm via the dashboard '+' button."""
-    return recurring_service.list_due_manual(db, user.id)
-
-
-@router.post("/recurring/{recurring_id}/confirm")
-def confirm_recurring_post(
-    recurring_id: int,
-    payload: RecurringConfirmPost,
-    request: Request,
-    db: Session = Depends(get_db),
-    user: models.User = Depends(get_current_user),
-):
-    result = recurring_service.confirm_manual_post(db, user.id, recurring_id, amount=payload.amount, post_date=payload.post_date)
-    if not result:
-        return {"ok": False, "error": "Schedule not found"}
-    return {"ok": True, **result}

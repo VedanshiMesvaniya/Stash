@@ -6,7 +6,7 @@ import SectionHeader from './components/ui/SectionHeader';
 import MetricCard from './components/ui/MetricCard';
 import TimelineItem from './components/ui/TimelineItem';
 import RecurringCard from './components/ui/RecurringCard';
-import { PieViz, BarViz, TrendBarViz } from './components/charts/Charts';
+import { PieViz, BarViz, LineViz } from './components/charts/Charts';
 
 const NAV_ITEMS = [
   { path: '/', label: 'Dashboard', icon: 'space_dashboard' },
@@ -527,31 +527,7 @@ function DashboardPage({ session, onNavigate, refreshToken, onTouchData }) {
   const [data, setData] = useState(() => readJsonCache(DASHBOARD_CACHE_KEY, null));
   const [recurring, setRecurring] = useState(() => readJsonCache(RECURRING_CACHE_KEY, []));
   const [wallets, setWallets] = useState(() => readJsonCache(WALLETS_CACHE_KEY, null));
-  const [dueRecurring, setDueRecurring] = useState([]);
-  const [confirmingId, setConfirmingId] = useState(null);
   const [error, setError] = useState('');
-
-  const loadDueRecurring = async () => {
-    try {
-      const rows = await apiFetch('/api/recurring/due', { method: 'GET', headers: {} });
-      setDueRecurring(rows);
-    } catch (err) {
-      // Non-fatal - the dashboard still works without the confirm banner.
-    }
-  };
-
-  const confirmDueRecurring = async (id) => {
-    setConfirmingId(id);
-    try {
-      await apiFetch(`/api/recurring/${id}/confirm`, { method: 'POST', body: JSON.stringify({}) });
-      await loadDueRecurring();
-      onTouchData();
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setConfirmingId(null);
-    }
-  };
 
   useEffect(() => {
     let alive = true;
@@ -591,7 +567,6 @@ function DashboardPage({ session, onNavigate, refreshToken, onTouchData }) {
         }
         // Wallet fetch failing isn't fatal to the whole dashboard - the
         // widget below just quietly falls back to cached/zero values.
-        loadDueRecurring();
       } catch (err) {
         if (alive) setError(err.message);
       }
@@ -689,29 +664,6 @@ function DashboardPage({ session, onNavigate, refreshToken, onTouchData }) {
             </div>
             <button className="btn btn-ghost" onClick={() => onNavigate('/settings')}>Manage</button>
           </div>
-          {dueRecurring.length ? (
-            <div className="stack" style={{ marginBottom: 10 }}>
-              {dueRecurring.map((row) => (
-                <div className="recurring-due-banner" key={row.id}>
-                  <div className="recurring-due-info">
-                    <span className="recurring-due-name">{row.name}</span>
-                    <span className="recurring-due-sub">
-                      {row.transaction_type === 'income' ? 'Salary due' : 'Rent due'} · {money(row.amount, currency)} · {shortDate(row.next_due_date)}
-                    </span>
-                  </div>
-                  <button
-                    type="button"
-                    className="recurring-confirm-btn"
-                    aria-label={`Confirm ${row.name}`}
-                    disabled={confirmingId === row.id}
-                    onClick={() => confirmDueRecurring(row.id)}
-                  >
-                    <span className="material-symbols-rounded" aria-hidden="true">add</span>
-                  </button>
-                </div>
-              ))}
-            </div>
-          ) : null}
           <div className="stack">
             {recurring.length ? recurring.slice(0, 4).map((row) => <RecurringCard key={row.id} row={row} currency={currency} />) : (
               <div className="empty-state">No recurring rules yet.</div>
@@ -1404,8 +1356,6 @@ function ReportsPage({ session, refreshToken }) {
   const [selectedMonth, setSelectedMonth] = useState('');
   const [report, setReport] = useState(null);
   const [error, setError] = useState('');
-  const [trendPeriod, setTrendPeriod] = useState('monthly');
-  const [trend, setTrend] = useState(null);
 
   useEffect(() => {
     let alive = true;
@@ -1447,28 +1397,8 @@ function ReportsPage({ session, refreshToken }) {
     };
   }, [selectedMonth, refreshToken]);
 
-  useEffect(() => {
-    if (!selectedMonth) return;
-    const [year, month] = selectedMonth.split('-');
-    let alive = true;
-    apiFetch(`/api/reports/trend?year=${year}&month=${month}&period=${trendPeriod}`, { method: 'GET', headers: {} })
-      .then((data) => {
-        if (alive) setTrend(data);
-      })
-      .catch((err) => {
-        if (err.status === 401) {
-          navigate('/login', true);
-          return;
-        }
-        if (alive) setError(err.message);
-      });
-    return () => {
-      alive = false;
-    };
-  }, [selectedMonth, trendPeriod, refreshToken]);
-
   const categories = report ? Object.entries(report.category_breakdown || {}) : [];
-  const trendEntries = trend ? trend.entries || [] : [];
+  const days = report ? Object.entries(report.daily_trend || {}) : [];
 
   return (
     <div className="stack">
@@ -1497,33 +1427,37 @@ function ReportsPage({ session, refreshToken }) {
         </div>
       </section>
 
-      <section className="card card-pad">
-        <div className="card-head">
-          <div>
-            <h2 className="card-title">Spending by Category</h2>
-            <div className="card-note">Minimal chart view of the month</div>
+      {report?.largest_expense ? <div className="card card-pad">Largest expense: {report.largest_expense.category} - {money(report.largest_expense.amount, session.settings?.currency || 'INR')}</div> : null}
+
+      <section className="grid two-up">
+        <div className="card card-pad">
+          <div className="card-head">
+            <div>
+              <h2 className="card-title">Spending by Category</h2>
+              <div className="card-note">Minimal chart view of the month</div>
+            </div>
           </div>
+          <PieViz entries={categories} />
         </div>
-        <PieViz entries={categories} />
+        <div className="card card-pad">
+          <div className="card-head">
+            <div>
+              <h2 className="card-title">Category Comparison</h2>
+              <div className="card-note">Bar chart view</div>
+            </div>
+          </div>
+          <BarViz entries={categories} />
+        </div>
       </section>
 
       <section className="card card-pad">
         <div className="card-head">
           <div>
             <h2 className="card-title">Daily Trend</h2>
-            <div className="card-note">Expense pattern over the {trendPeriod === 'yearly' ? 'year' : 'month'}</div>
+            <div className="card-note">Expense pattern over the month</div>
           </div>
-          <select
-            className="select trend-period-select"
-            value={trendPeriod}
-            onChange={(event) => setTrendPeriod(event.target.value)}
-          >
-            <option value="weekly">Weekly</option>
-            <option value="monthly">Monthly</option>
-            <option value="yearly">Yearly</option>
-          </select>
         </div>
-        <TrendBarViz entries={trendEntries} period={trendPeriod} />
+        <LineViz entries={days} />
       </section>
 
       <section className="card card-pad">
@@ -1570,9 +1504,7 @@ function SettingsPage({ session, theme, onThemeChange, onSessionSync, onTouchDat
   const [saveStatus, setSaveStatus] = useState('');
   const [accountStatus, setAccountStatus] = useState('');
   const [error, setError] = useState('');
-  const [editingRecurringId, setEditingRecurringId] = useState(null);
   const currencyRef = useRef(null);
-  const recurringFormRef = useRef(null);
 
   const load = async () => {
     try {
@@ -1690,48 +1622,25 @@ function SettingsPage({ session, theme, onThemeChange, onSessionSync, onTouchDat
 
   const saveRecurring = async () => {
     try {
-      const payload = {
-        name: form.name,
-        category_or_source: form.category_or_source,
-        transaction_type: form.transaction_type,
-        amount: Number(form.amount),
-        description: form.description || null,
-        start_date: fromDateInput(form.start_date),
-        interval_months: Number(form.interval_months || 1),
-        total_cycles: form.total_cycles ? Number(form.total_cycles) : null,
-      };
-      if (editingRecurringId) {
-        await apiFetch(`/api/recurring/${editingRecurringId}`, { method: 'PUT', body: JSON.stringify(payload) });
-        setEditingRecurringId(null);
-      } else {
-        await apiFetch('/api/recurring', { method: 'POST', body: JSON.stringify(payload) });
-      }
+      await apiFetch('/api/recurring', {
+        method: 'POST',
+        body: JSON.stringify({
+          name: form.name,
+          category_or_source: form.category_or_source,
+          transaction_type: form.transaction_type,
+          amount: Number(form.amount),
+          description: form.description || null,
+          start_date: fromDateInput(form.start_date),
+          interval_months: Number(form.interval_months || 1),
+          total_cycles: form.total_cycles ? Number(form.total_cycles) : null,
+        }),
+      });
       setForm((prev) => ({ ...prev, name: '', amount: '', description: '', total_cycles: '' }));
       await load();
       onTouchData();
     } catch (err) {
       setError(err.message);
     }
-  };
-
-  const startEditRecurring = (row) => {
-    setEditingRecurringId(row.id);
-    setForm({
-      name: row.name || '',
-      category_or_source: row.category_or_source,
-      transaction_type: row.transaction_type,
-      amount: String(row.amount),
-      description: row.description || '',
-      start_date: toDateInput(row.next_due_date),
-      interval_months: row.interval_months || 1,
-      total_cycles: row.total_cycles ? String(row.total_cycles) : '',
-    });
-    recurringFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-  };
-
-  const cancelEditRecurring = () => {
-    setEditingRecurringId(null);
-    setForm((prev) => ({ ...prev, name: '', amount: '', description: '', total_cycles: '' }));
   };
 
   const recurringTypeOptions = [
@@ -1868,11 +1777,11 @@ function SettingsPage({ session, theme, onThemeChange, onSessionSync, onTouchDat
         </div>
       </section>
 
-      <section className="card card-pad stack" ref={recurringFormRef}>
+      <section className="card card-pad stack">
         <div className="card-head">
           <div>
-            <h2 className="card-title">{editingRecurringId ? 'Edit recurring schedule' : 'Recurring transactions'}</h2>
-            <div className="card-note">Salary, rent, EMI, and subscription schedules. Salary/Rent wait for your "+" confirm instead of auto-logging.</div>
+            <h2 className="card-title">Recurring transactions</h2>
+            <div className="card-note">Salary, rent, EMI, and subscription schedules that auto-log each cycle</div>
           </div>
         </div>
           <div className="form-grid recurring-grid">
@@ -1923,25 +1832,12 @@ function SettingsPage({ session, theme, onThemeChange, onSessionSync, onTouchDat
             <input className="input" value={form.description} onChange={(e) => setForm((prev) => ({ ...prev, description: e.target.value }))} placeholder="Optional note" />
           </label>
         </div>
-        <div className="btn-group">
-          <button className="btn btn-primary" onClick={saveRecurring}>
-            {editingRecurringId ? 'Update recurring rule' : 'Add recurring rule'}
-          </button>
-          {editingRecurringId ? (
-            <button className="btn btn-ghost" type="button" onClick={cancelEditRecurring}>Cancel</button>
-          ) : null}
-        </div>
+        <button className="btn btn-primary" onClick={saveRecurring}>Add recurring rule</button>
       </section>
 
       <section className="grid recurring-list">
         {recurringRows.length ? recurringRows.map((row) => (
-          <RecurringCard
-            key={row.id}
-            row={row}
-            currency={session.settings?.currency || 'INR'}
-            onDisable={disableRecurring}
-            onEdit={startEditRecurring}
-          />
+          <RecurringCard key={row.id} row={row} currency={session.settings?.currency || 'INR'} onDisable={disableRecurring} />
         )) : <div className="empty-state">No recurring schedules yet.</div>}
       </section>
 

@@ -45,59 +45,6 @@ def get_full_report(db: Session, user, year: int, month: int) -> dict:
     }
 
 
-def get_trend(db: Session, user, year: int, month: int, period: str = "monthly") -> dict:
-    """Trend series for the dashboard/reports bar chart. `period` controls
-    the bucketing:
-      - "monthly" (default): one bucket per day of the selected month
-      - "weekly": the selected month's days grouped into 7-day buckets
-      - "yearly": one bucket per month of the selected year
-    Always returns expense totals (matches what the old Daily Trend line
-    chart showed) in the user's display currency.
-    """
-    currency = user.currency or "INR"
-    period = period if period in ("monthly", "weekly", "yearly") else "monthly"
-
-    if period == "yearly":
-        totals = {m: 0.0 for m in range(1, 13)}
-        rows = db.query(models.Expense).filter(
-            models.Expense.user_id == user.id,
-            extract("year", models.Expense.date) == year,
-        ).all()
-        for r in rows:
-            totals[r.date.month] = totals.get(r.date.month, 0.0) + r.amount
-        entries = [
-            [calendar.month_abbr[m], currency_service.convert_amount(v, "INR", currency)]
-            for m, v in sorted(totals.items())
-        ]
-    else:
-        days_in_month = calendar.monthrange(year, month)[1]
-        daily = {d: 0.0 for d in range(1, days_in_month + 1)}
-        rows = db.query(models.Expense).filter(
-            models.Expense.user_id == user.id,
-            extract("year", models.Expense.date) == year,
-            extract("month", models.Expense.date) == month,
-        ).all()
-        for r in rows:
-            daily[r.date.day] = daily.get(r.date.day, 0.0) + r.amount
-
-        if period == "weekly":
-            weekly = {}
-            for day, value in sorted(daily.items()):
-                bucket = f"Week {((day - 1) // 7) + 1}"
-                weekly[bucket] = weekly.get(bucket, 0.0) + value
-            entries = [[label, currency_service.convert_amount(v, "INR", currency)] for label, v in weekly.items()]
-        else:
-            entries = [[str(day), currency_service.convert_amount(v, "INR", currency)] for day, v in sorted(daily.items())]
-
-    return {
-        "period": period,
-        "year": year,
-        "month": month,
-        "currency": currency,
-        "entries": entries,
-    }
-
-
 def list_available_months(db: Session, user_id: int) -> list[dict]:
     """Returns distinct year/month combos that have any transactions, for the
     report page's month picker."""
