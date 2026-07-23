@@ -82,6 +82,7 @@ def _serialize_schedule(row: models.RecurringTransaction, currency: str | None =
         "total_cycles": row.total_cycles,
         "cycles_completed": row.cycles_completed,
         "active": bool(row.active),
+        "auto_post": bool(row.auto_post),
         "completion_percent": round(completion, 2) if row.total_cycles else None,
         "cycle_progress_percent": round(current_progress, 2),
         "progress_percent": round(progress_percent, 2),
@@ -98,6 +99,17 @@ def list_recurring(db: Session, user_id: int) -> list[dict]:
     return [_serialize_schedule(row, currency) for row in rows]
 
 
+def _default_auto_post(transaction_type: str, category_or_source: str) -> bool:
+    """Salary (any income schedule) and Rent commonly post a few days late
+    or early, so they default to manual confirmation instead of a silent
+    auto-post. Everything else (EMIs, subscriptions) keeps auto-posting."""
+    if transaction_type == "income":
+        return False
+    if (category_or_source or "").strip().lower() == "rent":
+        return False
+    return True
+
+
 def create_recurring(
     db: Session,
     user_id: int,
@@ -110,6 +122,7 @@ def create_recurring(
     start_date: date,
     interval_months: int = 1,
     total_cycles: int | None = None,
+    auto_post: bool | None = None,
 ):
     user = crud.get_user(db, user_id)
     currency = user.currency if user else "INR"
@@ -127,6 +140,7 @@ def create_recurring(
         total_cycles=total_cycles,
         cycles_completed=0,
         active=True,
+        auto_post=auto_post if auto_post is not None else _default_auto_post(transaction_type, category_or_source),
     )
     db.add(row)
     db.commit()
@@ -194,6 +208,7 @@ def sync_due_recurring(db: Session, user_id: int, through_date: date | None = No
     schedules = db.query(models.RecurringTransaction).filter(
         models.RecurringTransaction.user_id == user_id,
         models.RecurringTransaction.active.is_(True),
+        models.RecurringTransaction.auto_post.is_(True),
     ).all()
     created = []
     skipped = 0
@@ -241,3 +256,53 @@ def sync_due_recurring(db: Session, user_id: int, through_date: date | None = No
             db.commit()
 
     return {"created": created, "skipped": skipped, "created_count": len(created)}
+
+
+def list_due_manual(db: Session, user_id: int, through_date: date | None = None) -> list[dict]:
+    """Salary/Rent (or any auto_post=False) schedules that are due and
+    waiting on the user to hit '+' to confirm, instead of being posted
+    silently. Powers the dashboard's Recurring card confirm button."""
+    today = through_date or date.today()
+    user = crud.get_user(db, user_id)
+    currency = user.currency if user else "INR"
+    rows = db.query(models.RecurringTransaction).filter(
+        models.RecurringTransaction.user_id == user_id,
+        models.RecurringTransaction.active.is_(True),
+        models.RecurringTransaction.auto_post.is_(False),
+        models.RecurringTransaction.next_due_date <= today,
+    ).order_by(models.RecurringTransaction.next_due_date.asc()).all()
+    return [_serialize_schedule(row, currency) for row in rows]
+
+
+def confirm_manual_post(
+    db: Session,
+    user_id: int,
+    recurring_id: int,
+    amount: float | None = None,
+    post_date: date | None = None,
+):
+    """User clicked '+' on a due Salary/Rent schedule (optionally tweaking
+    the amount/date first, since these often land a little late or early)."""
+    row = _get_owned(db, user_id, recurring_id)
+    if not row or not row.active:
+        return None
+    user = crud.get_user(db, user_id)
+    currency = user.currency if user else "INR"
+    due_date = post_date or row.next_due_date
+    original_amount = row.amount
+    if amount is not None:
+        row.amount = currency_service.convert_amount(amount, currency, "INR")
+
+    txn, posting = _create_ledger_entry(db, user_id, row, due_date)
+    row.amount = original_amount  # one-off override shouldn't change the standing schedule amount
+    row.cycles_completed += 1
+    if row.total_cycles and row.cycles_completed >= row.total_cycles:
+        row.active = False
+    else:
+        row.next_due_date = _add_months(row.next_due_date, row.interval_months)
+    db.commit()
+    db.refresh(row)
+    return {
+        "schedule": _serialize_schedule(row, currency),
+        "posted": {"transaction_id": txn.id, "transaction_type": row.transaction_type, "amount": txn.amount, "date": str(due_date)},
+    }

@@ -31,6 +31,21 @@ def get_report(
     return reports_service.get_full_report(db, user, y, m)
 
 
+@router.get("/reports/trend")
+def get_trend(
+    request: Request,
+    year: int = Query(default=None),
+    month: int = Query(default=None),
+    period: str = Query(default="monthly"),
+    db: Session = Depends(get_db),
+    user: models.User = Depends(get_current_user),
+):
+    today = date.today()
+    y = year or today.year
+    m = month or today.month
+    return reports_service.get_trend(db, user, y, m, period)
+
+
 @router.get("/reports/months")
 def available_months(request: Request, db: Session = Depends(get_db), user: models.User = Depends(get_current_user)):
     return reports_service.list_available_months(db, user.id)

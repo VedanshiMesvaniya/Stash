@@ -111,6 +111,13 @@ class RecurringTransaction(Base):
     total_cycles = Column(Integer, nullable=True)
     cycles_completed = Column(Integer, nullable=False, default=0)
     active = Column(Boolean, nullable=False, default=True)
+    # When False, sync_due_recurring won't silently post this schedule when
+    # it comes due - it just becomes visible as "awaiting confirmation" and
+    # the user posts it (optionally adjusting amount/date) via the dashboard
+    # "+" button. Defaults to False for income (salary) and Rent expense
+    # schedules since those dates commonly slip; everything else (EMIs,
+    # subscriptions) keeps auto-posting.
+    auto_post = Column(Boolean, nullable=False, default=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
