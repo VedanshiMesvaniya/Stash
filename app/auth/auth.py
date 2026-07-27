@@ -1,14 +1,10 @@
 """
 auth.py
-Multi-user login for Stash. There is deliberately NO signup/setup flow and
-NO recovery password backdoor - accounts are created ahead of time by you,
-via seed.py, and handed out as username+password to each family member.
-That was a specific requirement, not an oversight: fewer moving parts,
-nobody can create an account they weren't given.
-
-If a password needs resetting, do it with the CLI tool
-(scripts/reset_password.py) which requires filesystem/shell access to the
-server, not a network-facing password anyone could find in the repo.
+Login for Stash. As of the move to open signup, accounts are created via
+/api/auth/signup (email + password) or /api/auth/google (Google sign-in) -
+see app/api/auth.py. attempt_login looks up by email first since that's
+now the identifier used at the login form; it falls back to username so
+any pre-existing (pre-open-signup) accounts without an email set still work.
 """
 
 from fastapi import Request, HTTPException, status, Depends
@@ -21,8 +17,8 @@ from .password import verify_password
 from .session import is_authenticated, current_user_id
 
 
-def attempt_login(db: Session, username: str, password: str) -> models.User | None:
-    user = crud.get_user_by_username(db, username)
+def attempt_login(db: Session, identifier: str, password: str) -> models.User | None:
+    user = crud.get_user_by_email(db, identifier) or crud.get_user_by_username(db, identifier)
     if not user:
         return None
     if not verify_password(password, user.password_hash):
