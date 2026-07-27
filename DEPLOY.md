@@ -1,6 +1,27 @@
-# Stash — Multi-user Deployment Guide
+# Stash — Deployment Guide
 
 This guide covers deploying Stash to production with Render (hosting) and Neon (PostgreSQL database).
+
+## What's new: open signup + Google sign-in
+
+Stash used to be invite-only (accounts created ahead of time via `seed.py`/`scripts/manage_users.py`,
+no signup endpoint). That's changed:
+
+- **Open signup**: anyone can create an account at the login screen with an email + password (`POST /api/auth/signup`).
+- **Google sign-in**: `POST /api/auth/google` verifies a Google Identity Services ID token and logs the person in,
+  auto-creating an account on first sign-in if the email isn't already registered. Requires `GOOGLE_CLIENT_ID` (see below) —
+  without it, the Google button doesn't render and the endpoint returns a 503.
+- **Login is now by email**, not username. Pre-existing invite-only accounts (no `email` set) still work — login falls
+  back to matching on username.
+- The old invite-only CLI (`scripts/manage_users.py`, `scripts/reset_password.py`) still works for manual account
+  management; it's just no longer the *only* way to get an account.
+- `email` and `google_sub` were added to the `users` table via the existing lightweight migration in
+  `app/database/migrations.py` (adds the column if missing) — no Alembic, consistent with how this table already
+  handled schema changes.
+
+**Security note worth knowing:** the previous design was deliberately invite-only ("nobody can create an account they
+weren't given" — see the git history on `app/auth/auth.py`). Moving to open signup is a real posture change on an app
+that holds personal financial data, not just a UI tweak. That trade-off was made explicitly, not by default.
 
 ## What's new in the multi-user update
 
@@ -21,11 +42,18 @@ This guide covers deploying Stash to production with Render (hosting) and Neon (
 - **Category mis-detection**: Fixed cross-message contamination in multi-transaction messages
 - **Date parsing**: Added support for "N days ago", "day before yesterday", "last week", "last <weekday>"
 - **Chat formatting**: QA answers now render as proper bulleted lists, not plain text
+- **Chat charts disappearing on reload**: report replies (the bar chart + table under a chat bubble) are now persisted
+  (`chat_messages.report_entries`) instead of living only in React state, so they survive a page refresh
 
 **UI improvements**
 - Chat input is now an auto-growing textarea (was single-line `<input>`)
 - Typing indicator is real bouncing dots (was literal "...")
 - Message formatting: bullets and **bold** render correctly
+- Chat send button shows a spinner while a message is processing
+- User chat messages can be edited: editing removes that message and its assistant reply
+  (`DELETE /api/chat/message/{id}`) and reloads the text into the composer to resend, rather than forking the thread
+- Dashboard: removed the "Unspecified" wallet tile and the smart-suggestion insight card; the Recurring card's Edit
+  button is now wired up on the dashboard (it deep-links to Settings, which opens the edit form for that item)
 
 ## Architecture highlights
 
@@ -47,6 +75,7 @@ Copy `.env.example` → `.env` locally, or set in Render dashboard for productio
 |---|---|---|---|---|
 | `SECRET_KEY` | **Yes** | — | — | `python -c "import secrets; print(secrets.token_hex(32))"` — no fallback, app refuses to start without it |
 | `DATABASE_URL` | No | (SQLite) | **Required** | Leave blank for local SQLite in `data/finance.db`; set to Neon connection string for Postgres |
+| `GOOGLE_CLIENT_ID` | No | — | Recommended | OAuth Client ID from Google Cloud Console (see below). Needed for the "Sign in with Google" button and `/api/auth/google`; without it, Google sign-in is simply hidden. |
 | `GROQ_API_KEY` | No | — | Recommended | Get from https://console.groq.com/keys; first LLM provider |
 | `GROQ_MODEL` | No | `llama-3.3-70b-versatile` | — | Groq model name |
 | `OPENROUTER_API_KEY` | No | — | Recommended | Get from https://openrouter.ai/keys; fallback LLM provider. Do $10 one-time credit top-up. |
@@ -54,6 +83,15 @@ Copy `.env.example` → `.env` locally, or set in Render dashboard for productio
 | `ENVIRONMENT` | No | `development` | `production` | Enables HTTPS-only session cookies |
 | `PENDING_RETRY_INTERVAL_SECONDS` | No | `300` | `300` | How often to retry queued LLM messages (seconds) |
 | `APP_PUBLIC_URL` | No | `http://127.0.0.1:8000` | Your domain | Used in outbound headers |
+
+**Getting a `GOOGLE_CLIENT_ID`:**
+1. Go to https://console.cloud.google.com/ → create/select a project → **APIs & Services → Credentials**
+2. **Create Credentials → OAuth client ID → Web application**
+3. Add your app's URL (e.g. `https://your-app.onrender.com` and `http://localhost:5173` for local dev) under
+   **Authorized JavaScript origins**
+4. Copy the generated Client ID — set it as `GOOGLE_CLIENT_ID` for the backend **and** as `VITE_GOOGLE_CLIENT_ID`
+   when running the frontend build (it's baked into the built JS at build time, since it's a public client identifier,
+   not a secret — there's no client secret to manage for this ID-token verification flow).
 
 **Important notes:**
 - `SECRET_KEY` is **non-negotiable** — the app will not start without it. Generate a fresh one for each deployment.
@@ -135,7 +173,13 @@ Copy `.env.example` → `.env` locally, or set in Render dashboard for productio
    - Log in with one of your configured family accounts
    - Test transaction creation, offline sync, exports, etc.
 
-### Multi-user family accounts
+### Account creation (open signup, plus the legacy CLI path)
+
+Anyone can now create their own account at `/login` with email + password, or via "Continue with Google" — no
+pre-seeding required. The sections below (`seed.py`, `manage_users.py`) are still there for manually provisioning or
+managing accounts, but they're optional now rather than the only way in.
+
+### Multi-user family accounts (legacy, optional)
 
 By default, Stash seeds 5 family accounts on first deploy from `app/database/seed.py`:
 

@@ -77,6 +77,46 @@ def get_user_by_username(db: Session, username: str):
     return db.query(models.User).filter(func.lower(models.User.username) == username.lower().strip()).first()
 
 
+def get_user_by_email(db: Session, email: str):
+    if not email:
+        return None
+    return db.query(models.User).filter(func.lower(models.User.email) == email.lower().strip()).first()
+
+
+def get_user_by_google_sub(db: Session, google_sub: str):
+    if not google_sub:
+        return None
+    return db.query(models.User).filter(models.User.google_sub == google_sub).first()
+
+
+def create_user(
+    db: Session,
+    email: str,
+    password_hash: str,
+    display_name: str | None = None,
+    google_sub: str | None = None,
+) -> models.User:
+    """Creates an account for open self-signup. username is set equal to the
+    email since the users table still enforces username NOT NULL UNIQUE and
+    there's no separate username field in the signup/Google flows."""
+    normalized_email = email.strip().lower()
+    user = models.User(
+        username=normalized_email,
+        email=normalized_email,
+        password_hash=password_hash,
+        display_name=display_name or normalized_email.split("@")[0],
+        google_sub=google_sub,
+        currency="INR",
+        theme="mist",
+        monthly_alert_amount=1000.0,
+        salary_day=1,
+    )
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+    return user
+
+
 # ---------- Income ----------
 
 def create_income(db: Session, user_id: int, amount: float, source: str, description: str, txn_date: date, payment_method: str | None = None):
@@ -323,8 +363,8 @@ def get_largest_expense(db: Session, user_id: int, year: int, month: int):
 
 # ---------- Chat ----------
 
-def save_chat_message(db: Session, user_id: int, role: str, content: str):
-    row = models.ChatMessage(user_id=user_id, role=role, content=content)
+def save_chat_message(db: Session, user_id: int, role: str, content: str, report_entries: str | None = None):
+    row = models.ChatMessage(user_id=user_id, role=role, content=content, report_entries=report_entries)
     db.add(row)
     db.commit()
     db.refresh(row)
@@ -334,8 +374,33 @@ def save_chat_message(db: Session, user_id: int, role: str, content: str):
 def get_recent_chat(db: Session, user_id: int, limit: int = 20):
     rows = db.query(models.ChatMessage).filter(
         models.ChatMessage.user_id == user_id
-    ).order_by(models.ChatMessage.created_at.desc()).limit(limit).all()
+    ).order_by(models.ChatMessage.created_at.desc(), models.ChatMessage.id.desc()).limit(limit).all()
     return list(reversed(rows))
+
+
+def delete_chat_message_pair(db: Session, user_id: int, message_id: int) -> bool:
+    """Deletes a user chat message plus the assistant reply immediately after
+    it (if any), scoped to user_id. Used for edit-and-resend: rather than
+    branching the conversation, the original exchange is removed and the
+    edited text is sent fresh, so the transcript reads as one rewritten
+    message instead of two versions."""
+    message = db.query(models.ChatMessage).filter(
+        models.ChatMessage.id == message_id,
+        models.ChatMessage.user_id == user_id,
+        models.ChatMessage.role == "user",
+    ).first()
+    if not message:
+        return False
+    next_reply = db.query(models.ChatMessage).filter(
+        models.ChatMessage.user_id == user_id,
+        models.ChatMessage.id > message.id,
+        models.ChatMessage.role == "assistant",
+    ).order_by(models.ChatMessage.id.asc()).first()
+    db.delete(message)
+    if next_reply:
+        db.delete(next_reply)
+    db.commit()
+    return True
 
 
 # ---------- Pending entries (offline/rate-limit queue) ----------

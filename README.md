@@ -42,7 +42,13 @@ Test the live demo at https://stash-azsp.onrender.com:
 
 This account has pre-loaded sample data. The password is never stored in the browser—only a signed session cookie is maintained.
 
-## Private accounts (local development)
+## Signing up
+
+Stash is open signup: create your own account from the login screen with an email + password, or via
+"Continue with Google" (requires `GOOGLE_CLIENT_ID` to be set — see [DEPLOY.md](DEPLOY.md)). The private-accounts
+route below still works for manually provisioning accounts, but it's optional now, not the only way in.
+
+## Private accounts (local development, optional)
 
 Personal or family accounts belong in:
 
@@ -218,15 +224,19 @@ When you add a user locally, the tool also updates `app/database/private_account
 
 ## API endpoints
 
-### Authentication (no /api prefix)
+### Authentication
 
-- `POST /login` — Form submission; username + password → signed session cookie
-- `POST /logout` — Clears session cookie
-- `GET /session` — Returns current logged-in user info
+- `POST /api/auth/signup` — Email + password → creates account, signed session cookie (open signup)
+- `POST /api/auth/google` — Google Identity Services ID token → signed session cookie (creates account on first sign-in)
+- `POST /api/auth/login` — Email + password → signed session cookie
+- `POST /api/auth/logout` — Clears session cookie
+- `GET /api/auth/session` — Returns current logged-in user info
 
 ### Finance (`/api/finance`)
 
 - `POST /api/chat` — Send user message; AI parses and returns structured response + transactions
+- `GET /api/chat/history` — Chat transcript, including chart data (`reportEntries`) for report replies
+- `DELETE /api/chat/message/{id}` — Edit-and-resend: deletes a user message + its assistant reply
 - `GET /api/timeline` — Get transaction history (paginated, scoped to current user)
 - `GET /api/dashboard` — Get balance, monthly summary, smart suggestions
 - `PUT /api/transactions/{id}` — Edit existing transaction

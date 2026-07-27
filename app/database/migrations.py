@@ -43,3 +43,6 @@ def run_migrations():
             connection, "recurring_transactions", "auto_post",
             "auto_post BOOLEAN NOT NULL DEFAULT TRUE",
         )
+        _add_column_if_missing(connection, "chat_messages", "report_entries", "report_entries VARCHAR")
+        _add_column_if_missing(connection, "users", "email", "email VARCHAR")
+        _add_column_if_missing(connection, "users", "google_sub", "google_sub VARCHAR")

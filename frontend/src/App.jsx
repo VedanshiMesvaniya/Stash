@@ -313,9 +313,53 @@ function App() {
   );
 }
 
+function GoogleSignInButton({ onCredential, disabled }) {
+  const buttonRef = useRef(null);
+  const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+
+  useEffect(() => {
+    if (!clientId) return undefined;
+    let cancelled = false;
+
+    const render = () => {
+      if (cancelled || !window.google || !buttonRef.current) return;
+      window.google.accounts.id.initialize({
+        client_id: clientId,
+        callback: (response) => onCredential(response.credential),
+      });
+      buttonRef.current.innerHTML = '';
+      window.google.accounts.id.renderButton(buttonRef.current, {
+        theme: 'outline',
+        size: 'large',
+        width: 320,
+        text: 'continue_with',
+      });
+    };
+
+    if (window.google?.accounts?.id) {
+      render();
+      return undefined;
+    }
+    const script = document.createElement('script');
+    script.src = 'https://accounts.google.com/gsi/client';
+    script.async = true;
+    script.defer = true;
+    script.onload = render;
+    document.head.appendChild(script);
+    return () => {
+      cancelled = true;
+    };
+  }, [clientId, onCredential]);
+
+  if (!clientId) return null;
+  return <div ref={buttonRef} className={`google-signin-btn${disabled ? ' disabled' : ''}`} />;
+}
+
 function AuthPage({ onSuccess, onThemeChange, theme }) {
-  const [username, setUsername] = useState('');
+  const [mode, setMode] = useState('login'); // 'login' | 'signup'
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [displayName, setDisplayName] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
 
@@ -324,14 +368,29 @@ function AuthPage({ onSuccess, onThemeChange, theme }) {
     setBusy(true);
     setError('');
     try {
-      const result = await apiFetch('/api/auth/login', {
-        method: 'POST',
-        body: JSON.stringify({ username, password }),
-      });
+      const endpoint = mode === 'signup' ? '/api/auth/signup' : '/api/auth/login';
+      const body = mode === 'signup'
+        ? { email, password, display_name: displayName || undefined }
+        : { email, password };
+      const result = await apiFetch(endpoint, { method: 'POST', body: JSON.stringify(body) });
       if (!result.ok) throw new Error(result.error || 'Authentication failed');
       await onSuccess();
     } catch (err) {
       setError(err.message || 'Authentication failed');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const submitGoogleCredential = async (credential) => {
+    setBusy(true);
+    setError('');
+    try {
+      const result = await apiFetch('/api/auth/google', { method: 'POST', body: JSON.stringify({ credential }) });
+      if (!result.ok) throw new Error(result.error || 'Google sign-in failed');
+      await onSuccess();
+    } catch (err) {
+      setError(err.message || 'Google sign-in failed');
     } finally {
       setBusy(false);
     }
@@ -343,35 +402,57 @@ function AuthPage({ onSuccess, onThemeChange, theme }) {
         <img src={LOGO_SRC} alt="Stash" className="brand-mark" style={{ width: 56, height: 56, borderRadius: 16 }} />
         <div className="brand-wordmark" style={{ fontSize: 26, marginTop: 4 }}>Stash</div>
 
-        <h1 className="page-title">Welcome back</h1>
+        <h1 className="page-title">{mode === 'signup' ? 'Create your account' : 'Welcome back'}</h1>
 
         <form className="stack" onSubmit={submit}>
+          {mode === 'signup' ? (
+            <input
+              className="input"
+              type="text"
+              autoComplete="name"
+              placeholder="Name (optional)"
+              value={displayName}
+              onChange={(event) => setDisplayName(event.target.value)}
+            />
+          ) : null}
           <input
             className="input"
-            type="text"
+            type="email"
             required
-            autoComplete="username"
+            autoComplete="email"
             autoCapitalize="none"
-            placeholder="Username"
-            value={username}
-            onChange={(event) => setUsername(event.target.value)}
+            placeholder="Email"
+            value={email}
+            onChange={(event) => setEmail(event.target.value)}
           />
           <input
             className="input"
             type="password"
             required
-            minLength={1}
-            autoComplete="current-password"
+            minLength={mode === 'signup' ? 8 : 1}
+            autoComplete={mode === 'signup' ? 'new-password' : 'current-password'}
             placeholder="Password"
             value={password}
             onChange={(event) => setPassword(event.target.value)}
           />
           <button className="btn btn-primary btn-full" type="submit" disabled={busy}>
-            {busy ? 'Signing in...' : 'Log in'}
+            {busy ? (mode === 'signup' ? 'Creating account...' : 'Signing in...') : (mode === 'signup' ? 'Sign up' : 'Log in')}
           </button>
         </form>
 
+        <div className="auth-divider"><span>or</span></div>
+        <GoogleSignInButton onCredential={submitGoogleCredential} disabled={busy} />
+
         {error ? <div className="alert alert-error">{error}</div> : null}
+
+        <button
+          type="button"
+          className="btn btn-ghost btn-full"
+          style={{ marginTop: 10 }}
+          onClick={() => { setMode((prev) => (prev === 'signup' ? 'login' : 'signup')); setError(''); }}
+        >
+          {mode === 'signup' ? 'Already have an account? Log in' : "New here? Create an account"}
+        </button>
 
         <ThemeToggle theme={theme} onThemeChange={onThemeChange} />
       </div>
@@ -647,19 +728,8 @@ function DashboardPage({ session, onNavigate, refreshToken, onTouchData }) {
               <div className="wallet-tile-value">{money(wallets?.online ?? 0, currency)}</div>
             </div>
           </div>
-          {wallets?.unspecified ? (
-            <div className="wallet-tile wallet-tile-unspecified">
-              <span className="material-symbols-rounded" aria-hidden="true">help</span>
-              <div>
-                <div className="wallet-tile-label">Unspecified</div>
-                <div className="wallet-tile-value">{money(wallets.unspecified, currency)}</div>
-              </div>
-            </div>
-          ) : null}
         </div>
       </section>
-
-      {data?.suggestion ? <div className="card card-pad insight-card">{data.suggestion}</div> : null}
 
       <section className="grid two-up">
         <div className="card card-pad">
@@ -713,7 +783,17 @@ function DashboardPage({ session, onNavigate, refreshToken, onTouchData }) {
             </div>
           ) : null}
           <div className="stack">
-            {recurring.length ? recurring.slice(0, 4).map((row) => <RecurringCard key={row.id} row={row} currency={currency} />) : (
+            {recurring.length ? recurring.slice(0, 4).map((row) => (
+              <RecurringCard
+                key={row.id}
+                row={row}
+                currency={currency}
+                onEdit={(editRow) => {
+                  sessionStorage.setItem('stash_edit_recurring_id', String(editRow.id));
+                  onNavigate('/settings');
+                }}
+              />
+            )) : (
               <div className="empty-state">No recurring rules yet.</div>
             )}
           </div>
@@ -765,7 +845,7 @@ function ChatPage({ session, onNavigate, onTouchData, refreshToken }) {
       try {
         const rows = await apiFetch('/api/chat/history', { method: 'GET', headers: {} });
         if (!alive) return;
-        setMessages(rows.map((row) => ({ role: row.role, content: row.content })));
+        setMessages(rows.map((row) => ({ id: row.id, role: row.role, content: row.content, reportEntries: row.reportEntries || null })));
         if (!rows.length) {
           setMessages([
             { role: 'assistant', content: "Hi, I'm Stash. Tell me what happened today." },
@@ -814,6 +894,7 @@ function ChatPage({ session, onNavigate, onTouchData, refreshToken }) {
     setBusy(true);
     setError('');
     setInput('');
+    const userMessageIndex = messages.length;
     addMessage('user', message);
     addMessage('assistant', '__TYPING__');
     try {
@@ -826,6 +907,9 @@ function ChatPage({ session, onNavigate, onTouchData, refreshToken }) {
         const reportEntries = reply.intent === 'report' && reply.data?.category_breakdown
           ? Object.entries(reply.data.category_breakdown).sort((a, b) => b[1] - a[1])
           : null;
+        if (next[userMessageIndex] && next[userMessageIndex].role === 'user') {
+          next[userMessageIndex] = { ...next[userMessageIndex], id: reply.user_message_id };
+        }
         next[next.length - 1] = { role: 'assistant', content: reply.reply, reportEntries };
         return next;
       });
@@ -854,6 +938,29 @@ function ChatPage({ session, onNavigate, onTouchData, refreshToken }) {
         resizeComposer();
         textareaRef.current?.focus();
       });
+    }
+  };
+
+  const editMessage = async (message) => {
+    if (busy || !message.id) return;
+    try {
+      await apiFetch(`/api/chat/message/${message.id}`, { method: 'DELETE', headers: {} });
+      setMessages((prev) => {
+        const index = prev.findIndex((m) => m.id === message.id);
+        if (index === -1) return prev;
+        const next = [...prev];
+        // Remove this user message and, if present, the assistant reply right after it.
+        const removeCount = next[index + 1] && next[index + 1].role === 'assistant' ? 2 : 1;
+        next.splice(index, removeCount);
+        return next;
+      });
+      setInput(message.content);
+      requestAnimationFrame(() => {
+        resizeComposer();
+        textareaRef.current?.focus();
+      });
+    } catch (err) {
+      setError(err.message || 'Could not edit that message.');
     }
   };
 
@@ -935,7 +1042,7 @@ function ChatPage({ session, onNavigate, onTouchData, refreshToken }) {
               return null;
             }
             return (
-              <Bubble key={`${index}-${message.role}-${message.content.slice(0, 10)}`} role={message.role} onCandidate={handleCandidateConfirm} message={message} candidatePayload={candidatePayload} currency={session.settings?.currency || 'INR'} />
+              <Bubble key={`${index}-${message.role}-${message.content.slice(0, 10)}`} role={message.role} onCandidate={handleCandidateConfirm} message={message} candidatePayload={candidatePayload} currency={session.settings?.currency || 'INR'} onEdit={editMessage} editDisabled={busy} />
             );
           })}
           {candidatePayload ? (
@@ -1067,10 +1174,14 @@ function ChatPage({ session, onNavigate, onTouchData, refreshToken }) {
               }
             }}
           />
-          <button className="btn btn-primary" type="submit" disabled={busy || !input.trim()} aria-label="Send message">
-            <span className="material-symbols-rounded" aria-hidden="true">
-              arrow_upward
-            </span>
+          <button className="btn btn-primary" type="submit" disabled={busy || !input.trim()} aria-label={busy ? 'Sending message' : 'Send message'}>
+            {busy ? (
+              <span className="btn-spinner" aria-hidden="true" />
+            ) : (
+              <span className="material-symbols-rounded" aria-hidden="true">
+                arrow_upward
+              </span>
+            )}
           </button>
         </form>
       </div>
@@ -1154,7 +1265,7 @@ function ReportTable({ entries, currency }) {
   );
 }
 
-function Bubble({ message, role, currency }) {
+function Bubble({ message, role, currency, onEdit, editDisabled }) {
   if (message.content === '__TYPING__') {
     return (
       <div className={`bubble-row ${role}`}>
@@ -1177,6 +1288,17 @@ function Bubble({ message, role, currency }) {
           </div>
         ) : null}
       </div>
+      {role === 'user' && message.id && onEdit ? (
+        <button
+          type="button"
+          className="btn btn-ghost btn-icon bubble-edit-btn"
+          aria-label="Edit message"
+          disabled={editDisabled}
+          onClick={() => onEdit(message)}
+        >
+          <span className="material-symbols-rounded" aria-hidden="true" style={{ fontSize: 16 }}>edit</span>
+        </button>
+      ) : null}
     </div>
   );
 }
@@ -1587,6 +1709,12 @@ function SettingsPage({ session, theme, onThemeChange, onSessionSync, onTouchDat
         theme: normalizeTheme(settingsData.theme || theme || 'mist'),
       }));
       setRecurringRows(recurringData);
+      const pendingEditId = sessionStorage.getItem('stash_edit_recurring_id');
+      if (pendingEditId) {
+        sessionStorage.removeItem('stash_edit_recurring_id');
+        const match = recurringData.find((row) => String(row.id) === pendingEditId);
+        if (match) startEditRecurring(match);
+      }
     } catch (err) {
       if (err.status === 401) {
         navigate('/login', true);

@@ -17,16 +17,24 @@ from .database import Base
 
 
 class User(Base):
-    """A Stash account. Accounts are created statically via seed.py (see
-    that file to change usernames/passwords) rather than through open
-    self-signup, matching the 'give them the login, they can't self-register'
-    requirement."""
+    """A Stash account. As of the move to open signup, accounts are created
+    either via /api/auth/signup (email + password) or /api/auth/google
+    (Google sign-in) - there is no invite-only restriction anymore. email is
+    the login identifier going forward; username is kept around for
+    pre-existing rows and defaults to the email for new signups.
+    Uniqueness on email/google_sub is enforced in application code
+    (see app/api/auth.py) rather than a DB constraint, since these columns
+    were added via the lightweight ALTER-based migrations.py rather than a
+    real migration tool - see that file before assuming a DB-level
+    guarantee here."""
     __tablename__ = "users"
 
     id = Column(Integer, primary_key=True, index=True)
     username = Column(String, nullable=False, unique=True, index=True)
     password_hash = Column(String, nullable=False)
     display_name = Column(String, nullable=True)
+    email = Column(String, nullable=True, index=True)
+    google_sub = Column(String, nullable=True, index=True)
 
     monthly_alert_amount = Column(Float, nullable=True, default=1000.0)
     salary_day = Column(Integer, nullable=True, default=1)
@@ -91,6 +99,10 @@ class ChatMessage(Base):
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
     role = Column(String, nullable=False)  # "user" or "assistant"
     content = Column(String, nullable=False)
+    # JSON-encoded [[label, value], ...] for report replies, so the bar
+    # chart under a report bubble survives a page reload instead of only
+    # existing in in-memory React state. Nullable - most messages have none.
+    report_entries = Column(String, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
 
