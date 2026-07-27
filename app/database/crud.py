@@ -95,6 +95,7 @@ def create_user(
     password_hash: str,
     display_name: str | None = None,
     google_sub: str | None = None,
+    email_verified: bool = False,
 ) -> models.User:
     """Creates an account for open self-signup. username is set equal to the
     email since the users table still enforces username NOT NULL UNIQUE and
@@ -103,6 +104,7 @@ def create_user(
     user = models.User(
         username=normalized_email,
         email=normalized_email,
+        email_verified=email_verified,
         password_hash=password_hash,
         display_name=display_name or normalized_email.split("@")[0],
         google_sub=google_sub,
@@ -115,6 +117,40 @@ def create_user(
     db.commit()
     db.refresh(user)
     return user
+
+
+# ---------- Email verification (signup) ----------
+
+def create_email_verification(db: Session, email: str, code_hash: str, expires_at, purpose: str = "signup"):
+    """Replaces any outstanding code for this email+purpose with a fresh one,
+    so only the most recently requested code is ever valid."""
+    email = email.strip().lower()
+    db.query(models.EmailVerification).filter(
+        models.EmailVerification.email == email,
+        models.EmailVerification.purpose == purpose,
+    ).delete()
+    row = models.EmailVerification(email=email, code_hash=code_hash, purpose=purpose, expires_at=expires_at)
+    db.add(row)
+    db.commit()
+    db.refresh(row)
+    return row
+
+
+def get_email_verification(db: Session, email: str, purpose: str = "signup"):
+    return db.query(models.EmailVerification).filter(
+        models.EmailVerification.email == email.strip().lower(),
+        models.EmailVerification.purpose == purpose,
+    ).first()
+
+
+def increment_verification_attempts(db: Session, row: "models.EmailVerification"):
+    row.attempts += 1
+    db.commit()
+
+
+def delete_email_verification(db: Session, row: "models.EmailVerification"):
+    db.delete(row)
+    db.commit()
 
 
 # ---------- Income ----------

@@ -44,9 +44,11 @@ This account has pre-loaded sample data. The password is never stored in the bro
 
 ## Signing up
 
-Stash is open signup: create your own account from the login screen with an email + password, or via
-"Continue with Google" (requires `GOOGLE_CLIENT_ID` to be set — see [DEPLOY.md](DEPLOY.md)). The private-accounts
-route below still works for manually provisioning accounts, but it's optional now, not the only way in.
+Stash is open signup: create your own account from the login screen. Enter your email, we send a 6-digit
+verification code to it, then you enter that code plus your chosen password to finish creating the account (or use
+"Continue with Google" for one-click sign-in — requires `GOOGLE_CLIENT_ID`, see [DEPLOY.md](DEPLOY.md)). Sending the
+code requires SMTP env vars to be set; without them, the code is just logged to the server console (fine for local
+dev, not for real users — see DEPLOY.md).
 
 ## Private accounts (local development, optional)
 
@@ -226,7 +228,8 @@ When you add a user locally, the tool also updates `app/database/private_account
 
 ### Authentication
 
-- `POST /api/auth/signup` — Email + password → creates account, signed session cookie (open signup)
+- `POST /api/auth/signup/request-code` — Email → sends a 6-digit verification code
+- `POST /api/auth/signup/verify-code` — Email + code + password → creates account, signed session cookie
 - `POST /api/auth/google` — Google Identity Services ID token → signed session cookie (creates account on first sign-in)
 - `POST /api/auth/login` — Email + password → signed session cookie
 - `POST /api/auth/logout` — Clears session cookie

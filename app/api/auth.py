@@ -9,6 +9,7 @@ the reasoning on why login now looks up by email.
 
 import os
 import secrets
+from datetime import datetime, timedelta, timezone
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Request, status
@@ -21,10 +22,13 @@ from app.auth.password import verify_password, hash_password
 from app.auth.session import login_session, logout_session, is_authenticated, current_user_id
 from app.database import crud
 from app.services import currency as currency_service
+from app.services import mailer
 
 router = APIRouter()
 
 GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID", "").strip()
+VERIFICATION_CODE_TTL_MINUTES = 10
+VERIFICATION_MAX_ATTEMPTS = 5
 
 
 def _normalize_theme(theme: str | None) -> str:
@@ -42,8 +46,13 @@ class LoginPayload(BaseModel):
     password: str
 
 
-class SignupPayload(BaseModel):
+class RequestCodePayload(BaseModel):
     email: str
+
+
+class VerifyCodePayload(BaseModel):
+    email: str
+    code: str
     password: str
     display_name: str | None = None
 
@@ -73,6 +82,7 @@ def session_state(request: Request, db: Session = Depends(get_db)):
         "first_run": False,
         "username": user.username if user else None,
         "email": user.email if user else None,
+        "email_verified": user.email_verified if user else None,
         "display_name": user.display_name if user else None,
         "settings": {
             "theme": _normalize_theme(user.theme if user else "mist"),
@@ -99,16 +109,56 @@ def api_login(payload: LoginPayload, request: Request, db: Session = Depends(get
     return {"ok": False, "error": "Incorrect email or password"}
 
 
-@router.post("/api/auth/signup")
-def api_signup(payload: SignupPayload, request: Request, db: Session = Depends(get_db)):
+@router.post("/api/auth/signup/request-code")
+def api_signup_request_code(payload: RequestCodePayload, request: Request, db: Session = Depends(get_db)):
     email = payload.email.strip().lower()
     if "@" not in email or "." not in email.split("@")[-1]:
         return {"ok": False, "error": "Enter a valid email address"}
-    if len(payload.password) < 8:
-        return {"ok": False, "error": "Password must be at least 8 characters"}
     if crud.get_user_by_email(db, email) or crud.get_user_by_username(db, email):
         return {"ok": False, "error": "An account with that email already exists"}
-    user = crud.create_user(db, email, hash_password(payload.password), display_name=payload.display_name)
+
+    code = f"{secrets.randbelow(1_000_000):06d}"
+    expires_at = datetime.now(timezone.utc) + timedelta(minutes=VERIFICATION_CODE_TTL_MINUTES)
+    crud.create_email_verification(db, email, hash_password(code), expires_at, purpose="signup")
+    sent = mailer.send_verification_code(email, code)
+    return {
+        "ok": True,
+        # In local dev without SMTP configured, the code is logged to the
+        # server console instead of emailed - tell the frontend so it can
+        # show a helpful hint instead of implying an email was sent.
+        "delivered": sent,
+    }
+
+
+@router.post("/api/auth/signup/verify-code")
+def api_signup_verify_code(payload: VerifyCodePayload, request: Request, db: Session = Depends(get_db)):
+    email = payload.email.strip().lower()
+    if len(payload.password) < 8:
+        return {"ok": False, "error": "Password must be at least 8 characters"}
+
+    verification = crud.get_email_verification(db, email, purpose="signup")
+    if not verification:
+        return {"ok": False, "error": "Request a new code - none found for this email"}
+    if verification.expires_at.replace(tzinfo=timezone.utc) < datetime.now(timezone.utc):
+        crud.delete_email_verification(db, verification)
+        return {"ok": False, "error": "That code expired - request a new one"}
+    if verification.attempts >= VERIFICATION_MAX_ATTEMPTS:
+        crud.delete_email_verification(db, verification)
+        return {"ok": False, "error": "Too many incorrect attempts - request a new code"}
+    if not verify_password(payload.code.strip(), verification.code_hash):
+        crud.increment_verification_attempts(db, verification)
+        return {"ok": False, "error": "Incorrect code"}
+
+    # Re-check for a race where the email got registered between requesting
+    # the code and verifying it (e.g. two signup attempts at once).
+    if crud.get_user_by_email(db, email) or crud.get_user_by_username(db, email):
+        crud.delete_email_verification(db, verification)
+        return {"ok": False, "error": "An account with that email already exists"}
+
+    user = crud.create_user(
+        db, email, hash_password(payload.password), display_name=payload.display_name, email_verified=True,
+    )
+    crud.delete_email_verification(db, verification)
     login_session(request, user.id, user.username)
     return {"ok": True}
 
@@ -160,6 +210,7 @@ def api_google_auth(payload: GoogleAuthPayload, request: Request, db: Session = 
         # person later sets a password from Settings.
         user = crud.create_user(
             db, email, hash_password(secrets.token_urlsafe(32)), display_name=name, google_sub=google_sub,
+            email_verified=True,
         )
     login_session(request, user.id, user.username)
     return {"ok": True}

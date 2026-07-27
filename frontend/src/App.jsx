@@ -356,27 +356,70 @@ function GoogleSignInButton({ onCredential, disabled }) {
 }
 
 function AuthPage({ onSuccess, onThemeChange, theme }) {
-  const [mode, setMode] = useState('login'); // 'login' | 'signup'
+  const [mode, setMode] = useState('login'); // 'login' | 'signup-email' | 'signup-verify'
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [displayName, setDisplayName] = useState('');
+  const [code, setCode] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [info, setInfo] = useState('');
 
-  const submit = async (event) => {
+  const resetToLogin = () => {
+    setMode('login');
+    setError('');
+    setInfo('');
+    setPassword('');
+    setCode('');
+  };
+
+  const submitLogin = async (event) => {
     event.preventDefault();
     setBusy(true);
     setError('');
     try {
-      const endpoint = mode === 'signup' ? '/api/auth/signup' : '/api/auth/login';
-      const body = mode === 'signup'
-        ? { email, password, display_name: displayName || undefined }
-        : { email, password };
-      const result = await apiFetch(endpoint, { method: 'POST', body: JSON.stringify(body) });
+      const result = await apiFetch('/api/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) });
       if (!result.ok) throw new Error(result.error || 'Authentication failed');
       await onSuccess();
     } catch (err) {
       setError(err.message || 'Authentication failed');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const requestCode = async (event) => {
+    event.preventDefault();
+    setBusy(true);
+    setError('');
+    setInfo('');
+    try {
+      const result = await apiFetch('/api/auth/signup/request-code', { method: 'POST', body: JSON.stringify({ email }) });
+      if (!result.ok) throw new Error(result.error || 'Could not send verification code');
+      setInfo(result.delivered
+        ? `We sent a 6-digit code to ${email}. Enter it below to finish creating your account.`
+        : 'Email delivery is not set up on this server yet, so the code was logged to the server console instead.');
+      setMode('signup-verify');
+    } catch (err) {
+      setError(err.message || 'Could not send verification code');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const verifyAndCreateAccount = async (event) => {
+    event.preventDefault();
+    setBusy(true);
+    setError('');
+    try {
+      const result = await apiFetch('/api/auth/signup/verify-code', {
+        method: 'POST',
+        body: JSON.stringify({ email, code, password, display_name: displayName || undefined }),
+      });
+      if (!result.ok) throw new Error(result.error || 'Could not verify that code');
+      await onSuccess();
+    } catch (err) {
+      setError(err.message || 'Could not verify that code');
     } finally {
       setBusy(false);
     }
@@ -396,63 +439,90 @@ function AuthPage({ onSuccess, onThemeChange, theme }) {
     }
   };
 
+  const titles = { login: 'Welcome back', 'signup-email': 'Create your account', 'signup-verify': 'Check your email' };
+
   return (
     <div className="auth-page">
       <div className="auth-card">
         <img src={LOGO_SRC} alt="Stash" className="brand-mark" style={{ width: 56, height: 56, borderRadius: 16 }} />
         <div className="brand-wordmark" style={{ fontSize: 26, marginTop: 4 }}>Stash</div>
 
-        <h1 className="page-title">{mode === 'signup' ? 'Create your account' : 'Welcome back'}</h1>
+        <h1 className="page-title">{titles[mode]}</h1>
 
-        <form className="stack" onSubmit={submit}>
-          {mode === 'signup' ? (
+        {mode === 'login' ? (
+          <form className="stack" onSubmit={submitLogin}>
             <input
-              className="input"
-              type="text"
-              autoComplete="name"
-              placeholder="Name (optional)"
-              value={displayName}
-              onChange={(event) => setDisplayName(event.target.value)}
+              className="input" type="email" required autoComplete="email" autoCapitalize="none"
+              placeholder="Email" value={email} onChange={(event) => setEmail(event.target.value)}
             />
-          ) : null}
-          <input
-            className="input"
-            type="email"
-            required
-            autoComplete="email"
-            autoCapitalize="none"
-            placeholder="Email"
-            value={email}
-            onChange={(event) => setEmail(event.target.value)}
-          />
-          <input
-            className="input"
-            type="password"
-            required
-            minLength={mode === 'signup' ? 8 : 1}
-            autoComplete={mode === 'signup' ? 'new-password' : 'current-password'}
-            placeholder="Password"
-            value={password}
-            onChange={(event) => setPassword(event.target.value)}
-          />
-          <button className="btn btn-primary btn-full" type="submit" disabled={busy}>
-            {busy ? (mode === 'signup' ? 'Creating account...' : 'Signing in...') : (mode === 'signup' ? 'Sign up' : 'Log in')}
-          </button>
-        </form>
+            <input
+              className="input" type="password" required minLength={1} autoComplete="current-password"
+              placeholder="Password" value={password} onChange={(event) => setPassword(event.target.value)}
+            />
+            <button className="btn btn-primary btn-full" type="submit" disabled={busy}>
+              {busy ? 'Signing in...' : 'Log in'}
+            </button>
+          </form>
+        ) : null}
 
-        <div className="auth-divider"><span>or</span></div>
-        <GoogleSignInButton onCredential={submitGoogleCredential} disabled={busy} />
+        {mode === 'signup-email' ? (
+          <form className="stack" onSubmit={requestCode}>
+            <input
+              className="input" type="text" autoComplete="name" placeholder="Name (optional)"
+              value={displayName} onChange={(event) => setDisplayName(event.target.value)}
+            />
+            <input
+              className="input" type="email" required autoComplete="email" autoCapitalize="none"
+              placeholder="Email" value={email} onChange={(event) => setEmail(event.target.value)}
+            />
+            <button className="btn btn-primary btn-full" type="submit" disabled={busy}>
+              {busy ? 'Sending code...' : 'Send verification code'}
+            </button>
+          </form>
+        ) : null}
 
+        {mode === 'signup-verify' ? (
+          <form className="stack" onSubmit={verifyAndCreateAccount}>
+            <input
+              className="input" type="text" required inputMode="numeric" pattern="[0-9]{6}" maxLength={6}
+              autoComplete="one-time-code" placeholder="6-digit code" value={code}
+              onChange={(event) => setCode(event.target.value.replace(/\D/g, '').slice(0, 6))}
+            />
+            <input
+              className="input" type="password" required minLength={8} autoComplete="new-password"
+              placeholder="Choose a password" value={password} onChange={(event) => setPassword(event.target.value)}
+            />
+            <button className="btn btn-primary btn-full" type="submit" disabled={busy}>
+              {busy ? 'Verifying...' : 'Verify & create account'}
+            </button>
+            <button
+              type="button" className="btn btn-ghost btn-full" disabled={busy}
+              onClick={requestCode}
+            >
+              Resend code
+            </button>
+          </form>
+        ) : null}
+
+        {mode === 'login' ? (
+          <>
+            <div className="auth-divider"><span>or</span></div>
+            <GoogleSignInButton onCredential={submitGoogleCredential} disabled={busy} />
+          </>
+        ) : null}
+
+        {info ? <div className="alert alert-info">{info}</div> : null}
         {error ? <div className="alert alert-error">{error}</div> : null}
 
-        <button
-          type="button"
-          className="btn btn-ghost btn-full"
-          style={{ marginTop: 10 }}
-          onClick={() => { setMode((prev) => (prev === 'signup' ? 'login' : 'signup')); setError(''); }}
-        >
-          {mode === 'signup' ? 'Already have an account? Log in' : "New here? Create an account"}
-        </button>
+        {mode === 'login' ? (
+          <button type="button" className="btn btn-ghost btn-full" style={{ marginTop: 10 }} onClick={() => { setMode('signup-email'); setError(''); setInfo(''); }}>
+            New here? Create an account
+          </button>
+        ) : (
+          <button type="button" className="btn btn-ghost btn-full" style={{ marginTop: 10 }} onClick={resetToLogin}>
+            Back to log in
+          </button>
+        )}
 
         <ThemeToggle theme={theme} onThemeChange={onThemeChange} />
       </div>

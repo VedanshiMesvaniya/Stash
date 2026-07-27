@@ -7,7 +7,15 @@ This guide covers deploying Stash to production with Render (hosting) and Neon (
 Stash used to be invite-only (accounts created ahead of time via `seed.py`/`scripts/manage_users.py`,
 no signup endpoint). That's changed:
 
-- **Open signup**: anyone can create an account at the login screen with an email + password (`POST /api/auth/signup`).
+- **Open signup**: anyone can create an account at the login screen. Signup is two steps: enter an email
+  (`POST /api/auth/signup/request-code`) → a 6-digit code is emailed → enter the code + choose a password
+  (`POST /api/auth/signup/verify-code`) creates the account and logs you in. Nothing is written to the `users`
+  table until the code is confirmed, so there's no way to end up with an unverified/orphaned account. Codes expire
+  after 10 minutes and lock out after 5 wrong attempts (see `app/database/models.py::EmailVerification`).
+- **Sending the code** goes through `app/services/mailer.py` over plain SMTP (stdlib `smtplib`, no new dependency).
+  Set `SMTP_HOST`/`SMTP_PORT`/`SMTP_USERNAME`/`SMTP_PASSWORD`/`SMTP_FROM` (see the env var table below). Without
+  those set, the code is printed to the server log instead of emailed - fine for local dev, **not** something to
+  ship to production with real users, since they'd have no way to get their code.
 - **Google sign-in**: `POST /api/auth/google` verifies a Google Identity Services ID token and logs the person in,
   auto-creating an account on first sign-in if the email isn't already registered. Requires `GOOGLE_CLIENT_ID` (see below) —
   without it, the Google button doesn't render and the endpoint returns a 503.
@@ -76,6 +84,7 @@ Copy `.env.example` → `.env` locally, or set in Render dashboard for productio
 | `SECRET_KEY` | **Yes** | — | — | `python -c "import secrets; print(secrets.token_hex(32))"` — no fallback, app refuses to start without it |
 | `DATABASE_URL` | No | (SQLite) | **Required** | Leave blank for local SQLite in `data/finance.db`; set to Neon connection string for Postgres |
 | `GOOGLE_CLIENT_ID` | No | — | Recommended | OAuth Client ID from Google Cloud Console (see below). Needed for the "Sign in with Google" button and `/api/auth/google`; without it, Google sign-in is simply hidden. |
+| `SMTP_HOST` / `SMTP_PORT` / `SMTP_USERNAME` / `SMTP_PASSWORD` / `SMTP_FROM` | No | — | Recommended | Sends the signup verification code by email. Without these, the code is logged to the server console instead - fine for local dev, not for real users. |
 | `GROQ_API_KEY` | No | — | Recommended | Get from https://console.groq.com/keys; first LLM provider |
 | `GROQ_MODEL` | No | `llama-3.3-70b-versatile` | — | Groq model name |
 | `OPENROUTER_API_KEY` | No | — | Recommended | Get from https://openrouter.ai/keys; fallback LLM provider. Do $10 one-time credit top-up. |

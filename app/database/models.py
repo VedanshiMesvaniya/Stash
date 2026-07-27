@@ -34,6 +34,7 @@ class User(Base):
     password_hash = Column(String, nullable=False)
     display_name = Column(String, nullable=True)
     email = Column(String, nullable=True, index=True)
+    email_verified = Column(Boolean, nullable=False, default=False)
     google_sub = Column(String, nullable=True, index=True)
 
     monthly_alert_amount = Column(Float, nullable=True, default=1000.0)
@@ -232,4 +233,22 @@ class PendingSelection(Base):
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False, unique=True, index=True)
     kind = Column(String, nullable=False)  # "delete" for now; extensible
     options_json = Column(String, nullable=False)  # JSON list of {id, type, label, amount, date}
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class EmailVerification(Base):
+    """A pending signup verification code. Nothing in the users table is
+    created until the code sent to this email is confirmed - so
+    'signed up' always implies 'proved they own that inbox'. code_hash is
+    hashed the same way as passwords (bcrypt); never store the raw code.
+    One row per outstanding code per email - requesting a new code
+    replaces the old one (see crud.create_email_verification)."""
+    __tablename__ = "email_verifications"
+
+    id = Column(Integer, primary_key=True, index=True)
+    email = Column(String, nullable=False, index=True)
+    code_hash = Column(String, nullable=False)
+    purpose = Column(String, nullable=False, default="signup")
+    attempts = Column(Integer, nullable=False, default=0)
+    expires_at = Column(DateTime(timezone=True), nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())

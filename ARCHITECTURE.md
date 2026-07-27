@@ -66,8 +66,10 @@ Notes:
   - Includes: finance, reports, settings, recurring
 
 - **app/api/auth.py**
-  - POST `/login` (by email now, not username), `/signup` (open signup, email + password), `/google` (Google
-    sign-in — verifies a Google Identity Services ID token, auto-creates an account on first login), `/logout`, `/session`
+  - POST `/login` (by email now, not username), `/signup/request-code` + `/signup/verify-code` (open signup:
+    email → 6-digit code sent via `app/services/mailer.py` → code + password creates the account), `/google`
+    (Google sign-in — verifies a Google Identity Services ID token, auto-creates an account on first login,
+    already-verified since Google confirmed the email), `/logout`, `/session`
   - Session state validation
   - Password change endpoint (requires old password)
 
