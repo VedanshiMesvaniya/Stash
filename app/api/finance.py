@@ -8,7 +8,7 @@ All scoped to the logged-in user via get_current_user.
 import json
 from datetime import date as DateType
 
-from fastapi import APIRouter, Depends, Request, HTTPException, status
+from fastapi import APIRouter, Depends, Request, HTTPException, status, Query
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 
@@ -230,8 +230,19 @@ def set_budget(payload: BudgetUpdateRequest, request: Request, db: Session = Dep
 
 
 @router.get("/timeline")
-def timeline(request: Request, db: Session = Depends(get_db), user: models.User = Depends(get_current_user)):
-    rows = crud.get_timeline(db, user.id, limit=200)
+def timeline(
+    request: Request,
+    year: int = Query(default=None),
+    month: int = Query(default=None),
+    all: bool = Query(default=False),
+    db: Session = Depends(get_db),
+    user: models.User = Depends(get_current_user),
+):
+    if all:
+        rows = crud.get_timeline(db, user.id, limit=200)
+    else:
+        today = DateType.today()
+        rows = crud.get_timeline(db, user.id, year=year or today.year, month=month or today.month)
     return [
         {
             "id": t["id"],

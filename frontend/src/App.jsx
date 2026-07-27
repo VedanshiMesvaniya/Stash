@@ -1379,12 +1379,40 @@ function TimelinePage({ session }) {
   const [editingKey, setEditingKey] = useState('');
   const [editForm, setEditForm] = useState(null);
   const [busyKey, setBusyKey] = useState('');
+  const [months, setMonths] = useState([]);
+  const [selectedMonth, setSelectedMonth] = useState(''); // 'all' or 'YYYY-M'
+
+  useEffect(() => {
+    let alive = true;
+    apiFetch('/api/reports/months', { method: 'GET', headers: {} })
+      .then((data) => {
+        if (!alive) return;
+        const rows2 = data.length
+          ? data
+          : (() => {
+              const today = new Date();
+              return [{ year: today.getFullYear(), month: today.getMonth() + 1, label: 'This month' }];
+            })();
+        setMonths(rows2);
+        setSelectedMonth(`${rows2[0].year}-${rows2[0].month}`);
+      })
+      .catch((err) => setError(err.message));
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   const loadRows = async () => {
-    return apiFetch('/api/timeline', { method: 'GET', headers: {} });
+    if (!selectedMonth) return [];
+    if (selectedMonth === 'all') {
+      return apiFetch('/api/timeline?all=true', { method: 'GET', headers: {} });
+    }
+    const [year, month] = selectedMonth.split('-');
+    return apiFetch(`/api/timeline?year=${year}&month=${month}`, { method: 'GET', headers: {} });
   };
 
   useEffect(() => {
+    if (!selectedMonth) return undefined;
     let alive = true;
     loadRows()
       .then((data) => {
@@ -1401,7 +1429,7 @@ function TimelinePage({ session }) {
     return () => {
       alive = false;
     };
-  }, []);
+  }, [selectedMonth]);
 
   const startEdit = (item) => {
     const key = `${item.type}-${item.id}`;
@@ -1482,7 +1510,19 @@ function TimelinePage({ session }) {
 
   return (
     <div className="stack">
-      <SectionHeader title="Timeline" />
+      <SectionHeader
+        title="Timeline"
+        action={
+          <select className="select page-select" value={selectedMonth} onChange={(event) => setSelectedMonth(event.target.value)}>
+            {months.map((item) => (
+              <option key={`${item.year}-${item.month}`} value={`${item.year}-${item.month}`}>
+                {item.label}
+              </option>
+            ))}
+            <option value="all">All time</option>
+          </select>
+        }
+      />
       {error ? <div className="alert alert-error">{error}</div> : null}
       <div className="timeline-stack">
         {rows.length ? (
@@ -1584,7 +1624,9 @@ function TimelinePage({ session }) {
             </div>
           ))
         ) : (
-          <div className="empty-state">Nothing logged yet.</div>
+          <div className="empty-state">
+            {selectedMonth === 'all' ? 'Nothing logged yet.' : 'Nothing logged for this month.'}
+          </div>
         )}
       </div>
     </div>

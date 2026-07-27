@@ -298,14 +298,25 @@ def find_recent_income_by_source(db: Session, user_id: int, source: str, days: i
     return q.order_by(models.Income.created_at.desc()).limit(limit).all()
 
 
-def get_timeline(db: Session, user_id: int, limit: int = 100):
-    """Returns merged income+expense rows sorted by date desc, then created_at desc."""
-    fetch_limit = max(limit * 2, limit)
-    incomes = db.query(models.Income).filter(models.Income.user_id == user_id).order_by(
+def get_timeline(db: Session, user_id: int, limit: int = 100, year: int | None = None, month: int | None = None):
+    """Returns merged income+expense rows sorted by date desc, then created_at desc.
+    When year/month are given, scopes to that month only (using the same
+    denormalized year/month columns the reports page filters on) and lifts
+    the row cap, since a single month is naturally bounded and shouldn't be
+    truncated the way the unfiltered "everything" view is."""
+    income_query = db.query(models.Income).filter(models.Income.user_id == user_id)
+    expense_query = db.query(models.Expense).filter(models.Expense.user_id == user_id)
+    if year is not None and month is not None:
+        income_query = income_query.filter(models.Income.year == year, models.Income.month == month)
+        expense_query = expense_query.filter(models.Expense.year == year, models.Expense.month == month)
+        fetch_limit = 2000
+    else:
+        fetch_limit = max(limit * 2, limit)
+    incomes = income_query.order_by(
         models.Income.date.desc(),
         models.Income.created_at.desc(),
     ).limit(fetch_limit).all()
-    expenses = db.query(models.Expense).filter(models.Expense.user_id == user_id).order_by(
+    expenses = expense_query.order_by(
         models.Expense.date.desc(),
         models.Expense.created_at.desc(),
     ).limit(fetch_limit).all()
@@ -325,7 +336,7 @@ def get_timeline(db: Session, user_id: int, limit: int = 100):
             "date": e.date, "created_at": e.created_at,
         })
     merged.sort(key=lambda x: (x["date"], x["created_at"] or datetime.min), reverse=True)
-    return merged[:limit]
+    return merged if (year is not None and month is not None) else merged[:limit]
 
 
 # ---------- Balance & aggregates (always derived, never stored) ----------
