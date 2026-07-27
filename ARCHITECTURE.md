@@ -12,8 +12,9 @@ Stash is a multi-user, AI-powered personal finance web application:
 
 ## Request flow
 
-1. User signs in with username + password
-2. Backend verifies password hash via bcrypt
+1. User signs in with email + password, or via "Continue with Google" (open signup — anyone can create an
+   account; see `app/api/auth.py` and the "Adding custom users" section below for how this changed)
+2. Backend verifies password hash via bcrypt, or (for Google) verifies the ID token against Google's tokeninfo endpoint
 3. Backend creates a signed session cookie (`stash_session`)
 4. Every API request validates the cookie to resolve the current `user_id`
 5. All CRUD operations filter by `user_id` at the database layer (no application-level leaks)
@@ -25,7 +26,9 @@ Every transaction table is scoped by `user_id`:
 - `income`, `expense`, `categories`, `recurring_transactions`, `recurring_postings`
 - `chat_messages`, `pending_entries`, all exports
 
-One user can never see, edit, or export another user's data. Multi-user families are seeded at startup via `app/database/seed.py` with static username/password credentials (no self-signup endpoint).
+One user can never see, edit, or export another user's data. Accounts can now be created two ways: self-signup
+(`POST /api/auth/signup` or `/api/auth/google`) at the login screen, or the legacy pre-seeded route via
+`app/database/seed.py` / `scripts/manage_users.py` for manual provisioning.
 
 ## Data model
 
@@ -63,14 +66,21 @@ Notes:
   - Includes: finance, reports, settings, recurring
 
 - **app/api/auth.py**
-  - POST `/login`, `/logout`, `/session`
+  - POST `/login` (by email now, not username), `/signup/request-code` + `/signup/verify-code` (open signup:
+    email → 6-digit code sent via `app/services/mailer.py` → code + password creates the account), `/google`
+    (Google sign-in — verifies a Google Identity Services ID token, auto-creates an account on first login,
+    already-verified since Google confirmed the email), `/logout`, `/session`
   - Session state validation
   - Password change endpoint (requires old password)
 
 ### API endpoints
 
 - **app/api/finance.py**
-  - POST `/api/chat` — Send a message for AI-assisted entry parsing
+  - POST `/api/chat` — Send a message for AI-assisted entry parsing; assistant replies that include a report
+    (category breakdown) persist that data to `chat_messages.report_entries` so the chart survives a page reload
+  - GET `/api/chat/history` — Chat transcript, including `reportEntries` per message where present
+  - DELETE `/api/chat/message/{id}` — Removes a user message and its paired assistant reply, for edit-and-resend
+    (the message is deleted and resent fresh rather than the thread forking into two versions)
   - GET `/api/timeline` — Get user's transaction history (with pagination)
   - GET `/api/dashboard` — Get balance, monthly totals, smart suggestions
   - PUT `/api/transactions/{id}` — Edit transaction
@@ -208,11 +218,12 @@ The React app lives in `frontend/src/App.jsx`:
 
 ## Adding custom users
 
-To add private accounts (not in repo), edit:
+Anyone can now self-serve an account from the login screen (email + password, or Google sign-in) — this is no
+longer the only route in, though. For manually provisioning or managing an account without going through the UI:
 
-- `app/database/private_accounts.py`
-
-That file is ignored by git so private credentials stay out of commits.
+- `app/database/private_accounts.py` — private accounts not in the repo (file is gitignored, stays out of commits)
+- `scripts/manage_users.py` — CLI: list / add / delete users
+- `scripts/reset_password.py` — CLI password reset
 
 ## Background jobs
 
@@ -238,7 +249,15 @@ That file is ignored by git so private credentials stay out of commits.
 - **Session signing**: Signed cookies prevent tampering; expires after 30 days
 - **Multi-user isolation**: Every query filtered by `user_id` at the ORM layer
 - **Password storage**: bcrypt hashing; original never stored; password resets via CLI-only tool
+  (self-signup users can also change their own password from Settings)
 - **HTTPS-only cookies**: Enabled in production (`ENVIRONMENT=production`)
+- **Open signup trade-off**: Stash was originally invite-only by design ("nobody can create an account they weren't
+  given"). It's now open signup + Google sign-in — a deliberate, explicit change, not a default; worth knowing if
+  you're reasoning about this app's threat model, since it now accepts accounts from anyone with an email.
+- **Google sign-in verification**: ID tokens are verified via a call to Google's `tokeninfo` endpoint (checking `aud`
+  and `email_verified`), not local JWT signature verification. That's a reasonable trade-off at Stash's traffic level
+  (one HTTPS round-trip to Google per login) but isn't the standard high-traffic approach (which verifies signatures
+  locally against Google's published JWKs) — worth revisiting if login volume ever gets meaningfully large.
 
 ## Deployment notes
 

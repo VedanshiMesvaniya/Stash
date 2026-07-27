@@ -313,21 +313,72 @@ function App() {
   );
 }
 
+function GoogleSignInButton({ onCredential, disabled }) {
+  const buttonRef = useRef(null);
+  const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+
+  useEffect(() => {
+    if (!clientId) return undefined;
+    let cancelled = false;
+
+    const render = () => {
+      if (cancelled || !window.google || !buttonRef.current) return;
+      window.google.accounts.id.initialize({
+        client_id: clientId,
+        callback: (response) => onCredential(response.credential),
+      });
+      buttonRef.current.innerHTML = '';
+      window.google.accounts.id.renderButton(buttonRef.current, {
+        theme: 'outline',
+        size: 'large',
+        width: 320,
+        text: 'continue_with',
+      });
+    };
+
+    if (window.google?.accounts?.id) {
+      render();
+      return undefined;
+    }
+    const script = document.createElement('script');
+    script.src = 'https://accounts.google.com/gsi/client';
+    script.async = true;
+    script.defer = true;
+    script.onload = render;
+    document.head.appendChild(script);
+    return () => {
+      cancelled = true;
+    };
+  }, [clientId, onCredential]);
+
+  if (!clientId) return null;
+  return <div ref={buttonRef} className={`google-signin-btn${disabled ? ' disabled' : ''}`} />;
+}
+
 function AuthPage({ onSuccess, onThemeChange, theme }) {
-  const [username, setUsername] = useState('');
+  const [mode, setMode] = useState('login'); // 'login' | 'signup-email' | 'signup-verify'
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [displayName, setDisplayName] = useState('');
+  const [code, setCode] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [info, setInfo] = useState('');
 
-  const submit = async (event) => {
+  const resetToLogin = () => {
+    setMode('login');
+    setError('');
+    setInfo('');
+    setPassword('');
+    setCode('');
+  };
+
+  const submitLogin = async (event) => {
     event.preventDefault();
     setBusy(true);
     setError('');
     try {
-      const result = await apiFetch('/api/auth/login', {
-        method: 'POST',
-        body: JSON.stringify({ username, password }),
-      });
+      const result = await apiFetch('/api/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) });
       if (!result.ok) throw new Error(result.error || 'Authentication failed');
       await onSuccess();
     } catch (err) {
@@ -337,41 +388,141 @@ function AuthPage({ onSuccess, onThemeChange, theme }) {
     }
   };
 
+  const requestCode = async (event) => {
+    event.preventDefault();
+    setBusy(true);
+    setError('');
+    setInfo('');
+    try {
+      const result = await apiFetch('/api/auth/signup/request-code', { method: 'POST', body: JSON.stringify({ email }) });
+      if (!result.ok) throw new Error(result.error || 'Could not send verification code');
+      setInfo(result.delivered
+        ? `We sent a 6-digit code to ${email}. Enter it below to finish creating your account.`
+        : 'Email delivery is not set up on this server yet, so the code was logged to the server console instead.');
+      setMode('signup-verify');
+    } catch (err) {
+      setError(err.message || 'Could not send verification code');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const verifyAndCreateAccount = async (event) => {
+    event.preventDefault();
+    setBusy(true);
+    setError('');
+    try {
+      const result = await apiFetch('/api/auth/signup/verify-code', {
+        method: 'POST',
+        body: JSON.stringify({ email, code, password, display_name: displayName || undefined }),
+      });
+      if (!result.ok) throw new Error(result.error || 'Could not verify that code');
+      await onSuccess();
+    } catch (err) {
+      setError(err.message || 'Could not verify that code');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const submitGoogleCredential = async (credential) => {
+    setBusy(true);
+    setError('');
+    try {
+      const result = await apiFetch('/api/auth/google', { method: 'POST', body: JSON.stringify({ credential }) });
+      if (!result.ok) throw new Error(result.error || 'Google sign-in failed');
+      await onSuccess();
+    } catch (err) {
+      setError(err.message || 'Google sign-in failed');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const titles = { login: 'Welcome back', 'signup-email': 'Create your account', 'signup-verify': 'Check your email' };
+
   return (
     <div className="auth-page">
       <div className="auth-card">
         <img src={LOGO_SRC} alt="Stash" className="brand-mark" style={{ width: 56, height: 56, borderRadius: 16 }} />
         <div className="brand-wordmark" style={{ fontSize: 26, marginTop: 4 }}>Stash</div>
 
-        <h1 className="page-title">Welcome back</h1>
+        <h1 className="page-title">{titles[mode]}</h1>
 
-        <form className="stack" onSubmit={submit}>
-          <input
-            className="input"
-            type="text"
-            required
-            autoComplete="username"
-            autoCapitalize="none"
-            placeholder="Username"
-            value={username}
-            onChange={(event) => setUsername(event.target.value)}
-          />
-          <input
-            className="input"
-            type="password"
-            required
-            minLength={1}
-            autoComplete="current-password"
-            placeholder="Password"
-            value={password}
-            onChange={(event) => setPassword(event.target.value)}
-          />
-          <button className="btn btn-primary btn-full" type="submit" disabled={busy}>
-            {busy ? 'Signing in...' : 'Log in'}
-          </button>
-        </form>
+        {mode === 'login' ? (
+          <form className="stack" onSubmit={submitLogin}>
+            <input
+              className="input" type="email" required autoComplete="email" autoCapitalize="none"
+              placeholder="Email" value={email} onChange={(event) => setEmail(event.target.value)}
+            />
+            <input
+              className="input" type="password" required minLength={1} autoComplete="current-password"
+              placeholder="Password" value={password} onChange={(event) => setPassword(event.target.value)}
+            />
+            <button className="btn btn-primary btn-full" type="submit" disabled={busy}>
+              {busy ? 'Signing in...' : 'Log in'}
+            </button>
+          </form>
+        ) : null}
 
+        {mode === 'signup-email' ? (
+          <form className="stack" onSubmit={requestCode}>
+            <input
+              className="input" type="text" autoComplete="name" placeholder="Name (optional)"
+              value={displayName} onChange={(event) => setDisplayName(event.target.value)}
+            />
+            <input
+              className="input" type="email" required autoComplete="email" autoCapitalize="none"
+              placeholder="Email" value={email} onChange={(event) => setEmail(event.target.value)}
+            />
+            <button className="btn btn-primary btn-full" type="submit" disabled={busy}>
+              {busy ? 'Sending code...' : 'Send verification code'}
+            </button>
+          </form>
+        ) : null}
+
+        {mode === 'signup-verify' ? (
+          <form className="stack" onSubmit={verifyAndCreateAccount}>
+            <input
+              className="input" type="text" required inputMode="numeric" pattern="[0-9]{6}" maxLength={6}
+              autoComplete="one-time-code" placeholder="6-digit code" value={code}
+              onChange={(event) => setCode(event.target.value.replace(/\D/g, '').slice(0, 6))}
+            />
+            <input
+              className="input" type="password" required minLength={8} autoComplete="new-password"
+              placeholder="Choose a password" value={password} onChange={(event) => setPassword(event.target.value)}
+            />
+            <button className="btn btn-primary btn-full" type="submit" disabled={busy}>
+              {busy ? 'Verifying...' : 'Verify & create account'}
+            </button>
+            <button
+              type="button" className="btn btn-ghost btn-full" disabled={busy}
+              onClick={requestCode}
+            >
+              Resend code
+            </button>
+          </form>
+        ) : null}
+
+        {mode === 'login' ? (
+          <>
+            <div className="auth-divider"><span>or</span></div>
+            <GoogleSignInButton onCredential={submitGoogleCredential} disabled={busy} />
+          </>
+        ) : null}
+
+        {info ? <div className="alert alert-info">{info}</div> : null}
         {error ? <div className="alert alert-error">{error}</div> : null}
+
+        {mode === 'login' ? (
+          <button type="button" className="btn btn-ghost btn-full" style={{ marginTop: 10 }} onClick={() => { setMode('signup-email'); setError(''); setInfo(''); }}>
+            New here? Create an account
+          </button>
+        ) : (
+          <button type="button" className="btn btn-ghost btn-full" style={{ marginTop: 10 }} onClick={resetToLogin}>
+            Back to log in
+          </button>
+        )}
 
         <ThemeToggle theme={theme} onThemeChange={onThemeChange} />
       </div>
@@ -647,19 +798,8 @@ function DashboardPage({ session, onNavigate, refreshToken, onTouchData }) {
               <div className="wallet-tile-value">{money(wallets?.online ?? 0, currency)}</div>
             </div>
           </div>
-          {wallets?.unspecified ? (
-            <div className="wallet-tile wallet-tile-unspecified">
-              <span className="material-symbols-rounded" aria-hidden="true">help</span>
-              <div>
-                <div className="wallet-tile-label">Unspecified</div>
-                <div className="wallet-tile-value">{money(wallets.unspecified, currency)}</div>
-              </div>
-            </div>
-          ) : null}
         </div>
       </section>
-
-      {data?.suggestion ? <div className="card card-pad insight-card">{data.suggestion}</div> : null}
 
       <section className="grid two-up">
         <div className="card card-pad">
@@ -713,7 +853,17 @@ function DashboardPage({ session, onNavigate, refreshToken, onTouchData }) {
             </div>
           ) : null}
           <div className="stack">
-            {recurring.length ? recurring.slice(0, 4).map((row) => <RecurringCard key={row.id} row={row} currency={currency} />) : (
+            {recurring.length ? recurring.slice(0, 4).map((row) => (
+              <RecurringCard
+                key={row.id}
+                row={row}
+                currency={currency}
+                onEdit={(editRow) => {
+                  sessionStorage.setItem('stash_edit_recurring_id', String(editRow.id));
+                  onNavigate('/settings');
+                }}
+              />
+            )) : (
               <div className="empty-state">No recurring rules yet.</div>
             )}
           </div>
@@ -765,7 +915,7 @@ function ChatPage({ session, onNavigate, onTouchData, refreshToken }) {
       try {
         const rows = await apiFetch('/api/chat/history', { method: 'GET', headers: {} });
         if (!alive) return;
-        setMessages(rows.map((row) => ({ role: row.role, content: row.content })));
+        setMessages(rows.map((row) => ({ id: row.id, role: row.role, content: row.content, reportEntries: row.reportEntries || null })));
         if (!rows.length) {
           setMessages([
             { role: 'assistant', content: "Hi, I'm Stash. Tell me what happened today." },
@@ -814,6 +964,7 @@ function ChatPage({ session, onNavigate, onTouchData, refreshToken }) {
     setBusy(true);
     setError('');
     setInput('');
+    const userMessageIndex = messages.length;
     addMessage('user', message);
     addMessage('assistant', '__TYPING__');
     try {
@@ -826,6 +977,9 @@ function ChatPage({ session, onNavigate, onTouchData, refreshToken }) {
         const reportEntries = reply.intent === 'report' && reply.data?.category_breakdown
           ? Object.entries(reply.data.category_breakdown).sort((a, b) => b[1] - a[1])
           : null;
+        if (next[userMessageIndex] && next[userMessageIndex].role === 'user') {
+          next[userMessageIndex] = { ...next[userMessageIndex], id: reply.user_message_id };
+        }
         next[next.length - 1] = { role: 'assistant', content: reply.reply, reportEntries };
         return next;
       });
@@ -854,6 +1008,29 @@ function ChatPage({ session, onNavigate, onTouchData, refreshToken }) {
         resizeComposer();
         textareaRef.current?.focus();
       });
+    }
+  };
+
+  const editMessage = async (message) => {
+    if (busy || !message.id) return;
+    try {
+      await apiFetch(`/api/chat/message/${message.id}`, { method: 'DELETE', headers: {} });
+      setMessages((prev) => {
+        const index = prev.findIndex((m) => m.id === message.id);
+        if (index === -1) return prev;
+        const next = [...prev];
+        // Remove this user message and, if present, the assistant reply right after it.
+        const removeCount = next[index + 1] && next[index + 1].role === 'assistant' ? 2 : 1;
+        next.splice(index, removeCount);
+        return next;
+      });
+      setInput(message.content);
+      requestAnimationFrame(() => {
+        resizeComposer();
+        textareaRef.current?.focus();
+      });
+    } catch (err) {
+      setError(err.message || 'Could not edit that message.');
     }
   };
 
@@ -935,7 +1112,7 @@ function ChatPage({ session, onNavigate, onTouchData, refreshToken }) {
               return null;
             }
             return (
-              <Bubble key={`${index}-${message.role}-${message.content.slice(0, 10)}`} role={message.role} onCandidate={handleCandidateConfirm} message={message} candidatePayload={candidatePayload} currency={session.settings?.currency || 'INR'} />
+              <Bubble key={`${index}-${message.role}-${message.content.slice(0, 10)}`} role={message.role} onCandidate={handleCandidateConfirm} message={message} candidatePayload={candidatePayload} currency={session.settings?.currency || 'INR'} onEdit={editMessage} editDisabled={busy} />
             );
           })}
           {candidatePayload ? (
@@ -1067,10 +1244,14 @@ function ChatPage({ session, onNavigate, onTouchData, refreshToken }) {
               }
             }}
           />
-          <button className="btn btn-primary" type="submit" disabled={busy || !input.trim()} aria-label="Send message">
-            <span className="material-symbols-rounded" aria-hidden="true">
-              arrow_upward
-            </span>
+          <button className="btn btn-primary" type="submit" disabled={busy || !input.trim()} aria-label={busy ? 'Sending message' : 'Send message'}>
+            {busy ? (
+              <span className="btn-spinner" aria-hidden="true" />
+            ) : (
+              <span className="material-symbols-rounded" aria-hidden="true">
+                arrow_upward
+              </span>
+            )}
           </button>
         </form>
       </div>
@@ -1154,7 +1335,7 @@ function ReportTable({ entries, currency }) {
   );
 }
 
-function Bubble({ message, role, currency }) {
+function Bubble({ message, role, currency, onEdit, editDisabled }) {
   if (message.content === '__TYPING__') {
     return (
       <div className={`bubble-row ${role}`}>
@@ -1177,6 +1358,17 @@ function Bubble({ message, role, currency }) {
           </div>
         ) : null}
       </div>
+      {role === 'user' && message.id && onEdit ? (
+        <button
+          type="button"
+          className="btn btn-ghost btn-icon bubble-edit-btn"
+          aria-label="Edit message"
+          disabled={editDisabled}
+          onClick={() => onEdit(message)}
+        >
+          <span className="material-symbols-rounded" aria-hidden="true" style={{ fontSize: 16 }}>edit</span>
+        </button>
+      ) : null}
     </div>
   );
 }
@@ -1187,12 +1379,40 @@ function TimelinePage({ session }) {
   const [editingKey, setEditingKey] = useState('');
   const [editForm, setEditForm] = useState(null);
   const [busyKey, setBusyKey] = useState('');
+  const [months, setMonths] = useState([]);
+  const [selectedMonth, setSelectedMonth] = useState(''); // 'all' or 'YYYY-M'
+
+  useEffect(() => {
+    let alive = true;
+    apiFetch('/api/reports/months', { method: 'GET', headers: {} })
+      .then((data) => {
+        if (!alive) return;
+        const rows2 = data.length
+          ? data
+          : (() => {
+              const today = new Date();
+              return [{ year: today.getFullYear(), month: today.getMonth() + 1, label: 'This month' }];
+            })();
+        setMonths(rows2);
+        setSelectedMonth(`${rows2[0].year}-${rows2[0].month}`);
+      })
+      .catch((err) => setError(err.message));
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   const loadRows = async () => {
-    return apiFetch('/api/timeline', { method: 'GET', headers: {} });
+    if (!selectedMonth) return [];
+    if (selectedMonth === 'all') {
+      return apiFetch('/api/timeline?all=true', { method: 'GET', headers: {} });
+    }
+    const [year, month] = selectedMonth.split('-');
+    return apiFetch(`/api/timeline?year=${year}&month=${month}`, { method: 'GET', headers: {} });
   };
 
   useEffect(() => {
+    if (!selectedMonth) return undefined;
     let alive = true;
     loadRows()
       .then((data) => {
@@ -1209,7 +1429,7 @@ function TimelinePage({ session }) {
     return () => {
       alive = false;
     };
-  }, []);
+  }, [selectedMonth]);
 
   const startEdit = (item) => {
     const key = `${item.type}-${item.id}`;
@@ -1290,7 +1510,19 @@ function TimelinePage({ session }) {
 
   return (
     <div className="stack">
-      <SectionHeader title="Timeline" />
+      <SectionHeader
+        title="Timeline"
+        action={
+          <select className="select page-select" value={selectedMonth} onChange={(event) => setSelectedMonth(event.target.value)}>
+            {months.map((item) => (
+              <option key={`${item.year}-${item.month}`} value={`${item.year}-${item.month}`}>
+                {item.label}
+              </option>
+            ))}
+            <option value="all">All time</option>
+          </select>
+        }
+      />
       {error ? <div className="alert alert-error">{error}</div> : null}
       <div className="timeline-stack">
         {rows.length ? (
@@ -1392,7 +1624,9 @@ function TimelinePage({ session }) {
             </div>
           ))
         ) : (
-          <div className="empty-state">Nothing logged yet.</div>
+          <div className="empty-state">
+            {selectedMonth === 'all' ? 'Nothing logged yet.' : 'Nothing logged for this month.'}
+          </div>
         )}
       </div>
     </div>
@@ -1497,33 +1731,35 @@ function ReportsPage({ session, refreshToken }) {
         </div>
       </section>
 
-      <section className="card card-pad">
-        <div className="card-head">
-          <div>
-            <h2 className="card-title">Spending by Category</h2>
-            <div className="card-note">Minimal chart view of the month</div>
+      <section className="grid two-up">
+        <div className="card card-pad">
+          <div className="card-head">
+            <div>
+              <h2 className="card-title">Spending by Category</h2>
+              <div className="card-note">Minimal chart view of the month</div>
+            </div>
           </div>
+          <PieViz entries={categories} />
         </div>
-        <PieViz entries={categories} />
-      </section>
 
-      <section className="card card-pad">
-        <div className="card-head">
-          <div>
-            <h2 className="card-title">Daily Trend</h2>
-            <div className="card-note">Expense pattern over the {trendPeriod === 'yearly' ? 'year' : 'month'}</div>
+        <div className="card card-pad">
+          <div className="card-head">
+            <div>
+              <h2 className="card-title">Daily Trend</h2>
+              <div className="card-note">Expense pattern over the {trendPeriod === 'yearly' ? 'year' : 'month'}</div>
+            </div>
+            <select
+              className="select trend-period-select"
+              value={trendPeriod}
+              onChange={(event) => setTrendPeriod(event.target.value)}
+            >
+              <option value="weekly">Weekly</option>
+              <option value="monthly">Monthly</option>
+              <option value="yearly">Yearly</option>
+            </select>
           </div>
-          <select
-            className="select trend-period-select"
-            value={trendPeriod}
-            onChange={(event) => setTrendPeriod(event.target.value)}
-          >
-            <option value="weekly">Weekly</option>
-            <option value="monthly">Monthly</option>
-            <option value="yearly">Yearly</option>
-          </select>
+          <TrendBarViz entries={trendEntries} period={trendPeriod} />
         </div>
-        <TrendBarViz entries={trendEntries} period={trendPeriod} />
       </section>
 
       <section className="card card-pad">
@@ -1587,6 +1823,12 @@ function SettingsPage({ session, theme, onThemeChange, onSessionSync, onTouchDat
         theme: normalizeTheme(settingsData.theme || theme || 'mist'),
       }));
       setRecurringRows(recurringData);
+      const pendingEditId = sessionStorage.getItem('stash_edit_recurring_id');
+      if (pendingEditId) {
+        sessionStorage.removeItem('stash_edit_recurring_id');
+        const match = recurringData.find((row) => String(row.id) === pendingEditId);
+        if (match) startEditRecurring(match);
+      }
     } catch (err) {
       if (err.status === 401) {
         navigate('/login', true);

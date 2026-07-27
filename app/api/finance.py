@@ -5,9 +5,10 @@ timeline data endpoints, plus the correction-confirmation endpoint.
 All scoped to the logged-in user via get_current_user.
 """
 
+import json
 from datetime import date as DateType
 
-from fastapi import APIRouter, Depends, Request, HTTPException, status
+from fastapi import APIRouter, Depends, Request, HTTPException, status, Query
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 
@@ -70,12 +71,18 @@ def _serialize_transaction(row, transaction_type: str, currency: str | None) -> 
 
 @router.post("/chat")
 def chat(payload: ChatRequest, request: Request, db: Session = Depends(get_db), user: models.User = Depends(get_current_user)):
-    crud.save_chat_message(db, user.id, "user", payload.message)
+    user_message_row = crud.save_chat_message(db, user.id, "user", payload.message)
     payment_method = payload.payment_method if payload.payment_method in ("cash", "online") else None
     result = ai_parser.handle_message(payload.message, db, user.id, payment_method_hint=payment_method)
-    crud.save_chat_message(db, user.id, "assistant", result["reply"])
+
+    report_entries_json = None
+    if result.get("intent") == "report" and result.get("data", {}).get("category_breakdown"):
+        entries = sorted(result["data"]["category_breakdown"].items(), key=lambda kv: kv[1], reverse=True)
+        report_entries_json = json.dumps(entries)
+    crud.save_chat_message(db, user.id, "assistant", result["reply"], report_entries=report_entries_json)
 
     response = dict(result)
+    response["user_message_id"] = user_message_row.id
     response["balance"] = currency_service.convert_amount(crud.get_balance(db, user.id), "INR", user.currency)
     response["currency"] = user.currency or "INR"
     if result.get("intent") in ("transaction", "correction"):
@@ -147,7 +154,26 @@ def confirm_delete(payload: ConfirmDeleteRequest, request: Request, db: Session 
 @router.get("/chat/history")
 def chat_history(request: Request, db: Session = Depends(get_db), user: models.User = Depends(get_current_user)):
     rows = crud.get_recent_chat(db, user.id, limit=50)
-    return [{"role": r.role, "content": r.content, "created_at": str(r.created_at)} for r in rows]
+    return [
+        {
+            "id": r.id,
+            "role": r.role,
+            "content": r.content,
+            "created_at": str(r.created_at),
+            "reportEntries": json.loads(r.report_entries) if r.report_entries else None,
+        }
+        for r in rows
+    ]
+
+
+@router.delete("/chat/message/{message_id}")
+def delete_chat_message(message_id: int, request: Request, db: Session = Depends(get_db), user: models.User = Depends(get_current_user)):
+    """Removes a user message and its paired assistant reply, so an edited
+    message can be resent as a clean replacement instead of a forked thread."""
+    ok = crud.delete_chat_message_pair(db, user.id, message_id)
+    if not ok:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Message not found")
+    return {"ok": True}
 
 
 @router.get("/pending")
@@ -204,8 +230,19 @@ def set_budget(payload: BudgetUpdateRequest, request: Request, db: Session = Dep
 
 
 @router.get("/timeline")
-def timeline(request: Request, db: Session = Depends(get_db), user: models.User = Depends(get_current_user)):
-    rows = crud.get_timeline(db, user.id, limit=200)
+def timeline(
+    request: Request,
+    year: int = Query(default=None),
+    month: int = Query(default=None),
+    all: bool = Query(default=False),
+    db: Session = Depends(get_db),
+    user: models.User = Depends(get_current_user),
+):
+    if all:
+        rows = crud.get_timeline(db, user.id, limit=200)
+    else:
+        today = DateType.today()
+        rows = crud.get_timeline(db, user.id, year=year or today.year, month=month or today.month)
     return [
         {
             "id": t["id"],
