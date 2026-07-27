@@ -1689,33 +1689,35 @@ function ReportsPage({ session, refreshToken }) {
         </div>
       </section>
 
-      <section className="card card-pad">
-        <div className="card-head">
-          <div>
-            <h2 className="card-title">Spending by Category</h2>
-            <div className="card-note">Minimal chart view of the month</div>
+      <section className="grid two-up">
+        <div className="card card-pad">
+          <div className="card-head">
+            <div>
+              <h2 className="card-title">Spending by Category</h2>
+              <div className="card-note">Minimal chart view of the month</div>
+            </div>
           </div>
+          <PieViz entries={categories} />
         </div>
-        <PieViz entries={categories} />
-      </section>
 
-      <section className="card card-pad">
-        <div className="card-head">
-          <div>
-            <h2 className="card-title">Daily Trend</h2>
-            <div className="card-note">Expense pattern over the {trendPeriod === 'yearly' ? 'year' : 'month'}</div>
+        <div className="card card-pad">
+          <div className="card-head">
+            <div>
+              <h2 className="card-title">Daily Trend</h2>
+              <div className="card-note">Expense pattern over the {trendPeriod === 'yearly' ? 'year' : 'month'}</div>
+            </div>
+            <select
+              className="select trend-period-select"
+              value={trendPeriod}
+              onChange={(event) => setTrendPeriod(event.target.value)}
+            >
+              <option value="weekly">Weekly</option>
+              <option value="monthly">Monthly</option>
+              <option value="yearly">Yearly</option>
+            </select>
           </div>
-          <select
-            className="select trend-period-select"
-            value={trendPeriod}
-            onChange={(event) => setTrendPeriod(event.target.value)}
-          >
-            <option value="weekly">Weekly</option>
-            <option value="monthly">Monthly</option>
-            <option value="yearly">Yearly</option>
-          </select>
+          <TrendBarViz entries={trendEntries} period={trendPeriod} />
         </div>
-        <TrendBarViz entries={trendEntries} period={trendPeriod} />
       </section>
 
       <section className="card card-pad">
