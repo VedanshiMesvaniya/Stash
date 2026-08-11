@@ -1,35 +1,6 @@
-# Stash — Deployment Guide
+# Stash — Multi-user Deployment Guide
 
 This guide covers deploying Stash to production with Render (hosting) and Neon (PostgreSQL database).
-
-## What's new: open signup + Google sign-in
-
-Stash used to be invite-only (accounts created ahead of time via `seed.py`/`scripts/manage_users.py`,
-no signup endpoint). That's changed:
-
-- **Open signup**: anyone can create an account at the login screen. Signup is two steps: enter an email
-  (`POST /api/auth/signup/request-code`) → a 6-digit code is emailed → enter the code + choose a password
-  (`POST /api/auth/signup/verify-code`) creates the account and logs you in. Nothing is written to the `users`
-  table until the code is confirmed, so there's no way to end up with an unverified/orphaned account. Codes expire
-  after 10 minutes and lock out after 5 wrong attempts (see `app/database/models.py::EmailVerification`).
-- **Sending the code** goes through `app/services/mailer.py` over plain SMTP (stdlib `smtplib`, no new dependency).
-  Set `SMTP_HOST`/`SMTP_PORT`/`SMTP_USERNAME`/`SMTP_PASSWORD`/`SMTP_FROM` (see the env var table below). Without
-  those set, the code is printed to the server log instead of emailed - fine for local dev, **not** something to
-  ship to production with real users, since they'd have no way to get their code.
-- **Google sign-in**: `POST /api/auth/google` verifies a Google Identity Services ID token and logs the person in,
-  auto-creating an account on first sign-in if the email isn't already registered. Requires `GOOGLE_CLIENT_ID` (see below) —
-  without it, the Google button doesn't render and the endpoint returns a 503.
-- **Login is now by email**, not username. Pre-existing invite-only accounts (no `email` set) still work — login falls
-  back to matching on username.
-- The old invite-only CLI (`scripts/manage_users.py`, `scripts/reset_password.py`) still works for manual account
-  management; it's just no longer the *only* way to get an account.
-- `email` and `google_sub` were added to the `users` table via the existing lightweight migration in
-  `app/database/migrations.py` (adds the column if missing) — no Alembic, consistent with how this table already
-  handled schema changes.
-
-**Security note worth knowing:** the previous design was deliberately invite-only ("nobody can create an account they
-weren't given" — see the git history on `app/auth/auth.py`). Moving to open signup is a real posture change on an app
-that holds personal financial data, not just a UI tweak. That trade-off was made explicitly, not by default.
 
 ## What's new in the multi-user update
 
@@ -83,8 +54,6 @@ Copy `.env.example` → `.env` locally, or set in Render dashboard for productio
 |---|---|---|---|---|
 | `SECRET_KEY` | **Yes** | — | — | `python -c "import secrets; print(secrets.token_hex(32))"` — no fallback, app refuses to start without it |
 | `DATABASE_URL` | No | (SQLite) | **Required** | Leave blank for local SQLite in `data/finance.db`; set to Neon connection string for Postgres |
-| `GOOGLE_CLIENT_ID` | No | — | Recommended | OAuth Client ID from Google Cloud Console (see below). Needed for the "Sign in with Google" button and `/api/auth/google`; without it, Google sign-in is simply hidden. |
-| `SMTP_HOST` / `SMTP_PORT` / `SMTP_USERNAME` / `SMTP_PASSWORD` / `SMTP_FROM` | No | — | Recommended | Sends the signup verification code by email. Without these, the code is logged to the server console instead - fine for local dev, not for real users. |
 | `GROQ_API_KEY` | No | — | Recommended | Get from https://console.groq.com/keys; first LLM provider |
 | `GROQ_MODEL` | No | `llama-3.3-70b-versatile` | — | Groq model name |
 | `OPENROUTER_API_KEY` | No | — | Recommended | Get from https://openrouter.ai/keys; fallback LLM provider. Do $10 one-time credit top-up. |
@@ -92,15 +61,6 @@ Copy `.env.example` → `.env` locally, or set in Render dashboard for productio
 | `ENVIRONMENT` | No | `development` | `production` | Enables HTTPS-only session cookies |
 | `PENDING_RETRY_INTERVAL_SECONDS` | No | `300` | `300` | How often to retry queued LLM messages (seconds) |
 | `APP_PUBLIC_URL` | No | `http://127.0.0.1:8000` | Your domain | Used in outbound headers |
-
-**Getting a `GOOGLE_CLIENT_ID`:**
-1. Go to https://console.cloud.google.com/ → create/select a project → **APIs & Services → Credentials**
-2. **Create Credentials → OAuth client ID → Web application**
-3. Add your app's URL (e.g. `https://your-app.onrender.com` and `http://localhost:5173` for local dev) under
-   **Authorized JavaScript origins**
-4. Copy the generated Client ID — set it as `GOOGLE_CLIENT_ID` for the backend **and** as `VITE_GOOGLE_CLIENT_ID`
-   when running the frontend build (it's baked into the built JS at build time, since it's a public client identifier,
-   not a secret — there's no client secret to manage for this ID-token verification flow).
 
 **Important notes:**
 - `SECRET_KEY` is **non-negotiable** — the app will not start without it. Generate a fresh one for each deployment.
@@ -182,13 +142,7 @@ Copy `.env.example` → `.env` locally, or set in Render dashboard for productio
    - Log in with one of your configured family accounts
    - Test transaction creation, offline sync, exports, etc.
 
-### Account creation (open signup, plus the legacy CLI path)
-
-Anyone can now create their own account at `/login` with email + password, or via "Continue with Google" — no
-pre-seeding required. The sections below (`seed.py`, `manage_users.py`) are still there for manually provisioning or
-managing accounts, but they're optional now rather than the only way in.
-
-### Multi-user family accounts (legacy, optional)
+### Multi-user family accounts
 
 By default, Stash seeds 5 family accounts on first deploy from `app/database/seed.py`:
 

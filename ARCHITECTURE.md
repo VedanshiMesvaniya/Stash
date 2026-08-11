@@ -12,9 +12,8 @@ Stash is a multi-user, AI-powered personal finance web application:
 
 ## Request flow
 
-1. User signs in with email + password, or via "Continue with Google" (open signup — anyone can create an
-   account; see `app/api/auth.py` and the "Adding custom users" section below for how this changed)
-2. Backend verifies password hash via bcrypt, or (for Google) verifies the ID token against Google's tokeninfo endpoint
+1. User signs in with username + password
+2. Backend verifies password hash via bcrypt
 3. Backend creates a signed session cookie (`stash_session`)
 4. Every API request validates the cookie to resolve the current `user_id`
 5. All CRUD operations filter by `user_id` at the database layer (no application-level leaks)
@@ -26,9 +25,7 @@ Every transaction table is scoped by `user_id`:
 - `income`, `expense`, `categories`, `recurring_transactions`, `recurring_postings`
 - `chat_messages`, `pending_entries`, all exports
 
-One user can never see, edit, or export another user's data. Accounts can now be created two ways: self-signup
-(`POST /api/auth/signup` or `/api/auth/google`) at the login screen, or the legacy pre-seeded route via
-`app/database/seed.py` / `scripts/manage_users.py` for manual provisioning.
+One user can never see, edit, or export another user's data. Multi-user families are seeded at startup via `app/database/seed.py` with static username/password credentials (no self-signup endpoint).
 
 ## Data model
 
@@ -66,10 +63,7 @@ Notes:
   - Includes: finance, reports, settings, recurring
 
 - **app/api/auth.py**
-  - POST `/login` (by email now, not username), `/signup/request-code` + `/signup/verify-code` (open signup:
-    email → 6-digit code sent via `app/services/mailer.py` → code + password creates the account), `/google`
-    (Google sign-in — verifies a Google Identity Services ID token, auto-creates an account on first login,
-    already-verified since Google confirmed the email), `/logout`, `/session`
+  - POST `/login`, `/logout`, `/session`
   - Session state validation
   - Password change endpoint (requires old password)
 
@@ -218,12 +212,11 @@ The React app lives in `frontend/src/App.jsx`:
 
 ## Adding custom users
 
-Anyone can now self-serve an account from the login screen (email + password, or Google sign-in) — this is no
-longer the only route in, though. For manually provisioning or managing an account without going through the UI:
+To add private accounts (not in repo), edit:
 
-- `app/database/private_accounts.py` — private accounts not in the repo (file is gitignored, stays out of commits)
-- `scripts/manage_users.py` — CLI: list / add / delete users
-- `scripts/reset_password.py` — CLI password reset
+- `app/database/private_accounts.py`
+
+That file is ignored by git so private credentials stay out of commits.
 
 ## Background jobs
 

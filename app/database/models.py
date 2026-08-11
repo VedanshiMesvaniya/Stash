@@ -17,25 +17,16 @@ from .database import Base
 
 
 class User(Base):
-    """A Stash account. As of the move to open signup, accounts are created
-    either via /api/auth/signup (email + password) or /api/auth/google
-    (Google sign-in) - there is no invite-only restriction anymore. email is
-    the login identifier going forward; username is kept around for
-    pre-existing rows and defaults to the email for new signups.
-    Uniqueness on email/google_sub is enforced in application code
-    (see app/api/auth.py) rather than a DB constraint, since these columns
-    were added via the lightweight ALTER-based migrations.py rather than a
-    real migration tool - see that file before assuming a DB-level
-    guarantee here."""
+    """A Stash account. Accounts are created statically via seed.py (see
+    that file to change usernames/passwords) rather than through open
+    self-signup, matching the 'give them the login, they can't self-register'
+    requirement."""
     __tablename__ = "users"
 
     id = Column(Integer, primary_key=True, index=True)
     username = Column(String, nullable=False, unique=True, index=True)
     password_hash = Column(String, nullable=False)
     display_name = Column(String, nullable=True)
-    email = Column(String, nullable=True, index=True)
-    email_verified = Column(Boolean, nullable=False, default=False)
-    google_sub = Column(String, nullable=True, index=True)
 
     monthly_alert_amount = Column(Float, nullable=True, default=1000.0)
     salary_day = Column(Integer, nullable=True, default=1)
@@ -233,22 +224,4 @@ class PendingSelection(Base):
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False, unique=True, index=True)
     kind = Column(String, nullable=False)  # "delete" for now; extensible
     options_json = Column(String, nullable=False)  # JSON list of {id, type, label, amount, date}
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-
-
-class EmailVerification(Base):
-    """A pending signup verification code. Nothing in the users table is
-    created until the code sent to this email is confirmed - so
-    'signed up' always implies 'proved they own that inbox'. code_hash is
-    hashed the same way as passwords (bcrypt); never store the raw code.
-    One row per outstanding code per email - requesting a new code
-    replaces the old one (see crud.create_email_verification)."""
-    __tablename__ = "email_verifications"
-
-    id = Column(Integer, primary_key=True, index=True)
-    email = Column(String, nullable=False, index=True)
-    code_hash = Column(String, nullable=False)
-    purpose = Column(String, nullable=False, default="signup")
-    attempts = Column(Integer, nullable=False, default=0)
-    expires_at = Column(DateTime(timezone=True), nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())

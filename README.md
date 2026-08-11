@@ -42,15 +42,7 @@ Test the live demo at https://stash-azsp.onrender.com:
 
 This account has pre-loaded sample data. The password is never stored in the browser—only a signed session cookie is maintained.
 
-## Signing up
-
-Stash is open signup: create your own account from the login screen. Enter your email, we send a 6-digit
-verification code to it, then you enter that code plus your chosen password to finish creating the account (or use
-"Continue with Google" for one-click sign-in — requires `GOOGLE_CLIENT_ID`, see [DEPLOY.md](DEPLOY.md)). Sending the
-code requires SMTP env vars to be set; without them, the code is just logged to the server console (fine for local
-dev, not for real users — see DEPLOY.md).
-
-## Private accounts (local development, optional)
+## Private accounts (local development)
 
 Personal or family accounts belong in:
 
@@ -228,10 +220,7 @@ When you add a user locally, the tool also updates `app/database/private_account
 
 ### Authentication
 
-- `POST /api/auth/signup/request-code` — Email → sends a 6-digit verification code
-- `POST /api/auth/signup/verify-code` — Email + code + password → creates account, signed session cookie
-- `POST /api/auth/google` — Google Identity Services ID token → signed session cookie (creates account on first sign-in)
-- `POST /api/auth/login` — Email + password → signed session cookie
+- `POST /api/auth/login` — Username + password → signed session cookie
 - `POST /api/auth/logout` — Clears session cookie
 - `GET /api/auth/session` — Returns current logged-in user info
 

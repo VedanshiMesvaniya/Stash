@@ -429,7 +429,6 @@ h1, h2, h3, p { margin: 0; }
 .success-text { color: var(--success); font-size: 13px; font-weight: 600; }
 .alert { padding: 12px 14px; border-radius: var(--radius); font-size: 13px; font-weight: 500; }
 .alert-error { background: color-mix(in srgb, var(--error) 14%, transparent); color: var(--error); border: 1px solid color-mix(in srgb, var(--error) 30%, transparent); }
-.alert-info { background: color-mix(in srgb, var(--primary) 12%, transparent); color: var(--on-surface); border: 1px solid color-mix(in srgb, var(--primary) 25%, transparent); }
 
 .chip-row { display: flex; flex-wrap: wrap; gap: 8px; }
 .chip {
@@ -853,23 +852,6 @@ h1, h2, h3, p { margin: 0; }
 }
 .auth-card .page-title { margin-top: var(--space-sm); }
 .auth-card form { width: 100%; margin-top: var(--space-sm); }
-.auth-divider {
-  display: flex;
-  align-items: center;
-  width: 100%;
-  gap: 10px;
-  margin: var(--space-sm) 0;
-  color: var(--on-surface-variant);
-  font-size: 0.8rem;
-}
-.auth-divider::before, .auth-divider::after {
-  content: '';
-  flex: 1;
-  height: 1px;
-  background: var(--outline-soft);
-}
-.google-signin-btn { display: flex; justify-content: center; width: 100%; min-height: 40px; }
-.google-signin-btn.disabled { opacity: 0.6; pointer-events: none; }
 
 .splash-screen { min-height: 100dvh; display: flex; align-items: center; justify-content: center; background: var(--background); }
 .splash-card { display: flex; flex-direction: column; align-items: center; gap: 14px; }
