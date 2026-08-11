@@ -77,82 +77,6 @@ def get_user_by_username(db: Session, username: str):
     return db.query(models.User).filter(func.lower(models.User.username) == username.lower().strip()).first()
 
 
-def get_user_by_email(db: Session, email: str):
-    if not email:
-        return None
-    return db.query(models.User).filter(func.lower(models.User.email) == email.lower().strip()).first()
-
-
-def get_user_by_google_sub(db: Session, google_sub: str):
-    if not google_sub:
-        return None
-    return db.query(models.User).filter(models.User.google_sub == google_sub).first()
-
-
-def create_user(
-    db: Session,
-    email: str,
-    password_hash: str,
-    display_name: str | None = None,
-    google_sub: str | None = None,
-    email_verified: bool = False,
-) -> models.User:
-    """Creates an account for open self-signup. username is set equal to the
-    email since the users table still enforces username NOT NULL UNIQUE and
-    there's no separate username field in the signup/Google flows."""
-    normalized_email = email.strip().lower()
-    user = models.User(
-        username=normalized_email,
-        email=normalized_email,
-        email_verified=email_verified,
-        password_hash=password_hash,
-        display_name=display_name or normalized_email.split("@")[0],
-        google_sub=google_sub,
-        currency="INR",
-        theme="mist",
-        monthly_alert_amount=1000.0,
-        salary_day=1,
-    )
-    db.add(user)
-    db.commit()
-    db.refresh(user)
-    return user
-
-
-# ---------- Email verification (signup) ----------
-
-def create_email_verification(db: Session, email: str, code_hash: str, expires_at, purpose: str = "signup"):
-    """Replaces any outstanding code for this email+purpose with a fresh one,
-    so only the most recently requested code is ever valid."""
-    email = email.strip().lower()
-    db.query(models.EmailVerification).filter(
-        models.EmailVerification.email == email,
-        models.EmailVerification.purpose == purpose,
-    ).delete()
-    row = models.EmailVerification(email=email, code_hash=code_hash, purpose=purpose, expires_at=expires_at)
-    db.add(row)
-    db.commit()
-    db.refresh(row)
-    return row
-
-
-def get_email_verification(db: Session, email: str, purpose: str = "signup"):
-    return db.query(models.EmailVerification).filter(
-        models.EmailVerification.email == email.strip().lower(),
-        models.EmailVerification.purpose == purpose,
-    ).first()
-
-
-def increment_verification_attempts(db: Session, row: "models.EmailVerification"):
-    row.attempts += 1
-    db.commit()
-
-
-def delete_email_verification(db: Session, row: "models.EmailVerification"):
-    db.delete(row)
-    db.commit()
-
-
 # ---------- Income ----------
 
 def create_income(db: Session, user_id: int, amount: float, source: str, description: str, txn_date: date, payment_method: str | None = None):
@@ -357,7 +281,11 @@ def get_wallet_balances(db: Session, user_id: int) -> dict:
     logged before this field existed, or where neither the message nor
     the chat toggle said how the money moved - it's kept visible rather
     than silently folded into one of the other two, since guessing which
-    wallet an old/ambiguous entry belongs to would misrepresent it."""
+    wallet an old/ambiguous entry belongs to would misrepresent it.
+
+    Wallet transfers (currently just "withdraw to cash") are netted in on
+    top of this - see models.WalletTransfer for why those live in their
+    own table instead of as Income/Expense rows."""
     balances = {"cash": 0.0, "online": 0.0, "unspecified": 0.0}
     for method in ("cash", "online", None):
         key = method or "unspecified"
@@ -368,7 +296,24 @@ def get_wallet_balances(db: Session, user_id: int) -> dict:
             models.Expense.user_id == user_id, models.Expense.payment_method == method
         ).scalar()
         balances[key] = round(income - expense, 2)
+
+    transfers = db.query(models.WalletTransfer).filter(models.WalletTransfer.user_id == user_id).all()
+    for t in transfers:
+        if t.from_wallet in balances:
+            balances[t.from_wallet] = round(balances[t.from_wallet] - t.amount, 2)
+        if t.to_wallet in balances:
+            balances[t.to_wallet] = round(balances[t.to_wallet] + t.amount, 2)
     return balances
+
+
+def create_wallet_transfer(db: Session, user_id: int, amount: float, from_wallet: str, to_wallet: str, description: str | None = None):
+    row = models.WalletTransfer(
+        user_id=user_id, amount=amount, from_wallet=from_wallet, to_wallet=to_wallet, description=description,
+    )
+    db.add(row)
+    db.commit()
+    db.refresh(row)
+    return row
 
 
 def get_month_summary(db: Session, user_id: int, year: int, month: int):

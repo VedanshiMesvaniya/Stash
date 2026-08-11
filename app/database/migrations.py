@@ -44,9 +44,3 @@ def run_migrations():
             "auto_post BOOLEAN NOT NULL DEFAULT TRUE",
         )
         _add_column_if_missing(connection, "chat_messages", "report_entries", "report_entries VARCHAR")
-        _add_column_if_missing(connection, "users", "email", "email VARCHAR")
-        _add_column_if_missing(
-            connection, "users", "email_verified",
-            "email_verified BOOLEAN NOT NULL DEFAULT FALSE",
-        )
-        _add_column_if_missing(connection, "users", "google_sub", "google_sub VARCHAR")

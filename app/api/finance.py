@@ -190,6 +190,14 @@ def pending_entries(request: Request, db: Session = Depends(get_db), user: model
 
 @router.get("/dashboard")
 def dashboard(request: Request, db: Session = Depends(get_db), user: models.User = Depends(get_current_user)):
+    # Previously this only ran as an incidental side effect of certain chat
+    # intents (asking a question or a report) - meaning a schedule with
+    # auto_post=True (EMIs, subscriptions) would never actually post, and
+    # never roll its next_due_date forward, unless the person happened to
+    # chat with Stash. Running it here means every dashboard load catches
+    # up any due auto-post schedules before rendering balance/wallets/etc.
+    from app.services import recurring as recurring_service
+    recurring_service.sync_due_recurring(db, user.id)
     return analytics.get_dashboard_data(db, user)
 
 
@@ -199,6 +207,29 @@ def wallets(request: Request, db: Session = Depends(get_db), user: models.User =
     Payment Tracking) - split view of the same underlying ledger the
     total balance is computed from, converted to the user's display
     currency same as everywhere else."""
+    raw = crud.get_wallet_balances(db, user.id)
+    return {key: currency_service.convert_amount(value, "INR", user.currency) for key, value in raw.items()}
+
+
+class WithdrawPayload(BaseModel):
+    amount: float
+
+
+@router.post("/wallet/withdraw")
+def withdraw_to_cash(payload: WithdrawPayload, request: Request, db: Session = Depends(get_db), user: models.User = Depends(get_current_user)):
+    """Moves money from the online wallet into cash - e.g. an ATM
+    withdrawal. This is how cash is meant to enter the cash wallet now:
+    an explicit withdrawal, not just any cash-tagged income logged in
+    chat (that path still works too, it's additive, not replaced - see
+    models.WalletTransfer for why this is a separate table from
+    Income/Expense rather than a fake transaction)."""
+    if payload.amount is None or payload.amount <= 0:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Enter an amount greater than zero")
+    amount_inr = currency_service.convert_amount(payload.amount, user.currency, "INR")
+    balances = crud.get_wallet_balances(db, user.id)
+    if amount_inr > balances["online"] + 0.01:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="That's more than your online wallet balance")
+    crud.create_wallet_transfer(db, user.id, amount_inr, from_wallet="online", to_wallet="cash", description="Withdraw to cash")
     raw = crud.get_wallet_balances(db, user.id)
     return {key: currency_service.convert_amount(value, "INR", user.currency) for key, value in raw.items()}
 

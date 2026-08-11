@@ -313,72 +313,21 @@ function App() {
   );
 }
 
-function GoogleSignInButton({ onCredential, disabled }) {
-  const buttonRef = useRef(null);
-  const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
-
-  useEffect(() => {
-    if (!clientId) return undefined;
-    let cancelled = false;
-
-    const render = () => {
-      if (cancelled || !window.google || !buttonRef.current) return;
-      window.google.accounts.id.initialize({
-        client_id: clientId,
-        callback: (response) => onCredential(response.credential),
-      });
-      buttonRef.current.innerHTML = '';
-      window.google.accounts.id.renderButton(buttonRef.current, {
-        theme: 'outline',
-        size: 'large',
-        width: 320,
-        text: 'continue_with',
-      });
-    };
-
-    if (window.google?.accounts?.id) {
-      render();
-      return undefined;
-    }
-    const script = document.createElement('script');
-    script.src = 'https://accounts.google.com/gsi/client';
-    script.async = true;
-    script.defer = true;
-    script.onload = render;
-    document.head.appendChild(script);
-    return () => {
-      cancelled = true;
-    };
-  }, [clientId, onCredential]);
-
-  if (!clientId) return null;
-  return <div ref={buttonRef} className={`google-signin-btn${disabled ? ' disabled' : ''}`} />;
-}
-
 function AuthPage({ onSuccess, onThemeChange, theme }) {
-  const [mode, setMode] = useState('login'); // 'login' | 'signup-email' | 'signup-verify'
-  const [email, setEmail] = useState('');
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
-  const [displayName, setDisplayName] = useState('');
-  const [code, setCode] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
-  const [info, setInfo] = useState('');
 
-  const resetToLogin = () => {
-    setMode('login');
-    setError('');
-    setInfo('');
-    setPassword('');
-    setCode('');
-  };
-
-  const submitLogin = async (event) => {
+  const submit = async (event) => {
     event.preventDefault();
     setBusy(true);
     setError('');
     try {
-      const result = await apiFetch('/api/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) });
+      const result = await apiFetch('/api/auth/login', {
+        method: 'POST',
+        body: JSON.stringify({ username, password }),
+      });
       if (!result.ok) throw new Error(result.error || 'Authentication failed');
       await onSuccess();
     } catch (err) {
@@ -388,141 +337,41 @@ function AuthPage({ onSuccess, onThemeChange, theme }) {
     }
   };
 
-  const requestCode = async (event) => {
-    event.preventDefault();
-    setBusy(true);
-    setError('');
-    setInfo('');
-    try {
-      const result = await apiFetch('/api/auth/signup/request-code', { method: 'POST', body: JSON.stringify({ email }) });
-      if (!result.ok) throw new Error(result.error || 'Could not send verification code');
-      setInfo(result.delivered
-        ? `We sent a 6-digit code to ${email}. Enter it below to finish creating your account.`
-        : 'Email delivery is not set up on this server yet, so the code was logged to the server console instead.');
-      setMode('signup-verify');
-    } catch (err) {
-      setError(err.message || 'Could not send verification code');
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const verifyAndCreateAccount = async (event) => {
-    event.preventDefault();
-    setBusy(true);
-    setError('');
-    try {
-      const result = await apiFetch('/api/auth/signup/verify-code', {
-        method: 'POST',
-        body: JSON.stringify({ email, code, password, display_name: displayName || undefined }),
-      });
-      if (!result.ok) throw new Error(result.error || 'Could not verify that code');
-      await onSuccess();
-    } catch (err) {
-      setError(err.message || 'Could not verify that code');
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const submitGoogleCredential = async (credential) => {
-    setBusy(true);
-    setError('');
-    try {
-      const result = await apiFetch('/api/auth/google', { method: 'POST', body: JSON.stringify({ credential }) });
-      if (!result.ok) throw new Error(result.error || 'Google sign-in failed');
-      await onSuccess();
-    } catch (err) {
-      setError(err.message || 'Google sign-in failed');
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const titles = { login: 'Welcome back', 'signup-email': 'Create your account', 'signup-verify': 'Check your email' };
-
   return (
     <div className="auth-page">
       <div className="auth-card">
         <img src={LOGO_SRC} alt="Stash" className="brand-mark" style={{ width: 56, height: 56, borderRadius: 16 }} />
         <div className="brand-wordmark" style={{ fontSize: 26, marginTop: 4 }}>Stash</div>
 
-        <h1 className="page-title">{titles[mode]}</h1>
+        <h1 className="page-title">Welcome back</h1>
 
-        {mode === 'login' ? (
-          <form className="stack" onSubmit={submitLogin}>
-            <input
-              className="input" type="email" required autoComplete="email" autoCapitalize="none"
-              placeholder="Email" value={email} onChange={(event) => setEmail(event.target.value)}
-            />
-            <input
-              className="input" type="password" required minLength={1} autoComplete="current-password"
-              placeholder="Password" value={password} onChange={(event) => setPassword(event.target.value)}
-            />
-            <button className="btn btn-primary btn-full" type="submit" disabled={busy}>
-              {busy ? 'Signing in...' : 'Log in'}
-            </button>
-          </form>
-        ) : null}
+        <form className="stack" onSubmit={submit}>
+          <input
+            className="input"
+            type="text"
+            required
+            autoComplete="username"
+            autoCapitalize="none"
+            placeholder="Username"
+            value={username}
+            onChange={(event) => setUsername(event.target.value)}
+          />
+          <input
+            className="input"
+            type="password"
+            required
+            minLength={1}
+            autoComplete="current-password"
+            placeholder="Password"
+            value={password}
+            onChange={(event) => setPassword(event.target.value)}
+          />
+          <button className="btn btn-primary btn-full" type="submit" disabled={busy}>
+            {busy ? 'Signing in...' : 'Log in'}
+          </button>
+        </form>
 
-        {mode === 'signup-email' ? (
-          <form className="stack" onSubmit={requestCode}>
-            <input
-              className="input" type="text" autoComplete="name" placeholder="Name (optional)"
-              value={displayName} onChange={(event) => setDisplayName(event.target.value)}
-            />
-            <input
-              className="input" type="email" required autoComplete="email" autoCapitalize="none"
-              placeholder="Email" value={email} onChange={(event) => setEmail(event.target.value)}
-            />
-            <button className="btn btn-primary btn-full" type="submit" disabled={busy}>
-              {busy ? 'Sending code...' : 'Send verification code'}
-            </button>
-          </form>
-        ) : null}
-
-        {mode === 'signup-verify' ? (
-          <form className="stack" onSubmit={verifyAndCreateAccount}>
-            <input
-              className="input" type="text" required inputMode="numeric" pattern="[0-9]{6}" maxLength={6}
-              autoComplete="one-time-code" placeholder="6-digit code" value={code}
-              onChange={(event) => setCode(event.target.value.replace(/\D/g, '').slice(0, 6))}
-            />
-            <input
-              className="input" type="password" required minLength={8} autoComplete="new-password"
-              placeholder="Choose a password" value={password} onChange={(event) => setPassword(event.target.value)}
-            />
-            <button className="btn btn-primary btn-full" type="submit" disabled={busy}>
-              {busy ? 'Verifying...' : 'Verify & create account'}
-            </button>
-            <button
-              type="button" className="btn btn-ghost btn-full" disabled={busy}
-              onClick={requestCode}
-            >
-              Resend code
-            </button>
-          </form>
-        ) : null}
-
-        {mode === 'login' ? (
-          <>
-            <div className="auth-divider"><span>or</span></div>
-            <GoogleSignInButton onCredential={submitGoogleCredential} disabled={busy} />
-          </>
-        ) : null}
-
-        {info ? <div className="alert alert-info">{info}</div> : null}
         {error ? <div className="alert alert-error">{error}</div> : null}
-
-        {mode === 'login' ? (
-          <button type="button" className="btn btn-ghost btn-full" style={{ marginTop: 10 }} onClick={() => { setMode('signup-email'); setError(''); setInfo(''); }}>
-            New here? Create an account
-          </button>
-        ) : (
-          <button type="button" className="btn btn-ghost btn-full" style={{ marginTop: 10 }} onClick={resetToLogin}>
-            Back to log in
-          </button>
-        )}
 
         <ThemeToggle theme={theme} onThemeChange={onThemeChange} />
       </div>
@@ -681,6 +530,10 @@ function DashboardPage({ session, onNavigate, refreshToken, onTouchData }) {
   const [dueRecurring, setDueRecurring] = useState([]);
   const [confirmingId, setConfirmingId] = useState(null);
   const [error, setError] = useState('');
+  const [withdrawAmount, setWithdrawAmount] = useState('');
+  const [withdrawOpen, setWithdrawOpen] = useState(false);
+  const [withdrawBusy, setWithdrawBusy] = useState(false);
+  const [withdrawError, setWithdrawError] = useState('');
 
   const loadDueRecurring = async () => {
     try {
@@ -701,6 +554,29 @@ function DashboardPage({ session, onNavigate, refreshToken, onTouchData }) {
       setError(err.message);
     } finally {
       setConfirmingId(null);
+    }
+  };
+
+  const withdrawToCash = async (event) => {
+    event.preventDefault();
+    const amount = Number(withdrawAmount);
+    if (!amount || amount <= 0) {
+      setWithdrawError('Enter an amount greater than zero');
+      return;
+    }
+    setWithdrawBusy(true);
+    setWithdrawError('');
+    try {
+      const updated = await apiFetch('/api/wallet/withdraw', { method: 'POST', body: JSON.stringify({ amount }) });
+      setWallets(updated);
+      writeJsonCache(WALLETS_CACHE_KEY, updated);
+      setWithdrawAmount('');
+      setWithdrawOpen(false);
+      onTouchData();
+    } catch (err) {
+      setWithdrawError(err.message || 'Could not withdraw');
+    } finally {
+      setWithdrawBusy(false);
     }
   };
 
@@ -779,8 +655,8 @@ function DashboardPage({ session, onNavigate, refreshToken, onTouchData }) {
       <section className="card card-pad wallet-widget">
         <div className="card-head">
           <div>
-            <h2 className="card-title">Wallets</h2>
-            <div className="card-note">Split by how each transaction was paid</div>
+            <h2 className="card-title">Cash Wallet</h2>
+            <div className="card-note">Withdraw from your online balance to track physical cash</div>
           </div>
         </div>
         <div className="wallet-widget-grid">
@@ -791,14 +667,42 @@ function DashboardPage({ session, onNavigate, refreshToken, onTouchData }) {
               <div className="wallet-tile-value">{money(wallets?.cash ?? 0, currency)}</div>
             </div>
           </div>
-          <div className="wallet-tile wallet-tile-online">
-            <span className="material-symbols-rounded" aria-hidden="true">contactless</span>
-            <div>
-              <div className="wallet-tile-label">Online Wallet</div>
-              <div className="wallet-tile-value">{money(wallets?.online ?? 0, currency)}</div>
-            </div>
-          </div>
         </div>
+
+        {withdrawOpen ? (
+          <form className="withdraw-form" onSubmit={withdrawToCash}>
+            <input
+              className="input"
+              type="number"
+              inputMode="decimal"
+              min="0"
+              step="0.01"
+              placeholder="Amount to withdraw"
+              value={withdrawAmount}
+              onChange={(event) => setWithdrawAmount(event.target.value)}
+              autoFocus
+            />
+            <div className="withdraw-form-actions">
+              <button type="submit" className="btn btn-primary" disabled={withdrawBusy}>
+                {withdrawBusy ? 'Withdrawing...' : 'Confirm'}
+              </button>
+              <button
+                type="button"
+                className="btn btn-ghost"
+                disabled={withdrawBusy}
+                onClick={() => { setWithdrawOpen(false); setWithdrawError(''); setWithdrawAmount(''); }}
+              >
+                Cancel
+              </button>
+            </div>
+            {withdrawError ? <div className="alert alert-error">{withdrawError}</div> : null}
+          </form>
+        ) : (
+          <button type="button" className="btn btn-ghost withdraw-open-btn" onClick={() => setWithdrawOpen(true)}>
+            <span className="material-symbols-rounded" aria-hidden="true">arrow_downward</span>
+            Withdraw to cash
+          </button>
+        )}
       </section>
 
       <section className="grid two-up">
@@ -1745,21 +1649,31 @@ function ReportsPage({ session, refreshToken }) {
         <div className="card card-pad">
           <div className="card-head">
             <div>
-              <h2 className="card-title">Daily Trend</h2>
-              <div className="card-note">Expense pattern over the {trendPeriod === 'yearly' ? 'year' : 'month'}</div>
+              <h2 className="card-title">Category Comparison</h2>
+              <div className="card-note">Bar chart view</div>
             </div>
-            <select
-              className="select trend-period-select"
-              value={trendPeriod}
-              onChange={(event) => setTrendPeriod(event.target.value)}
-            >
-              <option value="weekly">Weekly</option>
-              <option value="monthly">Monthly</option>
-              <option value="yearly">Yearly</option>
-            </select>
           </div>
-          <TrendBarViz entries={trendEntries} period={trendPeriod} />
+          <BarViz entries={categories} />
         </div>
+      </section>
+
+      <section className="card card-pad">
+        <div className="card-head">
+          <div>
+            <h2 className="card-title">Daily Trend</h2>
+            <div className="card-note">Expense pattern over the {trendPeriod === 'yearly' ? 'year' : 'month'}</div>
+          </div>
+          <select
+            className="select trend-period-select"
+            value={trendPeriod}
+            onChange={(event) => setTrendPeriod(event.target.value)}
+          >
+            <option value="weekly">Weekly</option>
+            <option value="monthly">Monthly</option>
+            <option value="yearly">Yearly</option>
+          </select>
+        </div>
+        <TrendBarViz entries={trendEntries} period={trendPeriod} />
       </section>
 
       <section className="card card-pad">

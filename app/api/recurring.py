@@ -49,6 +49,7 @@ class RecurringConfirmPost(BaseModel):
 
 @router.get("/recurring")
 def list_recurring(request: Request, db: Session = Depends(get_db), user: models.User = Depends(get_current_user)):
+    recurring_service.sync_due_recurring(db, user.id)
     return recurring_service.list_recurring(db, user.id)
 
 
@@ -76,6 +77,7 @@ def sync_recurring(request: Request, db: Session = Depends(get_db), user: models
 def due_recurring(request: Request, db: Session = Depends(get_db), user: models.User = Depends(get_current_user)):
     """Salary/Rent (or any manual auto_post=False) schedules that are due
     and waiting for the user to confirm via the dashboard '+' button."""
+    recurring_service.sync_due_recurring(db, user.id)
     return recurring_service.list_due_manual(db, user.id)
 
 
