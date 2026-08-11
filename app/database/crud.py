@@ -281,7 +281,11 @@ def get_wallet_balances(db: Session, user_id: int) -> dict:
     logged before this field existed, or where neither the message nor
     the chat toggle said how the money moved - it's kept visible rather
     than silently folded into one of the other two, since guessing which
-    wallet an old/ambiguous entry belongs to would misrepresent it."""
+    wallet an old/ambiguous entry belongs to would misrepresent it.
+
+    Wallet transfers (currently just "withdraw to cash") are netted in on
+    top of this - see models.WalletTransfer for why those live in their
+    own table instead of as Income/Expense rows."""
     balances = {"cash": 0.0, "online": 0.0, "unspecified": 0.0}
     for method in ("cash", "online", None):
         key = method or "unspecified"
@@ -292,7 +296,24 @@ def get_wallet_balances(db: Session, user_id: int) -> dict:
             models.Expense.user_id == user_id, models.Expense.payment_method == method
         ).scalar()
         balances[key] = round(income - expense, 2)
+
+    transfers = db.query(models.WalletTransfer).filter(models.WalletTransfer.user_id == user_id).all()
+    for t in transfers:
+        if t.from_wallet in balances:
+            balances[t.from_wallet] = round(balances[t.from_wallet] - t.amount, 2)
+        if t.to_wallet in balances:
+            balances[t.to_wallet] = round(balances[t.to_wallet] + t.amount, 2)
     return balances
+
+
+def create_wallet_transfer(db: Session, user_id: int, amount: float, from_wallet: str, to_wallet: str, description: str | None = None):
+    row = models.WalletTransfer(
+        user_id=user_id, amount=amount, from_wallet=from_wallet, to_wallet=to_wallet, description=description,
+    )
+    db.add(row)
+    db.commit()
+    db.refresh(row)
+    return row
 
 
 def get_month_summary(db: Session, user_id: int, year: int, month: int):

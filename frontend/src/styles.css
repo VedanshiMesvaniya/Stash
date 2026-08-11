@@ -333,6 +333,21 @@ h1, h2, h3, p { margin: 0; }
 .wallet-tile-online .material-symbols-rounded { color: var(--secondary); }
 .wallet-tile-unspecified .material-symbols-rounded { color: var(--on-surface-variant); }
 
+.withdraw-open-btn {
+  margin-top: var(--space-sm);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.withdraw-form {
+  margin-top: var(--space-sm);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+.withdraw-form-actions { display: flex; gap: var(--space-sm); }
+.withdraw-form-actions .btn { flex: 1; }
+
 /* =========================================================================
    Forms / inputs / dropdowns
    ========================================================================= */
@@ -664,6 +679,23 @@ h1, h2, h3, p { margin: 0; }
 @media (max-width: 640px) {
   .composer-wallet-menu { position: absolute; top: -46px; left: 10px; }
   .wallet-selected-badge span:not(.material-symbols-rounded) { display: none; }
+
+  /* 31 daily bars can't be both readable and non-overlapping in a ~300px
+     mobile card - rather than squeeze them unreadably thin (or let them
+     force the whole page to scroll horizontally, which was the actual bug:
+     flex children default to min-width:auto, so a full month of columns
+     refused to shrink below their content size), give the chart itself a
+     min content width and let it scroll internally. The card stays put;
+     only the chart area scrolls. */
+  .trend-bars {
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding-bottom: 4px;
+    -webkit-overflow-scrolling: touch;
+  }
+  .trend-bar-col { flex: 0 0 auto; width: 22px; min-width: 22px; }
+
+  .chart-bar-label { width: 76px; font-size: 11px; }
 }
 
 .empty-state { text-align: center; color: var(--on-surface-variant); font-size: 14px; padding: var(--space-xl) 0; }
@@ -818,7 +850,7 @@ h1, h2, h3, p { margin: 0; }
   height: 200px;
   padding-top: 8px;
 }
-.trend-bar-col { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; gap: 6px; }
+.trend-bar-col { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; gap: 6px; }
 .trend-bar-track { width: 100%; height: 100%; display: flex; align-items: flex-end; }
 .trend-bar-fill { width: 100%; min-height: 2px; border-radius: 4px 4px 0 0; transition: height 0.2s ease; }
 .trend-bar-label { font-size: 10px; color: var(--on-surface-variant); font-family: var(--font-mono); }

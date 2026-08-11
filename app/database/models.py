@@ -225,3 +225,24 @@ class PendingSelection(Base):
     kind = Column(String, nullable=False)  # "delete" for now; extensible
     options_json = Column(String, nullable=False)  # JSON list of {id, type, label, amount, date}
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class WalletTransfer(Base):
+    """Moving your own money between wallets (currently only 'withdraw to
+    cash', i.e. online -> cash) - NOT income or spending, so this is
+    deliberately its own table rather than a paired Income+Expense row.
+    Recording it as Income/Expense would inflate 'this month income' and
+    'this month expense' by the same withdrawn amount even though no real
+    money entered or left the person's overall balance, and would show up
+    in the category breakdown and timeline as if it were a transaction.
+    get_wallet_balances nets these in on top of the payment_method split so
+    the wallet-level view stays accurate without touching any of that."""
+    __tablename__ = "wallet_transfers"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    amount = Column(Float, nullable=False)
+    from_wallet = Column(String, nullable=False)  # e.g. "online"
+    to_wallet = Column(String, nullable=False)  # e.g. "cash"
+    description = Column(String, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
