@@ -190,6 +190,14 @@ def pending_entries(request: Request, db: Session = Depends(get_db), user: model
 
 @router.get("/dashboard")
 def dashboard(request: Request, db: Session = Depends(get_db), user: models.User = Depends(get_current_user)):
+    # Previously this only ran as an incidental side effect of certain chat
+    # intents (asking a question or a report) - meaning a schedule with
+    # auto_post=True (EMIs, subscriptions) would never actually post, and
+    # never roll its next_due_date forward, unless the person happened to
+    # chat with Stash. Running it here means every dashboard load catches
+    # up any due auto-post schedules before rendering balance/wallets/etc.
+    from app.services import recurring as recurring_service
+    recurring_service.sync_due_recurring(db, user.id)
     return analytics.get_dashboard_data(db, user)
 
 
