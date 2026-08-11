@@ -148,6 +148,17 @@ def handle_message(message: str, db: Session, user_id: int, payment_method_hint:
     if intent != "report" and re.search(r"\b(table|chart|graph)\b", message.lower()) and len(message.split()) <= 6:
         intent = "report"
 
+    # A request for a category-wise spending breakdown ("show my spending by
+    # category", "break down my expenses", "category wise spending") reads
+    # as "question" to the classifier - its own prompt even lists "Show my
+    # petrol expenses" as a question example, not report - but the person
+    # asking for a breakdown wants the same chart+table a report gives, not
+    # a text-only answer. build_qa_context computes this same data anyway
+    # (as context for other questions), so this was previously getting
+    # computed and then thrown away instead of shown.
+    if intent == "question" and re.search(r"categor|break\s*-?\s*down", message.lower()):
+        intent = "report"
+
     if intent == "transaction":
         user_hints = [(m.keyword, m.category_or_source) for m in crud.get_top_merchant_memories(db, user_id)]
         try:
