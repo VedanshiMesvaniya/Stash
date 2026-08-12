@@ -315,6 +315,7 @@ def extract_transactions(message: str, recent_chat: str | None = None, user_hint
             "description": description,
             "date": resolve_date_hint(t.get("date_hint")),
             "payment_method": payment_method,
+            "is_withdrawal": bool(t.get("is_withdrawal")),
         })
 
     clarification_needed = bool(parsed.get("clarification_needed", False))

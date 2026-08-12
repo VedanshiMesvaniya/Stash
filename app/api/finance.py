@@ -211,29 +211,6 @@ def wallets(request: Request, db: Session = Depends(get_db), user: models.User =
     return {key: currency_service.convert_amount(value, "INR", user.currency) for key, value in raw.items()}
 
 
-class WithdrawPayload(BaseModel):
-    amount: float
-
-
-@router.post("/wallet/withdraw")
-def withdraw_to_cash(payload: WithdrawPayload, request: Request, db: Session = Depends(get_db), user: models.User = Depends(get_current_user)):
-    """Moves money from the online wallet into cash - e.g. an ATM
-    withdrawal. This is how cash is meant to enter the cash wallet now:
-    an explicit withdrawal, not just any cash-tagged income logged in
-    chat (that path still works too, it's additive, not replaced - see
-    models.WalletTransfer for why this is a separate table from
-    Income/Expense rather than a fake transaction)."""
-    if payload.amount is None or payload.amount <= 0:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Enter an amount greater than zero")
-    amount_inr = currency_service.convert_amount(payload.amount, user.currency, "INR")
-    balances = crud.get_wallet_balances(db, user.id)
-    if amount_inr > balances["online"] + 0.01:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="That's more than your online wallet balance")
-    crud.create_wallet_transfer(db, user.id, amount_inr, from_wallet="online", to_wallet="cash", description="Withdraw to cash")
-    raw = crud.get_wallet_balances(db, user.id)
-    return {key: currency_service.convert_amount(value, "INR", user.currency) for key, value in raw.items()}
-
-
 class BudgetUpdateRequest(BaseModel):
     category: str
     monthly_limit: float | None = None  # None removes the budget for that category

@@ -198,6 +198,38 @@ def create_transactions(db: Session, user_id: int, transactions: list[dict], cur
     return created
 
 
+def process_withdrawals(db: Session, user_id: int, withdrawals: list[dict], currency: str | None = None) -> tuple[list[str], list[str]]:
+    """Handles messages like 'withdrew 500' or 'took out 1000 cash from ATM'
+    - extractor.py flags these with is_withdrawal=True instead of creating a
+    real Income row (see prompts.py for why: it's the same money changing
+    form, not new income or spending). Moves the amount from the online
+    wallet into cash via models.WalletTransfer.
+
+    Returns (confirmations, errors) - both lists of message strings, since
+    a single chat message can name more than one withdrawal and some may
+    succeed while others fail (e.g. insufficient online balance)."""
+    confirmations: list[str] = []
+    errors: list[str] = []
+    active_currency = currency or "INR"
+    for w in withdrawals:
+        base_amount = _to_base(w["amount"], active_currency)
+        balances = crud.get_wallet_balances(db, user_id)
+        if base_amount > balances["online"] + 0.01:
+            errors.append(
+                f"Couldn't withdraw {_fmt_money(active_currency, w['amount'])} - "
+                f"that's more than your online wallet balance ({_fmt_money(active_currency, _from_base(balances['online'], active_currency))})."
+            )
+            continue
+        crud.create_wallet_transfer(db, user_id, base_amount, from_wallet="online", to_wallet="cash", description="Withdraw to cash")
+        new_balances = crud.get_wallet_balances(db, user_id)
+        confirmations.append(
+            f"Withdrew {_fmt_money(active_currency, w['amount'])} to cash. "
+            f"Cash wallet: {_fmt_money(active_currency, _from_base(new_balances['cash'], active_currency))}, "
+            f"Online: {_fmt_money(active_currency, _from_base(new_balances['online'], active_currency))}."
+        )
+    return confirmations, errors
+
+
 def format_transaction_reply(created: list[dict], balance: float | None = None, currency: str | None = None) -> str:
     if len(created) == 1:
         t = created[0]

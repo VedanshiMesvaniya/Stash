@@ -39,6 +39,13 @@ may contain multiple transactions (e.g. "Salary 35000, Petrol 400, Tea 20").
 Rules:
 - type is "income" or "expense"
 - amount is a positive number (numeric, no currency symbols)
+- is_withdrawal: set to true ONLY when the user is describing moving their own money from their bank/online
+  balance into physical cash - e.g. "withdrew 500", "took out 1000 cash from ATM", "cash withdrawal of 2000",
+  "took 500 out of my account". This is NOT income or spending - it is the same money changing form, so
+  leave "type" as "income" but set is_withdrawal true; the caller handles it as a wallet transfer instead of
+  a real transaction. Do NOT set this for money someone RECEIVED as cash (a gift, being paid in cash, cashback) -
+  that is real income with payment_method "cash", is_withdrawal stays false. Only an explicit withdrawal-from-
+  account phrasing qualifies.
 - For expenses, category MUST be EXACTLY one of these strings, spelled and capitalized exactly as shown, with no synonyms or new categories invented: {", ".join(CATEGORIES_EXPENSE)}
 - For income, source MUST be EXACTLY one of these strings, spelled and capitalized exactly as shown: {", ".join(CATEGORIES_INCOME)}
 - NEVER output a category_or_source value that is not verbatim in one of the two lists above. Words like "Expense", "Misc", "General", "Money", "Cash" are NOT valid categories under any circumstance. If you cannot confidently pick a listed category, use exactly "Other" - never invent a new word.
@@ -75,7 +82,7 @@ Itemized purchases with ONE combined total (automatic splitting):
 
 Respond ONLY with JSON, no preamble, no markdown fences, in this exact shape:
 {{"transactions": [
-  {{"type": "income"|"expense", "amount": number, "category_or_source": string, "description": string, "date_hint": string|null, "payment_method": "cash"|"online"|null}}
+  {{"type": "income"|"expense", "amount": number, "category_or_source": string, "description": string, "date_hint": string|null, "payment_method": "cash"|"online"|null, "is_withdrawal": boolean}}
 ],
 "clarification_needed": boolean,
 "clarification_question": string|null,
