@@ -113,12 +113,23 @@ def create_transactions(db: Session, user_id: int, transactions: list[dict], cur
     for t in transactions:
         base_amount = _to_base(t["amount"], currency)
         payment_method = t.get("payment_method")
+        payment_method_auto_filled = False
         category_or_source = t["category_or_source"]
         keywords = _distinctive_keywords(t["description"])
         if category_or_source == "Other" and keywords:
             learned = crud.recall_merchant_category(db, user_id, t["type"], keywords)
             if learned:
                 category_or_source = learned
+
+        # Auto-fill missing wallet (feature #20) - only when the message
+        # gave NO explicit cash/online signal at all. Never overrides a
+        # signal the user actually gave, and only fires once there's
+        # confident, consistent history for this exact category/source.
+        if payment_method is None:
+            learned_wallet = crud.recall_payment_method(db, user_id, t["type"], category_or_source)
+            if learned_wallet:
+                payment_method = learned_wallet
+                payment_method_auto_filled = True
 
         # Duplicate detection (#24) - flag, don't block. Two teas in one day
         # can be perfectly real, so we still log it - just let the user
@@ -146,6 +157,7 @@ def create_transactions(db: Session, user_id: int, transactions: list[dict], cur
                     "display_label": _display_label("income", row.source, row.description),
                     "date": str(row.date),
                     "payment_method": row.payment_method,
+                    "payment_method_auto_filled": payment_method_auto_filled,
                     "is_duplicate": is_duplicate,
                 }
             )
@@ -178,6 +190,7 @@ def create_transactions(db: Session, user_id: int, transactions: list[dict], cur
                     "display_label": _display_label("expense", row.category, row.description),
                     "date": str(row.date),
                     "payment_method": row.payment_method,
+                    "payment_method_auto_filled": payment_method_auto_filled,
                     "is_duplicate": is_duplicate,
                     "budget_status": budget_status,
                 }
@@ -185,6 +198,12 @@ def create_transactions(db: Session, user_id: int, transactions: list[dict], cur
         if keywords:
             for kw in keywords:
                 crud.remember_merchant_category(db, user_id, t["type"], kw, category_or_source)
+
+        # Only learn from a signal the user ACTUALLY gave in this message -
+        # never from our own auto-fill, or confidence would compound on
+        # nothing (a wrong early guess could lock itself in permanently).
+        if t.get("payment_method") is not None:
+            crud.remember_payment_method(db, user_id, t["type"], category_or_source, t["payment_method"])
 
         # Recurring-pattern detection (#23) - a lightweight nudge only.
         # This deliberately does NOT auto-create a schedule - it just flags
@@ -235,6 +254,11 @@ def _notes_suffix(created: list[dict], currency: str | None = None) -> str:
     if recurring:
         labels = ", ".join(t.get("display_label") or t["label"] for t in recurring)
         notes.append(f"This looks like it might repeat regularly ({labels}) - want me to set it up as a recurring entry so it logs automatically?")
+    auto_filled_wallet = [t for t in created if t.get("payment_method_auto_filled")]
+    if auto_filled_wallet:
+        labels = ", ".join(t.get("display_label") or t["label"] for t in auto_filled_wallet)
+        wallets = ", ".join(sorted({t["payment_method"] for t in auto_filled_wallet}))
+        notes.append(f"No payment method mentioned, so I filled in {wallets} for {labels} based on how you usually pay for that - let me know if that's wrong.")
     for t in created:
         budget_status = t.get("budget_status")
         if not budget_status:

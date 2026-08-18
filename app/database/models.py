@@ -177,6 +177,27 @@ class MerchantMemory(Base):
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
 
+class WalletMemory(Base):
+    """Feature #20 Auto-Fill Missing Fields: learns which wallet (cash vs
+    online) a user tends to actually use for a given category/source, so a
+    message with NO payment signal at all ("tea 20") can be confidently
+    auto-filled instead of always landing as payment_method=None. Only
+    ever built from EXPLICIT signals the user actually gave (see
+    remember_payment_method callers) - never from a previous auto-fill,
+    or the system would just be reinforcing its own guesses. Scoped per
+    user + transaction_type + category_or_source, mirroring MerchantMemory."""
+    __tablename__ = "wallet_memory"
+    __table_args__ = (UniqueConstraint("user_id", "transaction_type", "category_or_source", name="uq_wallet_memory_user_type_category"),)
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    transaction_type = Column(String, nullable=False)  # income or expense
+    category_or_source = Column(String, nullable=False)
+    payment_method = Column(String, nullable=False)  # "cash" or "online"
+    hit_count = Column(Integer, nullable=False, default=1)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+
 class CategoryBudget(Base):
     """A user-set monthly spending ceiling per expense category (feature
     #28 Budget-Aware Suggestions). Deliberately per-category, not one
