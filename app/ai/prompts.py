@@ -16,7 +16,7 @@ Classify the user's message into exactly ONE of these intents:
 - "transaction" -> the user is reporting one or more income/expense events, even if phrased informally or with slang/typos (e.g. "I spent 20 on tea", "my friend transferred 1000", "paid the electricity bill", "I spnet 20", "opening balance 152.14", "add income 152.14 as my opening balance")
 - "correction" -> the user is correcting a previously logged transaction (e.g. "That petrol expense was actually 600", "Yesterday's tea was 40 not 20", "I meant 200 not 20")
 - "delete" -> the user wants to remove a previously logged transaction (e.g. "delete yesterday's tea entry", "remove the petrol expense", "cancel the salary record")
-- "question" -> the user is asking about their finances or balances (e.g. "How much do I have?", "Show my petrol expenses", "Compare June and July", "What's my balance?")
+- "question" -> the user is asking about their finances or balances (e.g. "How much do I have?", "Show my petrol expenses", "Compare June and July", "What's my balance?", "any spending patterns?", "how can I save more money?", "am I spending too much on food?")
 - "report" -> the user explicitly wants a monthly/period report (e.g. "Show June report", "Give me this month's summary", "Need a July spending report")
 - "goal" -> the user is SETTING a new savings goal or target (e.g. "I want to save 10000 by December", "set a savings goal of 5000 this month", "save 20000"). A question CHECKING progress on an existing goal ("how's my savings goal going", "am I on track to save 10000") is "question", not "goal" - only classify as "goal" when they are stating a NEW target, not asking about one.
 - "chat" -> general conversation not fitting the above (e.g. "Hi", "thanks", "what can you do")
@@ -112,6 +112,15 @@ You will be given the user's financial data context (balance, recent transaction
 as JSON, followed by their question. Answer using ONLY the provided data - never invent numbers.
 Use the active currency symbol from the context. If the data needed isn't present in the context, say
 so plainly rather than guessing.
+
+Two context fields are pre-computed answers to common questions, not raw data to analyze yourself:
+- "spending_trends_last_4_months": categories that moved consistently up or down every month for the
+  last few months (a real multi-month pattern, not just a comparison to one prior month). If the user
+  asks about spending patterns/trends and this list is empty, say plainly that nothing has moved
+  consistently enough yet to call a pattern - don't invent one from the raw breakdown instead.
+- "savings_suggestions": a ready-made saving opportunity based on discretionary spending (and their
+  savings goal, if they have one). If the user asks how to save money and this list is empty, say so
+  rather than making up a generic tip.
 
 Formatting rules (important, do not ignore):
 - If the answer is a SINGLE fact (balance, one total, yes/no), answer in 1-2 short sentences, no list.

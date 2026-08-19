@@ -16,6 +16,7 @@ from sqlalchemy.orm import Session
 from app.database import crud
 from app.services import currency as currency_service
 from app.services import recurring as recurring_service
+from app.services import analytics
 
 
 def _fmt_amount(value: float) -> str:
@@ -480,6 +481,14 @@ def build_qa_context(db: Session, user_id: int, question: str, currency: str | N
             "started_tracking_on": str(goal.created_at.date()) if goal.created_at else None,
         }
 
+    # AI-33 / AI-34: multi-month trend detection and discretionary-category
+    # savings suggestions, computed here (not just in the dashboard's single
+    # suggestion slot) so a direct question like "any spending patterns?"
+    # or "how can I save more?" gets grounded, pre-computed numbers instead
+    # of the LLM inventing an answer from the raw breakdown alone.
+    spending_trends = analytics.detect_spending_trends(db, user_id, currency=active_currency)
+    savings_suggestions = analytics.get_savings_suggestions(db, user_id, currency=active_currency)
+
     return {
         "currency": active_currency,
         "currency_symbol": currency_service.currency_symbol(active_currency),
@@ -498,6 +507,8 @@ def build_qa_context(db: Session, user_id: int, question: str, currency: str | N
         },
         "this_month_category_breakdown": converted_breakdown,
         "last_month_category_breakdown": converted_last_month_breakdown,
+        "spending_trends_last_4_months": spending_trends,
+        "savings_suggestions": savings_suggestions,
         "largest_expense_this_month": (
             {"category": largest.category, "amount": _from_base(largest.amount, active_currency), "date": str(largest.date)}
             if largest

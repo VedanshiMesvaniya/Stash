@@ -108,6 +108,120 @@ def _detect_unusual_spending(db: Session, user, this_month_breakdown: dict, curr
     )
 
 
+def get_category_trend_history(db: Session, user_id: int, currency: str, months: int = 4) -> dict[str, list[float]]:
+    """category -> list of that category's spend for each of the last
+    `months` months (oldest first, current month last), converted to the
+    display currency. Shared building block for detect_spending_trends."""
+    today = date.today()
+    month_points = []
+    for back in range(months - 1, -1, -1):
+        y, m = _prev_month(today.year, today.month, back)
+        month_points.append(crud.get_category_breakdown(db, user_id, y, m))
+
+    categories = set()
+    for breakdown in month_points:
+        categories.update(breakdown.keys())
+
+    return {
+        cat: [currency_service.convert_amount(breakdown.get(cat, 0.0), "INR", currency) for breakdown in month_points]
+        for cat in categories
+    }
+
+
+def detect_spending_trends(db: Session, user_id: int, currency: str = "INR", months: int = 4, min_avg: float = 200.0) -> list[dict]:
+    """Feature AI-33: Spending Pattern Detection. A dedicated MULTI-month
+    trend detector - genuinely different from _detect_unusual_spending,
+    which only ever compares the current month against a 2-month average
+    to catch a single spike. A category can be "unusual this month"
+    without trending at all (one-off spike then back to normal), and can
+    be steadily trending up for months without any single month looking
+    unusual enough to trip that check. This looks at the whole window and
+    only flags a category whose spend moved in the SAME direction every
+    consecutive month - a zigzag isn't a pattern, even if the net change
+    over the window is large.
+
+    Returns a list of {"category", "direction", "monthly_amounts",
+    "change_pct"} dicts, sorted by the strength of the change."""
+    history = get_category_trend_history(db, user_id, currency, months=months)
+    min_avg_c = currency_service.convert_amount(min_avg, "INR", currency)
+
+    trends = []
+    for cat, amounts in history.items():
+        if len(amounts) < 3:
+            continue
+        avg = sum(amounts) / len(amounts)
+        if avg < min_avg_c:
+            continue  # too small a category to call a "pattern" - just noise
+
+        diffs = [amounts[i + 1] - amounts[i] for i in range(len(amounts) - 1)]
+        if all(d > 0 for d in diffs):
+            direction = "increasing"
+        elif all(d < 0 for d in diffs):
+            direction = "decreasing"
+        else:
+            continue  # not consistently one direction every month - skip
+
+        change_pct = round(((amounts[-1] - amounts[0]) / amounts[0]) * 100) if amounts[0] else None
+        trends.append({
+            "category": cat,
+            "direction": direction,
+            "monthly_amounts": [round(a, 2) for a in amounts],
+            "change_pct": change_pct,
+        })
+
+    trends.sort(key=lambda t: abs(t["change_pct"] or 0), reverse=True)
+    return trends
+
+
+_DISCRETIONARY_CATEGORIES = ("Entertainment", "Shopping", "Snacks", "Tea")
+
+
+def get_savings_suggestions(db: Session, user_id: int, currency: str = "INR", cut_pct: int = 20) -> list[str]:
+    """Feature AI-34: Smart Saving Suggestions. A dedicated savings-
+    opportunity recommender - distinct from _detect_unusual_spending's
+    "this looks elevated" nudge, which fires on ANY category (including
+    ones you can't really cut, like Medical or Bills) and only when it's
+    abnormal versus your own recent average. This instead always looks at
+    DISCRETIONARY categories specifically (the ones a person can actually
+    choose to spend less on) and, when there's an active savings goal,
+    ties the suggestion to a concrete number against that goal rather
+    than a generic "spend less" nudge."""
+    currency = currency or "INR"
+    today = date.today()
+    breakdown = crud.get_category_breakdown(db, user_id, today.year, today.month)
+    discretionary = {cat: amt for cat, amt in breakdown.items() if cat in _DISCRETIONARY_CATEGORIES and amt > 0}
+    if not discretionary:
+        return []
+
+    top_cat = max(discretionary, key=discretionary.get)
+    top_amount_c = currency_service.convert_amount(discretionary[top_cat], "INR", currency)
+    min_meaningful_c = currency_service.convert_amount(300.0, "INR", currency)
+    if top_amount_c < min_meaningful_c:
+        return []  # too small an amount for a cut to be worth suggesting
+
+    cut_amount_c = round(top_amount_c * cut_pct / 100, 2)
+    cut_str = _format_amount(currency, cut_amount_c)
+
+    goal = crud.get_savings_goal(db, user_id)
+    if goal and goal.target_amount:
+        progress = crud.get_savings_progress_since(db, user_id, goal.created_at)
+        remaining = goal.target_amount - progress
+        if remaining > 0:
+            remaining_c = currency_service.convert_amount(remaining, "INR", currency)
+            goal_str = _format_amount(currency, currency_service.convert_amount(goal.target_amount, "INR", currency))
+            pct_of_remaining = round((cut_amount_c / remaining_c) * 100) if remaining_c else None
+            if pct_of_remaining:
+                return [
+                    f"Cutting {top_cat} spending by {cut_pct}% (~{cut_str}/month) would put you about "
+                    f"{pct_of_remaining}% closer to your {goal_str} savings goal each month you keep it up."
+                ]
+
+    return [
+        f"{top_cat} is your top discretionary spend this month at {_format_amount(currency, top_amount_c)} - "
+        f"trimming it by {cut_pct}% would free up roughly {cut_str}."
+    ]
+
+
 def get_smart_suggestion(db: Session, user) -> str:
     """Generates one short insight. Cheap heuristics first; falls back to the
     LLM only if nothing rule-based stands out, to avoid a cloud API call on
