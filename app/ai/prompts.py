@@ -46,6 +46,11 @@ Rules:
   a real transaction. Do NOT set this for money someone RECEIVED as cash (a gift, being paid in cash, cashback) -
   that is real income with payment_method "cash", is_withdrawal stays false. Only an explicit withdrawal-from-
   account phrasing qualifies.
+- Flexible amount recognition: the user may state amounts as shorthand or in words instead of plain
+  digits - convert these to the actual numeric value yourself: "0.5k" or "half a k" -> 500, "2.5k" -> 2500,
+  "10k" -> 10000, "1.5L" or "1.5 lakh" -> 150000, "2 lac" -> 200000, "1cr" or "1 crore" -> 10000000,
+  "five hundred" -> 500, "two thousand five hundred" -> 2500, "twelve hundred" -> 1200. Always put the
+  final resolved NUMBER in "amount" - never leave "k"/"lakh"/"crore" suffixes or number words in the field.
 - For expenses, category MUST be EXACTLY one of these strings, spelled and capitalized exactly as shown, with no synonyms or new categories invented: {", ".join(CATEGORIES_EXPENSE)}
 - For income, source MUST be EXACTLY one of these strings, spelled and capitalized exactly as shown: {", ".join(CATEGORIES_INCOME)}
 - NEVER output a category_or_source value that is not verbatim in one of the two lists above. Words like "Expense", "Misc", "General", "Money", "Cash" are NOT valid categories under any circumstance. If you cannot confidently pick a listed category, use exactly "Other" - never invent a new word.
