@@ -55,7 +55,7 @@ Copy `.env.example` → `.env` locally, or set in Render dashboard for productio
 | `SECRET_KEY` | **Yes** | — | — | `python -c "import secrets; print(secrets.token_hex(32))"` — no fallback, app refuses to start without it |
 | `DATABASE_URL` | No | (SQLite) | **Required** | Leave blank for local SQLite in `data/finance.db`; set to Neon connection string for Postgres |
 | `GROQ_API_KEY` | No | — | Recommended | Get from https://console.groq.com/keys; first LLM provider |
-| `GROQ_MODEL` | No | `llama-3.3-70b-versatile` | — | Groq model name |
+| `GROQ_MODEL` | No | `openai/gpt-oss-120b` | — | Groq model name |
 | `OPENROUTER_API_KEY` | No | — | Recommended | Get from https://openrouter.ai/keys; fallback LLM provider. Do $10 one-time credit top-up. |
 | `OPENROUTER_MODEL` | No | `meta-llama/llama-3.3-70b-instruct:free` | — | OpenRouter model name |
 | `ENVIRONMENT` | No | `development` | `production` | Enables HTTPS-only session cookies |

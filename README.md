@@ -127,7 +127,7 @@ Copy `.env.example` to `.env` and fill in the values below. All keys are optiona
 | `SECRET_KEY` | **Yes** | — | `python -c "import secrets; print(secrets.token_hex(32))"` |
 | `DATABASE_URL` | No | (SQLite) | Leave blank for local SQLite in `data/finance.db`; set to Neon connection string for production |
 | `GROQ_API_KEY` | No (recommended) | — | Get from https://console.groq.com/keys; enables fast AI parsing |
-| `GROQ_MODEL` | No | `llama-3.3-70b-versatile` | Groq model name |
+| `GROQ_MODEL` | No | `openai/gpt-oss-120b` | Groq model name |
 | `OPENROUTER_API_KEY` | No (recommended) | — | Get from https://openrouter.ai/keys; fallback LLM provider |
 | `OPENROUTER_MODEL` | No | `meta-llama/llama-3.3-70b-instruct:free` | OpenRouter model name |
 | `ENVIRONMENT` | No | `development` | Set to `production` to enable HTTPS-only session cookies |
