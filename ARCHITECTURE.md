@@ -124,7 +124,7 @@ Notes:
 ### AI and LLM
 
 - **app/ai/llm.py**
-  - Calls Groq (`llama-3.3-70b-versatile`) first
+  - Calls Groq (`openai/gpt-oss-120b`) first
   - Falls back to OpenRouter if Groq fails/times out/rate-limits
   - If both are down, raises `LLMUnavailableError` — caller queues to `pending_entries`
   - In-memory rate-limit tracking to detect backoff signals
