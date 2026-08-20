@@ -16,6 +16,7 @@ from sqlalchemy.orm import Session
 from app.database import crud
 from app.services import currency as currency_service
 from app.services import recurring as recurring_service
+from app.services import analytics
 
 
 def _fmt_amount(value: float) -> str:
@@ -113,12 +114,23 @@ def create_transactions(db: Session, user_id: int, transactions: list[dict], cur
     for t in transactions:
         base_amount = _to_base(t["amount"], currency)
         payment_method = t.get("payment_method")
+        payment_method_auto_filled = False
         category_or_source = t["category_or_source"]
         keywords = _distinctive_keywords(t["description"])
         if category_or_source == "Other" and keywords:
             learned = crud.recall_merchant_category(db, user_id, t["type"], keywords)
             if learned:
                 category_or_source = learned
+
+        # Auto-fill missing wallet (feature #20) - only when the message
+        # gave NO explicit cash/online signal at all. Never overrides a
+        # signal the user actually gave, and only fires once there's
+        # confident, consistent history for this exact category/source.
+        if payment_method is None:
+            learned_wallet = crud.recall_payment_method(db, user_id, t["type"], category_or_source)
+            if learned_wallet:
+                payment_method = learned_wallet
+                payment_method_auto_filled = True
 
         # Duplicate detection (#24) - flag, don't block. Two teas in one day
         # can be perfectly real, so we still log it - just let the user
@@ -146,6 +158,7 @@ def create_transactions(db: Session, user_id: int, transactions: list[dict], cur
                     "display_label": _display_label("income", row.source, row.description),
                     "date": str(row.date),
                     "payment_method": row.payment_method,
+                    "payment_method_auto_filled": payment_method_auto_filled,
                     "is_duplicate": is_duplicate,
                 }
             )
@@ -178,6 +191,7 @@ def create_transactions(db: Session, user_id: int, transactions: list[dict], cur
                     "display_label": _display_label("expense", row.category, row.description),
                     "date": str(row.date),
                     "payment_method": row.payment_method,
+                    "payment_method_auto_filled": payment_method_auto_filled,
                     "is_duplicate": is_duplicate,
                     "budget_status": budget_status,
                 }
@@ -185,6 +199,12 @@ def create_transactions(db: Session, user_id: int, transactions: list[dict], cur
         if keywords:
             for kw in keywords:
                 crud.remember_merchant_category(db, user_id, t["type"], kw, category_or_source)
+
+        # Only learn from a signal the user ACTUALLY gave in this message -
+        # never from our own auto-fill, or confidence would compound on
+        # nothing (a wrong early guess could lock itself in permanently).
+        if t.get("payment_method") is not None:
+            crud.remember_payment_method(db, user_id, t["type"], category_or_source, t["payment_method"])
 
         # Recurring-pattern detection (#23) - a lightweight nudge only.
         # This deliberately does NOT auto-create a schedule - it just flags
@@ -196,6 +216,38 @@ def create_transactions(db: Session, user_id: int, transactions: list[dict], cur
             looks_recurring and not recurring_service.has_active_schedule_for(db, user_id, t["type"], category_or_source)
         )
     return created
+
+
+def process_withdrawals(db: Session, user_id: int, withdrawals: list[dict], currency: str | None = None) -> tuple[list[str], list[str]]:
+    """Handles messages like 'withdrew 500' or 'took out 1000 cash from ATM'
+    - extractor.py flags these with is_withdrawal=True instead of creating a
+    real Income row (see prompts.py for why: it's the same money changing
+    form, not new income or spending). Moves the amount from the online
+    wallet into cash via models.WalletTransfer.
+
+    Returns (confirmations, errors) - both lists of message strings, since
+    a single chat message can name more than one withdrawal and some may
+    succeed while others fail (e.g. insufficient online balance)."""
+    confirmations: list[str] = []
+    errors: list[str] = []
+    active_currency = currency or "INR"
+    for w in withdrawals:
+        base_amount = _to_base(w["amount"], active_currency)
+        balances = crud.get_wallet_balances(db, user_id)
+        if base_amount > balances["online"] + 0.01:
+            errors.append(
+                f"Couldn't withdraw {_fmt_money(active_currency, w['amount'])} - "
+                f"that's more than your online wallet balance ({_fmt_money(active_currency, _from_base(balances['online'], active_currency))})."
+            )
+            continue
+        crud.create_wallet_transfer(db, user_id, base_amount, from_wallet="online", to_wallet="cash", description="Withdraw to cash")
+        new_balances = crud.get_wallet_balances(db, user_id)
+        confirmations.append(
+            f"Withdrew {_fmt_money(active_currency, w['amount'])} to cash. "
+            f"Cash wallet: {_fmt_money(active_currency, _from_base(new_balances['cash'], active_currency))}, "
+            f"Online: {_fmt_money(active_currency, _from_base(new_balances['online'], active_currency))}."
+        )
+    return confirmations, errors
 
 
 def format_transaction_reply(created: list[dict], balance: float | None = None, currency: str | None = None) -> str:
@@ -235,6 +287,11 @@ def _notes_suffix(created: list[dict], currency: str | None = None) -> str:
     if recurring:
         labels = ", ".join(t.get("display_label") or t["label"] for t in recurring)
         notes.append(f"This looks like it might repeat regularly ({labels}) - want me to set it up as a recurring entry so it logs automatically?")
+    auto_filled_wallet = [t for t in created if t.get("payment_method_auto_filled")]
+    if auto_filled_wallet:
+        labels = ", ".join(t.get("display_label") or t["label"] for t in auto_filled_wallet)
+        wallets = ", ".join(sorted({t["payment_method"] for t in auto_filled_wallet}))
+        notes.append(f"No payment method mentioned, so I filled in {wallets} for {labels} based on how you usually pay for that - let me know if that's wrong.")
     for t in created:
         budget_status = t.get("budget_status")
         if not budget_status:
@@ -480,6 +537,14 @@ def build_qa_context(db: Session, user_id: int, question: str, currency: str | N
             "started_tracking_on": str(goal.created_at.date()) if goal.created_at else None,
         }
 
+    # AI-33 / AI-34: multi-month trend detection and discretionary-category
+    # savings suggestions, computed here (not just in the dashboard's single
+    # suggestion slot) so a direct question like "any spending patterns?"
+    # or "how can I save more?" gets grounded, pre-computed numbers instead
+    # of the LLM inventing an answer from the raw breakdown alone.
+    spending_trends = analytics.detect_spending_trends(db, user_id, currency=active_currency)
+    savings_suggestions = analytics.get_savings_suggestions(db, user_id, currency=active_currency)
+
     return {
         "currency": active_currency,
         "currency_symbol": currency_service.currency_symbol(active_currency),
@@ -498,6 +563,8 @@ def build_qa_context(db: Session, user_id: int, question: str, currency: str | N
         },
         "this_month_category_breakdown": converted_breakdown,
         "last_month_category_breakdown": converted_last_month_breakdown,
+        "spending_trends_last_4_months": spending_trends,
+        "savings_suggestions": savings_suggestions,
         "largest_expense_this_month": (
             {"category": largest.category, "amount": _from_base(largest.amount, active_currency), "date": str(largest.date)}
             if largest

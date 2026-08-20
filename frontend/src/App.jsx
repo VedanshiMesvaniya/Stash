@@ -530,10 +530,6 @@ function DashboardPage({ session, onNavigate, refreshToken, onTouchData }) {
   const [dueRecurring, setDueRecurring] = useState([]);
   const [confirmingId, setConfirmingId] = useState(null);
   const [error, setError] = useState('');
-  const [withdrawAmount, setWithdrawAmount] = useState('');
-  const [withdrawOpen, setWithdrawOpen] = useState(false);
-  const [withdrawBusy, setWithdrawBusy] = useState(false);
-  const [withdrawError, setWithdrawError] = useState('');
 
   const loadDueRecurring = async () => {
     try {
@@ -554,29 +550,6 @@ function DashboardPage({ session, onNavigate, refreshToken, onTouchData }) {
       setError(err.message);
     } finally {
       setConfirmingId(null);
-    }
-  };
-
-  const withdrawToCash = async (event) => {
-    event.preventDefault();
-    const amount = Number(withdrawAmount);
-    if (!amount || amount <= 0) {
-      setWithdrawError('Enter an amount greater than zero');
-      return;
-    }
-    setWithdrawBusy(true);
-    setWithdrawError('');
-    try {
-      const updated = await apiFetch('/api/wallet/withdraw', { method: 'POST', body: JSON.stringify({ amount }) });
-      setWallets(updated);
-      writeJsonCache(WALLETS_CACHE_KEY, updated);
-      setWithdrawAmount('');
-      setWithdrawOpen(false);
-      onTouchData();
-    } catch (err) {
-      setWithdrawError(err.message || 'Could not withdraw');
-    } finally {
-      setWithdrawBusy(false);
     }
   };
 
@@ -656,7 +629,7 @@ function DashboardPage({ session, onNavigate, refreshToken, onTouchData }) {
         <div className="card-head">
           <div>
             <h2 className="card-title">Cash Wallet</h2>
-            <div className="card-note">Withdraw from your online balance to track physical cash</div>
+            <div className="card-note">Say "withdrew 500" in chat to move money from online to cash</div>
           </div>
         </div>
         <div className="wallet-widget-grid">
@@ -668,41 +641,6 @@ function DashboardPage({ session, onNavigate, refreshToken, onTouchData }) {
             </div>
           </div>
         </div>
-
-        {withdrawOpen ? (
-          <form className="withdraw-form" onSubmit={withdrawToCash}>
-            <input
-              className="input"
-              type="number"
-              inputMode="decimal"
-              min="0"
-              step="0.01"
-              placeholder="Amount to withdraw"
-              value={withdrawAmount}
-              onChange={(event) => setWithdrawAmount(event.target.value)}
-              autoFocus
-            />
-            <div className="withdraw-form-actions">
-              <button type="submit" className="btn btn-primary" disabled={withdrawBusy}>
-                {withdrawBusy ? 'Withdrawing...' : 'Confirm'}
-              </button>
-              <button
-                type="button"
-                className="btn btn-ghost"
-                disabled={withdrawBusy}
-                onClick={() => { setWithdrawOpen(false); setWithdrawError(''); setWithdrawAmount(''); }}
-              >
-                Cancel
-              </button>
-            </div>
-            {withdrawError ? <div className="alert alert-error">{withdrawError}</div> : null}
-          </form>
-        ) : (
-          <button type="button" className="btn btn-ghost withdraw-open-btn" onClick={() => setWithdrawOpen(true)}>
-            <span className="material-symbols-rounded" aria-hidden="true">arrow_downward</span>
-            Withdraw to cash
-          </button>
-        )}
       </section>
 
       <section className="grid two-up">

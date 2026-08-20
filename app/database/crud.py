@@ -488,6 +488,57 @@ def recall_merchant_category(db: Session, user_id: int, transaction_type: str, k
     return best.category_or_source
 
 
+# --- Wallet auto-fill learning (feature #20 Auto-Fill Missing Fields) ---
+# Same shape as merchant-category memory above, but for payment_method.
+# Only ever written from an EXPLICIT signal in the user's message (see
+# services/finance.py caller) so it never learns from its own guesses.
+
+def remember_payment_method(db: Session, user_id: int, transaction_type: str, category_or_source: str, payment_method: str):
+    if payment_method not in ("cash", "online") or not category_or_source:
+        return
+    row = db.query(models.WalletMemory).filter(
+        models.WalletMemory.user_id == user_id,
+        models.WalletMemory.transaction_type == transaction_type,
+        models.WalletMemory.category_or_source == category_or_source,
+    ).first()
+    if row:
+        if row.payment_method == payment_method:
+            row.hit_count += 1
+        else:
+            # The user's own habit shifted (e.g. switched from cash-only
+            # petrol to always UPI) - trust the most recent signal rather
+            # than averaging two different wallets.
+            row.payment_method = payment_method
+            row.hit_count = 1
+    else:
+        row = models.WalletMemory(
+            user_id=user_id,
+            transaction_type=transaction_type,
+            category_or_source=category_or_source,
+            payment_method=payment_method,
+            hit_count=1,
+        )
+        db.add(row)
+    db.commit()
+
+
+def recall_payment_method(db: Session, user_id: int, transaction_type: str, category_or_source: str, min_hits: int = 3) -> str | None:
+    """Returns the learned wallet for this category/source if the user has
+    confirmed it at least min_hits times, else None. min_hits=3 (higher
+    than the category memory's 2) because auto-filling a wallet is a
+    quieter, easier-to-miss change than auto-filling a category - it
+    should take a bit more consistent history before we do it silently."""
+    if not category_or_source:
+        return None
+    row = db.query(models.WalletMemory).filter(
+        models.WalletMemory.user_id == user_id,
+        models.WalletMemory.transaction_type == transaction_type,
+        models.WalletMemory.category_or_source == category_or_source,
+        models.WalletMemory.hit_count >= min_hits,
+    ).first()
+    return row.payment_method if row else None
+
+
 # --- Duplicate detection on the chat-creation path (feature #24) ---
 # The offline sync path (services/sync.py) already dedupes; this covers
 # the far more common path (typing straight into chat), which had no

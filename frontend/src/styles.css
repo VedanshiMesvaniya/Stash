@@ -333,21 +333,6 @@ h1, h2, h3, p { margin: 0; }
 .wallet-tile-online .material-symbols-rounded { color: var(--secondary); }
 .wallet-tile-unspecified .material-symbols-rounded { color: var(--on-surface-variant); }
 
-.withdraw-open-btn {
-  margin-top: var(--space-sm);
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
-.withdraw-form {
-  margin-top: var(--space-sm);
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-sm);
-}
-.withdraw-form-actions { display: flex; gap: var(--space-sm); }
-.withdraw-form-actions .btn { flex: 1; }
-
 /* =========================================================================
    Forms / inputs / dropdowns
    ========================================================================= */

@@ -95,6 +95,116 @@ _DAYS_AGO_RE = re.compile(r"(\d+)\s*(?:day|days)\s*(?:ago|back)")
 _WEEKS_AGO_RE = re.compile(r"(\d+)\s*(?:week|weeks)\s*(?:ago|back)")
 _ORDINAL_SUFFIX_RE = re.compile(r"\b(\d{1,2})(st|nd|rd|th)\b", re.IGNORECASE)
 
+# --- Feature #18: Flexible Amount Recognition -----------------------------
+# The LLM is prompted to normalize shorthand/written amounts itself, but
+# that was previously the ONLY line of defense - if it slipped and echoed
+# "0.5k" or "five hundred" back verbatim, float(t.get("amount")) would
+# raise and the whole transaction silently got dropped. normalize_amount()
+# is a deterministic safety net that runs on whatever the LLM returns.
+
+_UNITS_WORDS = {
+    "zero": 0, "one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6,
+    "seven": 7, "eight": 8, "nine": 9, "ten": 10, "eleven": 11, "twelve": 12,
+    "thirteen": 13, "fourteen": 14, "fifteen": 15, "sixteen": 16,
+    "seventeen": 17, "eighteen": 18, "nineteen": 19,
+}
+_TENS_WORDS = {
+    "twenty": 20, "thirty": 30, "forty": 40, "fifty": 50, "sixty": 60,
+    "seventy": 70, "eighty": 80, "ninety": 90,
+}
+_SCALE_WORDS = {"hundred": 100, "thousand": 1000, "lakh": 100000, "lac": 100000, "crore": 10000000}
+
+_SUFFIX_MULTIPLIERS = {
+    "k": 1000,
+    "l": 100000, "lakh": 100000, "lakhs": 100000, "lac": 100000, "lacs": 100000,
+    "cr": 10000000, "crore": 10000000, "crores": 10000000,
+    "m": 1000000, "mn": 1000000, "million": 1000000,
+}
+_SHORTHAND_RE = re.compile(
+    r"^([\d]*\.?\d+)\s*(k|l|lakhs?|lacs?|cr|crores?|m|mn|million)$", re.IGNORECASE
+)
+
+
+def _words_to_number(text: str) -> float | None:
+    """Best-effort conversion of a written-out number phrase ('five
+    hundred', 'two thousand five hundred', 'twenty') into a numeric
+    value. Returns None (never a guess) the moment an unrecognized word
+    shows up, since a wrong invented amount is worse than skipping the
+    shorthand parse and falling through to other handling."""
+    words = re.findall(r"[a-zA-Z]+", text.lower())
+    if not words:
+        return None
+    total = 0.0
+    current = 0.0
+    matched_any = False
+    for w in words:
+        if w in _UNITS_WORDS:
+            current += _UNITS_WORDS[w]
+            matched_any = True
+        elif w in _TENS_WORDS:
+            current += _TENS_WORDS[w]
+            matched_any = True
+        elif w == "hundred":
+            current = (current or 1) * 100
+            matched_any = True
+        elif w in ("thousand", "lakh", "lac", "crore"):
+            current = current or 1
+            total += current * _SCALE_WORDS[w]
+            current = 0
+            matched_any = True
+        elif w in ("and", "rupees", "rupee", "rs", "inr"):
+            continue  # filler words - ignore, don't bail
+        else:
+            return None
+    if not matched_any:
+        return None
+    return total + current
+
+
+def normalize_amount(raw) -> float | None:
+    """Converts whatever the LLM put in the amount field - a plain
+    number, numeric-shorthand ('0.5k', '2.5L', '1cr', '10 lakh'), or a
+    written-out number phrase ('five hundred', 'two thousand five
+    hundred') - into a plain positive float. Returns None if it can't be
+    confidently resolved (never silently guesses)."""
+    if raw is None:
+        return None
+    if isinstance(raw, (int, float)):
+        return float(raw) if raw > 0 else None
+
+    text = str(raw).strip()
+    if not text:
+        return None
+
+    cleaned = re.sub(r"[₹$,\s]", "", text)
+
+    # Plain numeric string, e.g. "500", "₹1,200", "45.50"
+    try:
+        val = float(cleaned)
+        return val if val > 0 else None
+    except ValueError:
+        pass
+
+    # Numeric shorthand: "0.5k", "2.5L", "10lakh", "1cr"
+    shorthand = _SHORTHAND_RE.match(cleaned)
+    if shorthand:
+        number_part, suffix = shorthand.groups()
+        try:
+            base = float(number_part)
+        except ValueError:
+            base = None
+        multiplier = _SUFFIX_MULTIPLIERS.get(suffix.lower())
+        if base is not None and multiplier:
+            result = base * multiplier
+            return result if result > 0 else None
+
+    # Written-out number words: "five hundred", "twelve"
+    words_value = _words_to_number(text)
+    if words_value and words_value > 0:
+        return words_value
+
+    return None
+
 
 def _normalize_date_text(text: str) -> str:
     return _ORDINAL_SUFFIX_RE.sub(r"\1", text)
@@ -289,11 +399,8 @@ def extract_transactions(message: str, recent_chat: str | None = None, user_hint
 
     results = []
     for t in parsed["transactions"]:
-        try:
-            amount = float(t.get("amount"))
-        except (TypeError, ValueError):
-            continue
-        if amount <= 0:
+        amount = normalize_amount(t.get("amount"))
+        if amount is None:
             continue
 
         txn_type = t.get("type") if t.get("type") in ("income", "expense") else "expense"
@@ -315,6 +422,7 @@ def extract_transactions(message: str, recent_chat: str | None = None, user_hint
             "description": description,
             "date": resolve_date_hint(t.get("date_hint")),
             "payment_method": payment_method,
+            "is_withdrawal": bool(t.get("is_withdrawal")),
         })
 
     clarification_needed = bool(parsed.get("clarification_needed", False))
@@ -381,11 +489,8 @@ def extract_correction(message: str, recent_chat: str | None = None) -> dict | N
     parsed = llm.safe_json_parse(raw)
     if not parsed:
         return None
-    try:
-        new_amount = float(parsed.get("new_amount"))
-    except (TypeError, ValueError):
-        return None
-    if new_amount <= 0:
+    new_amount = normalize_amount(parsed.get("new_amount"))
+    if new_amount is None:
         return None
 
     txn_type = parsed.get("type") if parsed.get("type") in ("income", "expense") else "expense"

@@ -178,6 +178,27 @@ def handle_message(message: str, db: Session, user_id: int, payment_method_hint:
                 if not txn.get("payment_method"):
                     txn["payment_method"] = payment_method_hint
 
+        # "withdrew 500" isn't income or spending - it's the same money
+        # moving from the online wallet into cash (see prompts.py's
+        # is_withdrawal rule). Handle those separately so they never become
+        # a fake Income row that would inflate this month's income total.
+        withdrawals = [t for t in transactions if t.get("is_withdrawal")]
+        transactions = [t for t in transactions if not t.get("is_withdrawal")]
+        if withdrawals:
+            confirmations, withdraw_errors = finance.process_withdrawals(db, user_id, withdrawals, currency=currency)
+            if not transactions and not clarification_needed:
+                reply_lines = confirmations + withdraw_errors
+                return {
+                    "intent": "transaction",
+                    "reply": "\n".join(reply_lines) if reply_lines else "Nothing to withdraw.",
+                    "data": None, "needs_confirmation": False, "candidates": None,
+                }
+            # Otherwise fall through - any remaining real transactions in the
+            # same message still get created below, and the withdrawal
+            # confirmation gets prepended to that reply further down.
+        else:
+            confirmations, withdraw_errors = [], []
+
         # Truly nothing extracted and no clarification offered either - only
         # here do we fall back to the generic guesser.
         if not transactions and not clarification_needed:
@@ -211,6 +232,8 @@ def handle_message(message: str, db: Session, user_id: int, payment_method_hint:
                 # so the user sees both in one reply instead of a bare question.
                 logged_summary = finance.format_transaction_reply(created, balance=balance, currency=currency)
                 reply_text = f"{logged_summary}\n\n{reply_text}"
+            if confirmations or withdraw_errors:
+                reply_text = "\n".join(confirmations + withdraw_errors) + f"\n\n{reply_text}"
             return {
                 "intent": "transaction",
                 "reply": reply_text,
@@ -226,9 +249,12 @@ def handle_message(message: str, db: Session, user_id: int, payment_method_hint:
             }
 
         balance = finance.crud.get_balance(db, user_id)
+        reply_text = finance.format_transaction_reply(created, balance=balance, currency=currency)
+        if confirmations or withdraw_errors:
+            reply_text = "\n".join(confirmations + withdraw_errors) + (f"\n\n{reply_text}" if created else "")
         return {
             "intent": "transaction",
-            "reply": finance.format_transaction_reply(created, balance=balance, currency=currency),
+            "reply": reply_text,
             "data": created,
             "needs_confirmation": False,
             "candidates": None,
