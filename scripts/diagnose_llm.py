@@ -9,7 +9,7 @@ Usage:
     GROQ_API_KEY=... OPENROUTER_API_KEY=... python3 scripts/diagnose_llm.py
 
     # Optionally override which model gets tested (defaults match app/ai/llm.py):
-    GROQ_MODEL=openai/gpt-oss-120b OPENROUTER_MODEL=meta-llama/llama-3.3-70b-instruct:free python3 scripts/diagnose_llm.py
+    GROQ_MODEL=openai/gpt-oss-120b OPENROUTER_MODEL=openrouter/free python3 scripts/diagnose_llm.py
 
 If you're testing against Render's actual deployed config, pull the exact
 env vars from the Render dashboard (Environment tab) and export them
@@ -27,7 +27,7 @@ GROQ_MODEL = os.getenv("GROQ_MODEL", "openai/gpt-oss-120b")
 GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
 
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "")
-OPENROUTER_MODEL = os.getenv("OPENROUTER_MODEL", "meta-llama/llama-3.3-70b-instruct:free")
+OPENROUTER_MODEL = os.getenv("OPENROUTER_MODEL", "openrouter/free")
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
 
 TEST_MESSAGES = [{"role": "user", "content": "Reply with the single word: ok"}]

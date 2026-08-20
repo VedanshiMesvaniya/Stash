@@ -57,7 +57,7 @@ Copy `.env.example` → `.env` locally, or set in Render dashboard for productio
 | `GROQ_API_KEY` | No | — | Recommended | Get from https://console.groq.com/keys; first LLM provider |
 | `GROQ_MODEL` | No | `openai/gpt-oss-120b` | — | Groq model name |
 | `OPENROUTER_API_KEY` | No | — | Recommended | Get from https://openrouter.ai/keys; fallback LLM provider. Do $10 one-time credit top-up. |
-| `OPENROUTER_MODEL` | No | `meta-llama/llama-3.3-70b-instruct:free` | — | OpenRouter model name |
+| `OPENROUTER_MODEL` | No | `openrouter/free` | — | OpenRouter model name |
 | `ENVIRONMENT` | No | `development` | `production` | Enables HTTPS-only session cookies |
 | `PENDING_RETRY_INTERVAL_SECONDS` | No | `300` | `300` | How often to retry queued LLM messages (seconds) |
 | `APP_PUBLIC_URL` | No | `http://127.0.0.1:8000` | Your domain | Used in outbound headers |
