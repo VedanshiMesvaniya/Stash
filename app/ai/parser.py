@@ -12,6 +12,7 @@ since that's this module's own responsibility (catching LLM outages).
 
 from __future__ import annotations
 
+import logging
 import re
 
 from sqlalchemy.orm import Session
@@ -19,6 +20,8 @@ from sqlalchemy.orm import Session
 from . import extractor, intent_detector, response
 from .llm import LLMUnavailableError
 from app.database import crud
+
+logger = logging.getLogger(__name__)
 
 _WEEKDAYS = "monday tuesday wednesday thursday friday saturday sunday".split()
 _DATE_HINT_PATTERNS = [
@@ -137,7 +140,8 @@ def handle_message(message: str, db: Session, user_id: int, payment_method_hint:
 
     try:
         intent = intent_detector.detect_intent(message, recent_chat=recent_chat or None)
-    except LLMUnavailableError:
+    except LLMUnavailableError as e:
+        logger.warning("LLM unavailable, queuing message for user_id=%s: %s", user_id, e)
         return _queue_for_later(db, user_id, message)
 
     # A short reformat follow-up ("in table", "as a chart", "show as graph")
@@ -163,7 +167,8 @@ def handle_message(message: str, db: Session, user_id: int, payment_method_hint:
         user_hints = [(m.keyword, m.category_or_source) for m in crud.get_top_merchant_memories(db, user_id)]
         try:
             extraction = extractor.extract_transactions(message, recent_chat=recent_chat or None, user_hints=user_hints or None)
-        except LLMUnavailableError:
+        except LLMUnavailableError as e:
+            logger.warning("LLM unavailable, queuing message for user_id=%s: %s", user_id, e)
             return _queue_for_later(db, user_id, message)
 
         # extractor.extract_transactions is expected to return a dict shaped like:
@@ -263,7 +268,8 @@ def handle_message(message: str, db: Session, user_id: int, payment_method_hint:
     if intent == "correction":
         try:
             correction = extractor.extract_correction(message, recent_chat=recent_chat or None)
-        except LLMUnavailableError:
+        except LLMUnavailableError as e:
+            logger.warning("LLM unavailable, queuing message for user_id=%s: %s", user_id, e)
             return _queue_for_later(db, user_id, message)
 
         if not correction:
@@ -278,7 +284,8 @@ def handle_message(message: str, db: Session, user_id: int, payment_method_hint:
     if intent == "delete":
         try:
             delete_request = extractor.extract_delete(message, recent_chat=recent_chat or None)
-        except LLMUnavailableError:
+        except LLMUnavailableError as e:
+            logger.warning("LLM unavailable, queuing message for user_id=%s: %s", user_id, e)
             return _queue_for_later(db, user_id, message)
 
         if not delete_request:
@@ -293,7 +300,8 @@ def handle_message(message: str, db: Session, user_id: int, payment_method_hint:
     if intent == "goal":
         try:
             goal = extractor.extract_goal(message)
-        except LLMUnavailableError:
+        except LLMUnavailableError as e:
+            logger.warning("LLM unavailable, queuing message for user_id=%s: %s", user_id, e)
             return _queue_for_later(db, user_id, message)
 
         if not goal.get("target_amount"):
@@ -329,7 +337,8 @@ def handle_message(message: str, db: Session, user_id: int, payment_method_hint:
         context = finance.build_qa_context(db, user_id, message, currency=currency)
         try:
             answer = response.answer_question(message, context)
-        except LLMUnavailableError:
+        except LLMUnavailableError as e:
+            logger.warning("LLM unavailable, queuing message for user_id=%s: %s", user_id, e)
             return _queue_for_later(db, user_id, message)
         return {
             "intent": "question", "reply": answer, "data": context,
