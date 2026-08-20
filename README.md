@@ -129,7 +129,7 @@ Copy `.env.example` to `.env` and fill in the values below. All keys are optiona
 | `GROQ_API_KEY` | No (recommended) | — | Get from https://console.groq.com/keys; enables fast AI parsing |
 | `GROQ_MODEL` | No | `openai/gpt-oss-120b` | Groq model name |
 | `OPENROUTER_API_KEY` | No (recommended) | — | Get from https://openrouter.ai/keys; fallback LLM provider |
-| `OPENROUTER_MODEL` | No | `meta-llama/llama-3.3-70b-instruct:free` | OpenRouter model name |
+| `OPENROUTER_MODEL` | No | `openrouter/free` | OpenRouter model name |
 | `ENVIRONMENT` | No | `development` | Set to `production` to enable HTTPS-only session cookies |
 | `PENDING_RETRY_INTERVAL_SECONDS` | No | `300` | How often to retry queued LLM messages (seconds) |
 | `APP_PUBLIC_URL` | No | `http://127.0.0.1:8000` | Used for outbound headers; local default is fine during dev |

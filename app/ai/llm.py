@@ -1,15 +1,23 @@
 """
 llm.py
 Cloud LLM client: Groq (openai/gpt-oss-120b) as primary, OpenRouter
-(meta-llama/llama-3.3-70b-instruct:free) as fallback if Groq errors, times
-out, or rate-limits. Both speak the same OpenAI-style /chat/completions
-shape, so this is one small client with two base URLs, not two integrations.
+(openrouter/free) as fallback if Groq errors, times out, or rate-limits.
+Both speak the same OpenAI-style /chat/completions shape, so this is one
+small client with two base URLs, not two integrations.
 
 Note: llama-3.3-70b-versatile was Groq's default here previously, but Groq
 deprecated it (announced 2026-06-17) along with llama-3.1-8b-instant.
 openai/gpt-oss-120b is Groq's recommended replacement - still $0 on Groq's
 free tier (rate-limited, not a paid model), same provider, no code changes
 needed beyond the model id.
+
+Note: meta-llama/llama-3.3-70b-instruct:free (the previous OpenRouter
+fallback) was pulled from OpenRouter's free tier entirely - free-model
+availability on OpenRouter rotates often and specific :free model IDs get
+retired without notice. Switched to openrouter/free, OpenRouter's own
+router that always picks whatever free model is currently available, so
+this fallback stops breaking every time one specific free model gets
+pulled. Still $0, same provider, same request shape.
 
 Why a fallback instead of just picking one: Groq's free tier is generous
 but not infinite, and free APIs occasionally have outages. If both are
@@ -29,7 +37,7 @@ GROQ_MODEL = os.getenv("GROQ_MODEL", "openai/gpt-oss-120b")
 GROQ_BASE_URL = "https://api.groq.com/openai/v1/chat/completions"
 
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "")
-OPENROUTER_MODEL = os.getenv("OPENROUTER_MODEL", "meta-llama/llama-3.3-70b-instruct:free")
+OPENROUTER_MODEL = os.getenv("OPENROUTER_MODEL", "openrouter/free")
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1/chat/completions"
 
 REQUEST_TIMEOUT_SECONDS = float(os.getenv("LLM_TIMEOUT_SECONDS", "30"))
