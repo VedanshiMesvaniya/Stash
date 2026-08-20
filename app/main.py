@@ -93,6 +93,7 @@ async def _retry_pending_entries_loop():
                         )
                     crud.mark_pending_processed(db, entry.id)
                 except LLMUnavailableError as e:
+                    logger.warning("Retry of pending entry %s still failing: %s", entry.id, e)
                     crud.mark_pending_attempt_failed(db, entry.id, str(e))
                 except Exception as e:  # noqa: BLE001 - log and move to next entry, don't crash the loop
                     logger.exception("Error retrying pending entry %s", entry.id)
