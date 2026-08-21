@@ -390,7 +390,7 @@ def extract_transactions(message: str, recent_chat: str | None = None, user_hint
         {"role": "system", "content": EXTRACTION_SYSTEM_PROMPT},
         {"role": "user", "content": f"{_habits_block(user_hints)}{_memory_block(recent_chat)}MESSAGE:\n{message}"},
     ]
-    raw = llm.fast_chat(messages, json_mode=True, max_tokens=400)
+    raw = llm.fast_chat(messages, json_mode=True, max_tokens=700)
 
     parsed = llm.safe_json_parse(raw)
 
@@ -484,7 +484,7 @@ def extract_correction(message: str, recent_chat: str | None = None) -> dict | N
         {"role": "system", "content": CORRECTION_SYSTEM_PROMPT},
         {"role": "user", "content": f"{_memory_block(recent_chat)}MESSAGE:\n{message}"},
     ]
-    raw = llm.fast_chat(messages, json_mode=True, max_tokens=250)
+    raw = llm.fast_chat(messages, json_mode=True, max_tokens=450)
 
     parsed = llm.safe_json_parse(raw)
     if not parsed:
@@ -513,7 +513,7 @@ def extract_delete(message: str, recent_chat: str | None = None) -> dict | None:
         {"role": "system", "content": DELETE_SYSTEM_PROMPT},
         {"role": "user", "content": f"{_memory_block(recent_chat)}MESSAGE:\n{message}"},
     ]
-    raw = llm.fast_chat(messages, json_mode=True, max_tokens=220)
+    raw = llm.fast_chat(messages, json_mode=True, max_tokens=400)
 
     parsed = llm.safe_json_parse(raw)
     if not parsed:
@@ -575,7 +575,7 @@ def extract_goal(message: str) -> dict:
         {"role": "system", "content": GOAL_SYSTEM_PROMPT},
         {"role": "user", "content": message},
     ]
-    raw = llm.fast_chat(messages, json_mode=True, max_tokens=80)
+    raw = llm.fast_chat(messages, json_mode=True, max_tokens=200)
     parsed = llm.safe_json_parse(raw) or {}
     target_amount = parsed.get("target_amount")
     try:

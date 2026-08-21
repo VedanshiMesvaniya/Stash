@@ -87,6 +87,17 @@ def _call_provider(
     if json_mode:
         payload["response_format"] = {"type": "json_object"}
 
+    # openai/gpt-oss-* models on Groq are reasoning models - they spend
+    # tokens on a hidden chain-of-thought before writing the actual answer.
+    # At "medium" (the default) that reasoning can eat the whole max_tokens
+    # budget on short calls, leaving nothing for the real JSON output -
+    # Groq then rejects it with json_validate_failed and an empty
+    # failed_generation. "low" trims that reasoning pass down so short,
+    # structured calls (intent classification, extraction) actually have
+    # room left to write their answer.
+    if provider_name == "Groq" and model.startswith("openai/gpt-oss"):
+        payload["reasoning_effort"] = "low"
+
     try:
         with httpx.Client(timeout=REQUEST_TIMEOUT_SECONDS) as client:
             resp = client.post(base_url, headers=headers, json=payload)
