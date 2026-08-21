@@ -55,8 +55,10 @@ Copy `.env.example` → `.env` locally, or set in Render dashboard for productio
 | `SECRET_KEY` | **Yes** | — | — | `python -c "import secrets; print(secrets.token_hex(32))"` — no fallback, app refuses to start without it |
 | `DATABASE_URL` | No | (SQLite) | **Required** | Leave blank for local SQLite in `data/finance.db`; set to Neon connection string for Postgres |
 | `GROQ_API_KEY` | No | — | Recommended | Get from https://console.groq.com/keys; first LLM provider |
-| `GROQ_MODEL` | No | `openai/gpt-oss-120b` | — | Groq model name |
-| `OPENROUTER_API_KEY` | No | — | Recommended | Get from https://openrouter.ai/keys; fallback LLM provider. Do $10 one-time credit top-up. |
+| `GROQ_MODEL` | No | `llama-3.1-8b-instant` | — | Groq model name |
+| `NVIDIA_API_KEY` | No | — | Recommended | Get from https://build.nvidia.com; second LLM provider (free NIM tier, no card required) |
+| `NVIDIA_MODEL` | No | `nvidia/nvidia-nemotron-nano-9b-v2` | — | NVIDIA NIM model name |
+| `OPENROUTER_API_KEY` | No | — | Recommended | Get from https://openrouter.ai/keys; third/last-resort LLM provider. Do $10 one-time credit top-up. |
 | `OPENROUTER_MODEL` | No | `openrouter/free` | — | OpenRouter model name |
 | `ENVIRONMENT` | No | `development` | `production` | Enables HTTPS-only session cookies |
 | `PENDING_RETRY_INTERVAL_SECONDS` | No | `300` | `300` | How often to retry queued LLM messages (seconds) |
@@ -126,6 +128,8 @@ Copy `.env.example` → `.env` locally, or set in Render dashboard for productio
      - `DATABASE_URL` (your Neon connection string)
      - `GROQ_API_KEY` (if using)
      - `GROQ_MODEL` (if using Groq)
+     - `NVIDIA_API_KEY` (if using)
+     - `NVIDIA_MODEL` (if using NVIDIA NIM)
      - `OPENROUTER_API_KEY` (if using)
      - `OPENROUTER_MODEL` (if using OpenRouter)
      - `ENVIRONMENT` = `production`
@@ -188,7 +192,7 @@ Run these commands via Render's shell or SSH into your container.
 | Issue | Solution |
 |---|---|
 | App won't start: "SECRET_KEY env var not set" | Generate one: `python -c "import secrets; print(secrets.token_hex(32))"` and set in Render dashboard |
-| LLM requests fail silently | Check that both `GROQ_API_KEY` and `OPENROUTER_API_KEY` are set in Render. Pending messages auto-retry every 5 min. |
+| LLM requests fail silently | Check that `GROQ_API_KEY`, `NVIDIA_API_KEY`, and `OPENROUTER_API_KEY` are set in Render (only one is strictly required, but all three gives the most resilient fallback chain). Pending messages auto-retry every 5 min. |
 | Chat messages stuck in `pending_entries` | Both LLM providers are down. Wait for retry loop (every 5 min) or check API keys. |
 | Password reset not working | Use CLI: `python -m scripts.reset_password <username> <new_password>` via Render shell |
 | Render cold start is too slow | This is normal on free tier (~30-60s after 15 min idle). Consider Render paid tier for production. |

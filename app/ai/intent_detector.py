@@ -26,7 +26,7 @@ def detect_intent(message: str, recent_chat: str | None = None) -> str:
     # Deliberately NOT caught here: llm.LLMUnavailableError propagates up to
     # ai/parser.py, which queues the raw message into pending_entries instead
     # of silently mis-classifying it as "chat" and losing it.
-    raw = llm.fast_chat(messages, json_mode=True, max_tokens=32)
+    raw = llm.fast_chat(messages, json_mode=True, max_tokens=150)
 
     parsed = llm.safe_json_parse(raw)
 
