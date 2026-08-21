@@ -10,7 +10,7 @@ Usage:
     GROQ_API_KEY=... NVIDIA_API_KEY=... OPENROUTER_API_KEY=... python3 scripts/diagnose_llm.py
 
     # Optionally override which model gets tested (defaults match app/ai/llm.py):
-    GROQ_MODEL=llama-3.1-8b-instant NVIDIA_MODEL=meta/llama-3.3-70b-instruct OPENROUTER_MODEL=openrouter/free python3 scripts/diagnose_llm.py
+    GROQ_MODEL=llama-3.1-8b-instant NVIDIA_MODEL=nvidia/nvidia-nemotron-nano-9b-v2 OPENROUTER_MODEL=openrouter/free python3 scripts/diagnose_llm.py
 
 If you're testing against Render's actual deployed config, pull the exact
 env vars from the Render dashboard (Environment tab) and export them
@@ -28,7 +28,7 @@ GROQ_MODEL = os.getenv("GROQ_MODEL", "llama-3.1-8b-instant")
 GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
 
 NVIDIA_API_KEY = os.getenv("NVIDIA_API_KEY", "")
-NVIDIA_MODEL = os.getenv("NVIDIA_MODEL", "meta/llama-3.3-70b-instruct")
+NVIDIA_MODEL = os.getenv("NVIDIA_MODEL", "nvidia/nvidia-nemotron-nano-9b-v2")
 NVIDIA_URL = "https://integrate.api.nvidia.com/v1/chat/completions"
 
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "")
@@ -52,7 +52,13 @@ def test_provider(name, url, api_key, model, extra_headers=None):
     if extra_headers:
         headers.update(extra_headers)
 
-    payload = {"model": model, "messages": TEST_MESSAGES, "temperature": 0, "max_tokens": 20}
+    messages = TEST_MESSAGES
+    if "nemotron" in model.lower():
+        # Matches app/ai/llm.py's default for Nemotron models: disable the
+        # hidden reasoning trace so this test reflects real app behavior.
+        messages = [{"role": "system", "content": "/no_think"}] + TEST_MESSAGES
+
+    payload = {"model": model, "messages": messages, "temperature": 0, "max_tokens": 20}
 
     try:
         with httpx.Client(timeout=30) as client:

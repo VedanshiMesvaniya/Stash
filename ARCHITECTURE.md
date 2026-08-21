@@ -125,7 +125,7 @@ Notes:
 
 - **app/ai/llm.py**
   - Calls Groq (`llama-3.1-8b-instant`) first
-  - Falls back to NVIDIA NIM (`meta/llama-3.3-70b-instruct`) if Groq fails/times out/rate-limits
+  - Falls back to NVIDIA NIM (`nvidia/nvidia-nemotron-nano-9b-v2`) if Groq fails/times out/rate-limits
   - Falls back to OpenRouter (`openrouter/free`) if NVIDIA also fails
   - If all three are down, raises `LLMUnavailableError` — caller queues to `pending_entries`
   - In-memory rate-limit tracking to detect backoff signals

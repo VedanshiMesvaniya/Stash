@@ -57,7 +57,7 @@ Copy `.env.example` → `.env` locally, or set in Render dashboard for productio
 | `GROQ_API_KEY` | No | — | Recommended | Get from https://console.groq.com/keys; first LLM provider |
 | `GROQ_MODEL` | No | `llama-3.1-8b-instant` | — | Groq model name |
 | `NVIDIA_API_KEY` | No | — | Recommended | Get from https://build.nvidia.com; second LLM provider (free NIM tier, no card required) |
-| `NVIDIA_MODEL` | No | `meta/llama-3.3-70b-instruct` | — | NVIDIA NIM model name |
+| `NVIDIA_MODEL` | No | `nvidia/nvidia-nemotron-nano-9b-v2` | — | NVIDIA NIM model name |
 | `OPENROUTER_API_KEY` | No | — | Recommended | Get from https://openrouter.ai/keys; third/last-resort LLM provider. Do $10 one-time credit top-up. |
 | `OPENROUTER_MODEL` | No | `openrouter/free` | — | OpenRouter model name |
 | `ENVIRONMENT` | No | `development` | `production` | Enables HTTPS-only session cookies |

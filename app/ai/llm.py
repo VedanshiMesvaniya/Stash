@@ -1,10 +1,10 @@
 """
 llm.py
 Cloud LLM client: Groq (llama-3.1-8b-instant) as primary, NVIDIA NIM
-(meta/llama-3.3-70b-instruct) as second fallback, OpenRouter (openrouter/free)
-as third/last-resort fallback. All three speak the same OpenAI-style
-/chat/completions shape, so this is one small client with three base URLs,
-not three separate integrations.
+(nvidia/nvidia-nemotron-nano-9b-v2) as second fallback, OpenRouter
+(openrouter/free) as third/last-resort fallback. All three speak the same
+OpenAI-style /chat/completions shape, so this is one small client with
+three base URLs, not three separate integrations.
 
 Note: llama-3.3-70b-versatile was Groq's default here previously, but Groq
 returned model_not_found for it on this account (deprecated/removed access,
@@ -15,17 +15,26 @@ empty-output errors on the short structured calls this app makes (intent
 classification, extraction). Settled on llama-3.1-8b-instant: still free,
 still on Groq, genuinely non-reasoning, so no hidden-token surprises.
 
-Note: meta-llama/llama-3.3-70b-instruct:free (the original OpenRouter
+Note: meta-llama/llama-3.3-70b-instruct:free (the previous OpenRouter
 fallback) was pulled from OpenRouter's free tier entirely - free-model
 availability on OpenRouter rotates often and specific :free model IDs get
 retired without notice. Using openrouter/free, OpenRouter's own router
 that always picks whatever free model is currently available, so this
 fallback stops breaking every time one specific free model gets pulled.
 
-Added NVIDIA NIM (build.nvidia.com) as a middle tier between Groq and
-OpenRouter: free API key, no card required, OpenAI-compatible endpoint,
-and meta/llama-3.3-70b-instruct there is a stable non-reasoning model
-NVIDIA hosts directly (not subject to OpenRouter's free-tier churn).
+Note: meta/llama-3.3-70b-instruct (the original NVIDIA fallback pick) was
+also pulled from NVIDIA's catalog. Switched to an actual NVIDIA Nemotron
+model instead - nvidia/nvidia-nemotron-nano-9b-v2, a hybrid
+Transformer-Mamba reasoning model that NVIDIA hosts directly (not a
+third-party model NVIDIA is just re-serving, so less likely to get pulled
+the way the Llama re-host did). Nemotron models control reasoning via a
+system-prompt directive rather than a request param - this one uses
+"/no_think" to disable chain-of-thought. We send that by default (see
+_call_provider) given the json_validate_failed lesson learned from Groq's
+gpt-oss model: reasoning traces eating the token budget on short
+structured calls is exactly the failure mode this app can't afford. The
+model is still fully reasoning-capable if a future caller wants it -
+"/no_think" is just this app's default for its JSON-extraction workload.
 
 Why a 3-way fallback instead of just picking one: every free tier here
 has hit an outage or a pulled/deprecated model at some point during this
@@ -46,7 +55,7 @@ GROQ_MODEL = os.getenv("GROQ_MODEL", "llama-3.1-8b-instant")
 GROQ_BASE_URL = "https://api.groq.com/openai/v1/chat/completions"
 
 NVIDIA_API_KEY = os.getenv("NVIDIA_API_KEY", "")
-NVIDIA_MODEL = os.getenv("NVIDIA_MODEL", "meta/llama-3.3-70b-instruct")
+NVIDIA_MODEL = os.getenv("NVIDIA_MODEL", "nvidia/nvidia-nemotron-nano-9b-v2")
 NVIDIA_BASE_URL = "https://integrate.api.nvidia.com/v1/chat/completions"
 
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "")
@@ -110,6 +119,18 @@ def _call_provider(
     # room left to write their answer.
     if provider_name == "Groq" and model.startswith("openai/gpt-oss"):
         payload["reasoning_effort"] = "low"
+
+    # NVIDIA's Nemotron models control reasoning via a system-prompt
+    # directive rather than a request param - "/no_think" disables the
+    # hidden chain-of-thought pass. Given the exact same json_validate_failed
+    # failure mode we just hit with Groq's reasoning model, this app defaults
+    # reasoning OFF for Nemotron too: our JSON-extraction calls are short and
+    # structured, and letting the model spend the token budget on a
+    # reasoning trace first risks the same empty-output failure. Prepended
+    # as its own system message rather than merged into an existing one, so
+    # it's a no-op edit if the model ever changes.
+    if provider_name == "NVIDIA" and "nemotron" in model.lower():
+        payload["messages"] = [{"role": "system", "content": "/no_think"}] + list(messages)
 
     try:
         with httpx.Client(timeout=REQUEST_TIMEOUT_SECONDS) as client:
