@@ -4,6 +4,7 @@
 .agent/
 # Python
 venv/
+.venv/
 __pycache__/
 *.pyc
 app/database/private_accounts.py
