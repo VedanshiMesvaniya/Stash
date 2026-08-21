@@ -6,6 +6,7 @@ import SectionHeader from './components/ui/SectionHeader';
 import MetricCard from './components/ui/MetricCard';
 import TimelineItem from './components/ui/TimelineItem';
 import RecurringCard from './components/ui/RecurringCard';
+import ConfirmDialog from './components/ui/ConfirmDialog';
 import { PieViz, BarViz, TrendBarViz } from './components/charts/Charts';
 
 const NAV_ITEMS = [
@@ -773,9 +774,15 @@ function ChatPage({ session, onNavigate, onTouchData, refreshToken }) {
     setMessages((prev) => [...prev, { role, content }]);
   };
 
-  const clearChat = async () => {
+  const [clearChatConfirmOpen, setClearChatConfirmOpen] = useState(false);
+
+  const requestClearChat = () => {
     if (busy) return;
-    if (!window.confirm('Clear this entire chat? This cannot be undone.')) return;
+    setClearChatConfirmOpen(true);
+  };
+
+  const clearChat = async () => {
+    setClearChatConfirmOpen(false);
     setBusy(true);
     setError('');
     try {
@@ -941,7 +948,7 @@ function ChatPage({ session, onNavigate, onTouchData, refreshToken }) {
             <button
               type="button"
               className="btn btn-ghost btn-inline"
-              onClick={clearChat}
+              onClick={requestClearChat}
               disabled={busy || loading}
               aria-label="Clear chat"
             >
@@ -1105,6 +1112,16 @@ function ChatPage({ session, onNavigate, onTouchData, refreshToken }) {
           </button>
         </form>
       </div>
+
+      <ConfirmDialog
+        open={clearChatConfirmOpen}
+        title="Clear this chat?"
+        message="This removes the entire conversation. Your transactions, budgets, and other data are not affected. This cannot be undone."
+        confirmLabel="Clear chat"
+        danger
+        onConfirm={clearChat}
+        onCancel={() => setClearChatConfirmOpen(false)}
+      />
     </div>
   );
 }

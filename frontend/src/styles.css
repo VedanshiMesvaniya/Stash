@@ -267,8 +267,37 @@ h1, h2, h3, p { margin: 0; }
 .btn-ghost:hover { color: var(--on-surface); background: var(--surface-container-high); }
 .btn-danger { background: transparent; border-color: color-mix(in srgb, var(--error) 45%, transparent); color: var(--error); }
 .btn-danger:hover { background: color-mix(in srgb, var(--error) 12%, transparent); }
+.btn-danger-solid { background: var(--error); color: var(--error-container); }
+.btn-danger-solid:hover { filter: brightness(1.08); }
 .btn-inline { padding: 7px 10px; font-size: 12px; }
 .topbar .btn .material-symbols-rounded { font-size: 16px; }
+
+/* =========================================================================
+   Confirm dialog (themed replacement for window.confirm)
+   ========================================================================= */
+.confirm-dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-md);
+  background: color-mix(in srgb, var(--surface-dim) 72%, transparent);
+  backdrop-filter: blur(4px);
+}
+.confirm-dialog {
+  width: min(360px, 100%);
+  background: var(--surface-container-high);
+  border: 1px solid var(--outline-soft);
+  border-radius: var(--radius-lg);
+  padding: var(--space-md);
+  box-shadow: var(--shadow-lg);
+}
+.confirm-dialog-title { font-size: 18px; font-weight: 700; color: var(--on-surface); margin: 0 0 8px; }
+.confirm-dialog-message { font-size: 14px; color: var(--on-surface-variant); margin: 0 0 var(--space-md); line-height: 1.5; }
+.confirm-dialog-actions { display: flex; justify-content: flex-end; gap: var(--space-base); }
+.confirm-dialog-actions .btn { padding: 9px 16px; }
 
 /* =========================================================================
    Cards / grid / metrics
