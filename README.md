@@ -74,13 +74,13 @@ These accounts are seeded automatically on first startup.
 1. **Clone and navigate to the project**:
    ```bash
    git clone <repo-url>
-   cd Stash_multiuser_updated
+   cd Stash
    ```
 
 2. **Create Python virtual environment**:
    ```bash
-   python -m venv venv
-   venv\Scripts\activate
+   python -m venv .venv
+   .venv\Scripts\activate
    ```
 
 3. **Install backend dependencies**:
