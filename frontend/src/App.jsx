@@ -773,6 +773,25 @@ function ChatPage({ session, onNavigate, onTouchData, refreshToken }) {
     setMessages((prev) => [...prev, { role, content }]);
   };
 
+  const clearChat = async () => {
+    if (busy) return;
+    if (!window.confirm('Clear this entire chat? This cannot be undone.')) return;
+    setBusy(true);
+    setError('');
+    try {
+      await apiFetch('/api/chat/history', { method: 'DELETE', headers: {} });
+      setMessages([{ role: 'assistant', content: "Hi, I'm Stash. Tell me what happened today." }]);
+    } catch (err) {
+      if (err.status === 401) {
+        navigate('/login', true);
+        return;
+      }
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const sendMessage = async (overrideMessage) => {
     const message = (overrideMessage ?? input).trim();
     if (!message || busy) return;
@@ -915,7 +934,23 @@ function ChatPage({ session, onNavigate, onTouchData, refreshToken }) {
 
   return (
     <div className="chat-shell chat-page-shell">
-      <SectionHeader title="Chat with Stash" />
+      <SectionHeader
+        title="Chat with Stash"
+        action={
+          messages.length ? (
+            <button
+              type="button"
+              className="btn btn-ghost btn-inline"
+              onClick={clearChat}
+              disabled={busy || loading}
+              aria-label="Clear chat"
+            >
+              <span className="material-symbols-rounded" aria-hidden="true">delete_sweep</span>
+              Clear chat
+            </button>
+          ) : null
+        }
+      />
 
       <div className="chat-panel">
         <div className="chat-log">

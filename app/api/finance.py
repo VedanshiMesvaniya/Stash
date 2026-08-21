@@ -176,6 +176,16 @@ def delete_chat_message(message_id: int, request: Request, db: Session = Depends
     return {"ok": True}
 
 
+@router.delete("/chat/history")
+def clear_chat_history(request: Request, db: Session = Depends(get_db), user: models.User = Depends(get_current_user)):
+    """Wipes the whole chat transcript for this user. Does NOT touch
+    income/expenses/recurring/wallet data - see crud.clear_chat_history vs
+    crud.purge_user_data. The frontend confirms with the user before
+    calling this; there's no undo once it's committed."""
+    deleted = crud.clear_chat_history(db, user.id)
+    return {"ok": True, "deleted": deleted}
+
+
 @router.get("/pending")
 def pending_entries(request: Request, db: Session = Depends(get_db), user: models.User = Depends(get_current_user)):
     """Chat messages queued because both Groq and OpenRouter were down when

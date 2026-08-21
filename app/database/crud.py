@@ -395,6 +395,18 @@ def delete_chat_message_pair(db: Session, user_id: int, message_id: int) -> bool
     return True
 
 
+def clear_chat_history(db: Session, user_id: int) -> int:
+    """Deletes every ChatMessage row for this user - chat transcript only.
+    Unlike purge_user_data, this leaves income/expenses/recurring/wallet
+    data untouched; it's for the 'Clear chat' button, not account deletion.
+    Returns the number of rows deleted so callers can report it if useful."""
+    deleted = db.query(models.ChatMessage).filter(
+        models.ChatMessage.user_id == user_id
+    ).delete(synchronize_session=False)
+    db.commit()
+    return deleted
+
+
 # ---------- Pending entries (offline/rate-limit queue) ----------
 
 def create_pending_entry(db: Session, user_id: int, raw_message: str):
