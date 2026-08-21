@@ -124,9 +124,10 @@ Notes:
 ### AI and LLM
 
 - **app/ai/llm.py**
-  - Calls Groq (`openai/gpt-oss-120b`) first
-  - Falls back to OpenRouter if Groq fails/times out/rate-limits
-  - If both are down, raises `LLMUnavailableError` — caller queues to `pending_entries`
+  - Calls Groq (`llama-3.1-8b-instant`) first
+  - Falls back to NVIDIA NIM (`meta/llama-3.3-70b-instruct`) if Groq fails/times out/rate-limits
+  - Falls back to OpenRouter (`openrouter/free`) if NVIDIA also fails
+  - If all three are down, raises `LLMUnavailableError` — caller queues to `pending_entries`
   - In-memory rate-limit tracking to detect backoff signals
 
 - **app/ai/extractor.py**
@@ -231,7 +232,7 @@ That file is ignored by git so private credentials stay out of commits.
 - **LLM unavailable**: Message queued to `pending_entries`; background retry loop processes later
 - **Auth failures**: 401 redirects to login; signed cookie prevents forgery
 - **Rate limits**: Detected via response headers; circuit-breaks temporarily, queues to `pending_entries`
-- **Multi-provider fallback**: Groq fails → tries OpenRouter → queues to `pending_entries`
+- **Multi-provider fallback**: Groq fails → tries NVIDIA NIM → tries OpenRouter → queues to `pending_entries`
 - **User_id filtering**: Applied at database query layer (SQLAlchemy `filter_by(user_id=...)`)
 - **Offline transactions**: Browser IndexedDB queue survives restarts; syncs on reconnect
 

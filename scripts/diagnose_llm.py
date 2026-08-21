@@ -1,15 +1,16 @@
 """
 diagnose_llm.py
-Standalone diagnostic - calls Groq and OpenRouter directly (bypassing the
-app's fallback logic) and prints the real HTTP status + error body for each,
-so you can see exactly why both providers are failing instead of just
-getting the generic "both providers are busy" message the chat UI shows.
+Standalone diagnostic - calls Groq, NVIDIA NIM, and OpenRouter directly
+(bypassing the app's fallback logic) and prints the real HTTP status +
+error body for each, so you can see exactly why providers are failing
+instead of just getting the generic "AI providers are busy" message the
+chat UI shows.
 
 Usage:
-    GROQ_API_KEY=... OPENROUTER_API_KEY=... python3 scripts/diagnose_llm.py
+    GROQ_API_KEY=... NVIDIA_API_KEY=... OPENROUTER_API_KEY=... python3 scripts/diagnose_llm.py
 
     # Optionally override which model gets tested (defaults match app/ai/llm.py):
-    GROQ_MODEL=openai/gpt-oss-120b OPENROUTER_MODEL=openrouter/free python3 scripts/diagnose_llm.py
+    GROQ_MODEL=llama-3.1-8b-instant NVIDIA_MODEL=meta/llama-3.3-70b-instruct OPENROUTER_MODEL=openrouter/free python3 scripts/diagnose_llm.py
 
 If you're testing against Render's actual deployed config, pull the exact
 env vars from the Render dashboard (Environment tab) and export them
@@ -23,8 +24,12 @@ import sys
 import httpx
 
 GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
-GROQ_MODEL = os.getenv("GROQ_MODEL", "openai/gpt-oss-120b")
+GROQ_MODEL = os.getenv("GROQ_MODEL", "llama-3.1-8b-instant")
 GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
+
+NVIDIA_API_KEY = os.getenv("NVIDIA_API_KEY", "")
+NVIDIA_MODEL = os.getenv("NVIDIA_MODEL", "meta/llama-3.3-70b-instruct")
+NVIDIA_URL = "https://integrate.api.nvidia.com/v1/chat/completions"
 
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "")
 OPENROUTER_MODEL = os.getenv("OPENROUTER_MODEL", "openrouter/free")
@@ -74,6 +79,7 @@ def test_provider(name, url, api_key, model, extra_headers=None):
 
 def main():
     groq_ok = test_provider("GROQ", GROQ_URL, GROQ_API_KEY, GROQ_MODEL)
+    nvidia_ok = test_provider("NVIDIA NIM", NVIDIA_URL, NVIDIA_API_KEY, NVIDIA_MODEL)
     or_ok = test_provider(
         "OPENROUTER",
         OPENROUTER_URL,
@@ -87,10 +93,11 @@ def main():
 
     print(f"\n{'=' * 60}\nSUMMARY\n{'=' * 60}")
     print(f"Groq:       {'OK' if groq_ok else 'FAILING'}")
+    print(f"NVIDIA NIM: {'OK' if nvidia_ok else 'FAILING'}")
     print(f"OpenRouter: {'OK' if or_ok else 'FAILING'}")
 
-    if not groq_ok and not or_ok:
-        print("\nBoth providers failing - this matches the 'AI providers are busy' error users see.")
+    if not groq_ok and not nvidia_ok and not or_ok:
+        print("\nAll three providers failing - this matches the 'AI providers are busy' error users see.")
         sys.exit(1)
     sys.exit(0)
 

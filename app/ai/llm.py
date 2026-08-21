@@ -1,29 +1,38 @@
 """
 llm.py
-Cloud LLM client: Groq (openai/gpt-oss-120b) as primary, OpenRouter
-(openrouter/free) as fallback if Groq errors, times out, or rate-limits.
-Both speak the same OpenAI-style /chat/completions shape, so this is one
-small client with two base URLs, not two integrations.
+Cloud LLM client: Groq (llama-3.1-8b-instant) as primary, NVIDIA NIM
+(meta/llama-3.3-70b-instruct) as second fallback, OpenRouter (openrouter/free)
+as third/last-resort fallback. All three speak the same OpenAI-style
+/chat/completions shape, so this is one small client with three base URLs,
+not three separate integrations.
 
 Note: llama-3.3-70b-versatile was Groq's default here previously, but Groq
-deprecated it (announced 2026-06-17) along with llama-3.1-8b-instant.
-openai/gpt-oss-120b is Groq's recommended replacement - still $0 on Groq's
-free tier (rate-limited, not a paid model), same provider, no code changes
-needed beyond the model id.
+returned model_not_found for it on this account (deprecated/removed access,
+regardless of what Groq's general docs list). Tried openai/gpt-oss-120b
+next, but that's a reasoning model - it burns tokens on hidden
+chain-of-thought before writing JSON, which caused json_validate_failed /
+empty-output errors on the short structured calls this app makes (intent
+classification, extraction). Settled on llama-3.1-8b-instant: still free,
+still on Groq, genuinely non-reasoning, so no hidden-token surprises.
 
-Note: meta-llama/llama-3.3-70b-instruct:free (the previous OpenRouter
+Note: meta-llama/llama-3.3-70b-instruct:free (the original OpenRouter
 fallback) was pulled from OpenRouter's free tier entirely - free-model
 availability on OpenRouter rotates often and specific :free model IDs get
-retired without notice. Switched to openrouter/free, OpenRouter's own
-router that always picks whatever free model is currently available, so
-this fallback stops breaking every time one specific free model gets
-pulled. Still $0, same provider, same request shape.
+retired without notice. Using openrouter/free, OpenRouter's own router
+that always picks whatever free model is currently available, so this
+fallback stops breaking every time one specific free model gets pulled.
 
-Why a fallback instead of just picking one: Groq's free tier is generous
-but not infinite, and free APIs occasionally have outages. If both are
-down, callers should treat that as a real "unavailable" state (see
-LLMUnavailableError) rather than silently returning nothing - the chat
-parser uses that distinction to queue the message instead of losing it.
+Added NVIDIA NIM (build.nvidia.com) as a middle tier between Groq and
+OpenRouter: free API key, no card required, OpenAI-compatible endpoint,
+and meta/llama-3.3-70b-instruct there is a stable non-reasoning model
+NVIDIA hosts directly (not subject to OpenRouter's free-tier churn).
+
+Why a 3-way fallback instead of just picking one: every free tier here
+has hit an outage or a pulled/deprecated model at some point during this
+project. If all three are down, callers should treat that as a real
+"unavailable" state (see LLMUnavailableError) rather than silently
+returning nothing - the chat parser uses that distinction to queue the
+message instead of losing it.
 """
 
 from __future__ import annotations
@@ -33,8 +42,12 @@ import os
 import httpx
 
 GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
-GROQ_MODEL = os.getenv("GROQ_MODEL", "openai/gpt-oss-120b")
+GROQ_MODEL = os.getenv("GROQ_MODEL", "llama-3.1-8b-instant")
 GROQ_BASE_URL = "https://api.groq.com/openai/v1/chat/completions"
+
+NVIDIA_API_KEY = os.getenv("NVIDIA_API_KEY", "")
+NVIDIA_MODEL = os.getenv("NVIDIA_MODEL", "meta/llama-3.3-70b-instruct")
+NVIDIA_BASE_URL = "https://integrate.api.nvidia.com/v1/chat/completions"
 
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "")
 OPENROUTER_MODEL = os.getenv("OPENROUTER_MODEL", "openrouter/free")
@@ -138,19 +151,32 @@ def _chat_with_fallback(
     except LLMError as groq_error:
         try:
             return _call_provider(
-                base_url=OPENROUTER_BASE_URL,
-                api_key=OPENROUTER_API_KEY,
-                model=OPENROUTER_MODEL,
+                base_url=NVIDIA_BASE_URL,
+                api_key=NVIDIA_API_KEY,
+                model=NVIDIA_MODEL,
                 messages=messages,
                 temperature=temperature,
                 json_mode=json_mode,
                 max_tokens=max_tokens,
-                provider_name="OpenRouter",
+                provider_name="NVIDIA",
             )
-        except LLMError as openrouter_error:
-            raise LLMUnavailableError(
-                f"Groq failed ({groq_error}); OpenRouter fallback also failed ({openrouter_error})"
-            ) from openrouter_error
+        except LLMError as nvidia_error:
+            try:
+                return _call_provider(
+                    base_url=OPENROUTER_BASE_URL,
+                    api_key=OPENROUTER_API_KEY,
+                    model=OPENROUTER_MODEL,
+                    messages=messages,
+                    temperature=temperature,
+                    json_mode=json_mode,
+                    max_tokens=max_tokens,
+                    provider_name="OpenRouter",
+                )
+            except LLMError as openrouter_error:
+                raise LLMUnavailableError(
+                    f"Groq failed ({groq_error}); NVIDIA fallback also failed ({nvidia_error}); "
+                    f"OpenRouter fallback also failed ({openrouter_error})"
+                ) from openrouter_error
 
 
 def chat(
