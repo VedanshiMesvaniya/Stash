@@ -9,8 +9,8 @@ Stash is a FastAPI + React web application for tracking income, expenses, recurr
 ### Core functionality
 
 - **AI chat-based entry logging**: Natural language input ("spent 50 on groceries yesterday") → AI extracts transaction details
-- **Multi-user**:User can self-registered account, or seeded demo account is completely isolated by `user_id`; one member cannot see another's transactions
-- **Two ways to get an account**: self-registration with email verification (a 6-digit code sent via Gmail SMTP), or pre-seeded accounts via `app/database/seed.py`/CLI — see [User management](#user-management) below
+- **Multi-user**: Every family member, self-registered account, or seeded demo account is completely isolated by `user_id`; one member cannot see another's transactions
+- **Two ways to get an account**: self-registration with email verification (a 6-digit code sent via Gmail SMTP), or pre-seeded private accounts via `app/database/seed.py` (see [Private accounts](#private-accounts-local-development) below)
 - **Transaction management**:
   - Timeline view with edit/delete controls
   - Chat-based transaction correction and deletion (single or multi-select)
@@ -54,7 +54,7 @@ Personal or family accounts belong in:
 app/database/private_accounts.py
 ```
 
-This file is gitignored on purpose so you can keep your own usernames and passwords out of the repo. It's generated/updated automatically by `scripts/manage_users.py add` (see [User management](#user-management)), or you can hand-write it. Format is a list of `(username, password, display_name)` tuples:
+This file is gitignored on purpose so you can keep your own usernames and passwords out of the repo. Hand-write it yourself in the format below — user management is handled privately and isn't part of this repo.
 
 ```python
 PRIVATE_ACCOUNTS = [
@@ -214,35 +214,9 @@ frontend/
     styles.css            Global styles
     components/           React components (charts, UI widgets, etc.)
   index.html              HTML template
-scripts/
-  manage_users.py         CLI tool to add/delete/list users, or delete-all-except one
-  reset_password.py       CLI tool to reset a user's password
 .github/
   workflows/ci.yml        GitHub Actions CI (backend smoke tests + frontend build check)
 ```
-
-## User management
-
-Manage users via the CLI tool:
-
-```bash
-# List all users
-python -m scripts.manage_users list
-
-# Add a new user
-python -m scripts.manage_users add alice "MyStrongPassword" "Alice"
-
-# Delete a user (removes all their transactions, chats, recurring rules)
-python -m scripts.manage_users delete alice
-
-# Delete every user except one (e.g. to reset test accounts, keeping guest)
-python -m scripts.manage_users delete-all-except guest
-
-# Reset password for an existing user
-python -m scripts.reset_password alice NewPassword123
-```
-
-When you add a user locally, the tool also updates `app/database/private_accounts.py` (if it exists) so the account is seeded on next app startup. Users can also create their own account without the CLI at all, via self-registration on the login page.
 
 ## API endpoints
 

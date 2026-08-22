@@ -8,6 +8,8 @@ venv/
 __pycache__/
 *.pyc
 app/database/private_accounts.py
+scripts/manage_users.py
+scripts/reset_password.py
 
 # Local SQLite data + generated files (don't ship personal finance data)
 data/*.db

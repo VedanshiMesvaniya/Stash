@@ -6,9 +6,9 @@ via seed.py, and handed out as username+password to each family member.
 That was a specific requirement, not an oversight: fewer moving parts,
 nobody can create an account they weren't given.
 
-If a password needs resetting, do it with the CLI tool
-(scripts/reset_password.py) which requires filesystem/shell access to the
-server, not a network-facing password anyone could find in the repo.
+If a password needs resetting for a private/seeded account, that's handled
+with a private, non-repo CLI tool that requires filesystem/shell access to
+the server - not a network-facing password anyone could find in the repo.
 """
 
 import time
