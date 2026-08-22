@@ -257,7 +257,7 @@ When you add a user locally, the tool also updates `app/database/private_account
 - `POST /api/settings/export/{format}` — Export as csv/excel/pdf
 - `POST /api/settings/offline-sync` — Reconcile browser IndexedDB queue
 - `POST /api/backup` — Create database backup (SQLite only)
-- `GET /api/restore` — Restore from backup (SQLite only)
+- `POST /api/backup/restore` — Restore from a backup by filename (SQLite only; requires the account's current password, and only accepts filenames already known to `GET /api/backup/list` — no arbitrary paths)
 
 ## Architecture
 

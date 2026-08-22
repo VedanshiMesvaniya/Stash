@@ -98,7 +98,7 @@ Notes:
   - POST `/api/password/change` — Change password
   - POST `/api/settings/export/{format}` — Export as CSV/Excel/PDF
   - POST `/api/settings/offline-sync` — Reconcile browser IndexedDB queue
-  - POST `/api/backup`, GET `/api/restore` — Backup/restore (SQLite only)
+  - POST `/api/backup`, POST `/api/backup/restore` — Backup/restore (SQLite only; restore requires re-entering the account password and only accepts known backup filenames)
 
 ### Database layer
 

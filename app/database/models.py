@@ -37,6 +37,19 @@ class User(Base):
     biometric_enabled = Column(Boolean, nullable=False, default=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
+    # Brute-force protection for username+password login. Stored as a plain
+    # counter + epoch-seconds float (matching the session's login_at style)
+    # rather than DateTime, so the same column type works unmodified on both
+    # SQLite and Postgres. See auth/auth.py attempt_login for the logic.
+    failed_login_attempts = Column(Integer, nullable=False, default=0)
+    login_locked_until = Column(Float, nullable=True)
+
+    # Same idea for the app-lock PIN (settings/lock screen), which is a much
+    # shorter secret and needs its own independent counter - see
+    # api/auth.py api_unlock.
+    failed_pin_attempts = Column(Integer, nullable=False, default=0)
+    pin_locked_until = Column(Float, nullable=True)
+
 
 class Income(Base):
     __tablename__ = "income"

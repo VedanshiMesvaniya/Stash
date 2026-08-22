@@ -44,3 +44,17 @@ def run_migrations():
             "auto_post BOOLEAN NOT NULL DEFAULT TRUE",
         )
         _add_column_if_missing(connection, "chat_messages", "report_entries", "report_entries VARCHAR")
+        # Brute-force lockout counters for login + app-lock PIN (see
+        # models.User and auth/auth.py). FLOAT for the *_locked_until
+        # columns keeps them dialect-agnostic (epoch seconds), same trick
+        # session.py already uses for login_at.
+        _add_column_if_missing(
+            connection, "users", "failed_login_attempts",
+            "failed_login_attempts INTEGER NOT NULL DEFAULT 0",
+        )
+        _add_column_if_missing(connection, "users", "login_locked_until", "login_locked_until FLOAT")
+        _add_column_if_missing(
+            connection, "users", "failed_pin_attempts",
+            "failed_pin_attempts INTEGER NOT NULL DEFAULT 0",
+        )
+        _add_column_if_missing(connection, "users", "pin_locked_until", "pin_locked_until FLOAT")

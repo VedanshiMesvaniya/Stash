@@ -11,6 +11,8 @@ If a password needs resetting, do it with the CLI tool
 server, not a network-facing password anyone could find in the repo.
 """
 
+import time
+
 from fastapi import Request, HTTPException, status, Depends
 from sqlalchemy.orm import Session
 
@@ -20,14 +22,42 @@ from app.database import models
 from .password import verify_password
 from .session import is_authenticated, current_user_id
 
+# Brute-force protection: after this many wrong passwords in a row for an
+# account, lock that account out (independent of who's guessing, or from
+# where) for LOGIN_LOCKOUT_SECONDS. Bcrypt makes each guess slow, but that
+# alone doesn't stop a patient scripted attack with no attempt limit at all.
+LOGIN_MAX_ATTEMPTS = 5
+LOGIN_LOCKOUT_SECONDS = 15 * 60
 
-def attempt_login(db: Session, username: str, password: str) -> models.User | None:
+
+def attempt_login(db: Session, username: str, password: str) -> tuple[models.User | None, str | None]:
+    """Returns (user, lockout_message). On success: (user, None). On a wrong
+    password with attempts remaining, or on an unknown username: (None, None)
+    - same generic "incorrect username or password" response either way, so
+    this doesn't leak which usernames exist. Once an account is locked out,
+    returns (None, message) with a friendly wait-time regardless of whether
+    the password given this time was actually correct, since accepting a
+    correct password mid-lockout would defeat the point."""
     user = crud.get_user_by_username(db, username)
     if not user:
-        return None
+        return None, None
+
+    now = time.time()
+    if user.login_locked_until and now < user.login_locked_until:
+        minutes = max(1, int((user.login_locked_until - now) // 60) + 1)
+        return None, f"Too many failed attempts. Try again in {minutes} minute(s)."
+
     if not verify_password(password, user.password_hash):
-        return None
-    return user
+        user.failed_login_attempts = (user.failed_login_attempts or 0) + 1
+        if user.failed_login_attempts >= LOGIN_MAX_ATTEMPTS:
+            user.login_locked_until = now + LOGIN_LOCKOUT_SECONDS
+        db.commit()
+        return None, None
+
+    user.failed_login_attempts = 0
+    user.login_locked_until = None
+    db.commit()
+    return user, None
 
 
 def require_auth(request: Request):

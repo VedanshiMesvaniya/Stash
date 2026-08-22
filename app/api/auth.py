@@ -6,6 +6,8 @@ seed.py (see that file), and login is by username + password, not a single
 shared app password.
 """
 
+import time
+
 from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
@@ -16,6 +18,12 @@ from app.auth.password import verify_password, hash_password
 from app.auth.session import login_session, logout_session, is_authenticated, current_user_id
 from app.database import crud
 from app.services import currency as currency_service
+
+# Same brute-force protection as login (see auth/auth.py), applied to the
+# app-lock PIN independently since it's a much shorter secret and has its
+# own attempt counter on the User row.
+PIN_MAX_ATTEMPTS = 5
+PIN_LOCKOUT_SECONDS = 15 * 60
 
 router = APIRouter()
 
@@ -74,11 +82,11 @@ def session_state(request: Request, db: Session = Depends(get_db)):
 
 @router.post("/api/auth/login")
 def api_login(payload: LoginPayload, request: Request, db: Session = Depends(get_db)):
-    user = auth_logic.attempt_login(db, payload.username, payload.password)
+    user, lockout_message = auth_logic.attempt_login(db, payload.username, payload.password)
     if user:
         login_session(request, user.id, user.username)
         return {"ok": True}
-    return {"ok": False, "error": "Incorrect username or password"}
+    return {"ok": False, "error": lockout_message or "Incorrect username or password"}
 
 
 @router.post("/api/auth/logout")
@@ -96,8 +104,22 @@ def api_unlock(payload: UnlockPayload, request: Request, db: Session = Depends(g
     user = crud.get_user(db, current_user_id(request))
     if not user or not user.lock_pin_hash:
         return {"ok": False, "error": "No app lock configured"}
+
+    now = time.time()
+    if user.pin_locked_until and now < user.pin_locked_until:
+        minutes = max(1, int((user.pin_locked_until - now) // 60) + 1)
+        return {"ok": False, "error": f"Too many failed attempts. Try again in {minutes} minute(s)."}
+
     if verify_password(payload.pin, user.lock_pin_hash):
+        user.failed_pin_attempts = 0
+        user.pin_locked_until = None
+        db.commit()
         return {"ok": True}
+
+    user.failed_pin_attempts = (user.failed_pin_attempts or 0) + 1
+    if user.failed_pin_attempts >= PIN_MAX_ATTEMPTS:
+        user.pin_locked_until = now + PIN_LOCKOUT_SECONDS
+    db.commit()
     return {"ok": False, "error": "Incorrect PIN"}
 
 
