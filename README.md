@@ -9,38 +9,42 @@ Stash is a FastAPI + React web application for tracking income, expenses, recurr
 ### Core functionality
 
 - **AI chat-based entry logging**: Natural language input ("spent 50 on groceries yesterday") → AI extracts transaction details
-- **Multi-user families**: Up to 5 family members, completely isolated by user_id; one member cannot see another's transactions
+- **Multi-user**: Every family member, self-registered account, or seeded demo account is completely isolated by `user_id`; one member cannot see another's transactions
+- **Two ways to get an account**: self-registration with email verification (a 6-digit code sent via Gmail SMTP), or pre-seeded accounts via `app/database/seed.py`/CLI — see [User management](#user-management) below
 - **Transaction management**:
   - Timeline view with edit/delete controls
-  - Chat-based transaction correction
-  - Transaction history with full description and metadata
-- **Recurring transactions**: Set-and-forget income/expense rules with auto-posting
+  - Chat-based transaction correction and deletion (single or multi-select)
+  - Cash vs. online wallet split, and per-category monthly budgets
+- **Recurring transactions**: Set-and-forget income/expense rules with auto-posting, or manual confirm-to-post for schedules like salary/rent
 - **Smart dashboard**:
   - Current balance and monthly summary
   - Top spending categories
   - Low-balance alerts
   - Actionable financial insights
-- **Reports**: Monthly breakdowns by category, daily trend charts, income vs. expense trends
+- **Reports**: Monthly breakdowns by category, daily/period trend charts, income vs. expense trends
 - **Export formats**: CSV, Excel (XLSX), PDF—all scoped per user
-- **Backup/restore**: Full database snapshots (local SQLite only; use Neon's branching on production)
+- **Backup/restore**: Full database snapshots (local SQLite only; use Neon's branching on production); restoring requires re-entering the account password and only accepts filenames the app already knows about
 - **Multi-currency support**: Live exchange rates, display in INR/USD/GBP/JPY/CNY/KRW/EUR
 
 ### Technical resilience
 
-- **Multi-LLM fallback**: Groq → OpenRouter → pending queue (automatic retry)
+- **Multi-LLM fallback**: Groq → NVIDIA NIM → OpenRouter → pending queue (automatic retry)
 - **Offline-first transactions**: Browser IndexedDB queue, syncs on reconnect
-- **Pending entry queue**: If both LLM providers are down, messages wait and retry every 5 minutes
+- **Pending entry queue**: If every LLM provider is down, messages wait and retry every 5 minutes
 - **Signed session cookies**: 30-day expiry, tamper-proof, HTTPS-only in production
+- **Brute-force lockout**: Login, the app-lock PIN, and registration codes all lock out after repeated wrong attempts
 - **Database flexibility**: SQLite locally, PostgreSQL (Neon) in production
 
 ## Demo login
 
 Test the live demo at https://stash-azsp.onrender.com:
 
-- **Username**: `guest`
+- **Email or username**: `guest`
 - **Password**: `12345`
 
 This account has pre-loaded sample data. The password is never stored in the browser—only a signed session cookie is maintained.
+
+Alternatively, use "Don't have an account? Create one" on the login page to self-register — enter an email, username, and password, and confirm the 6-digit code sent to that email.
 
 ## Private accounts (local development)
 
@@ -50,12 +54,12 @@ Personal or family accounts belong in:
 app/database/private_accounts.py
 ```
 
-This file is gitignored on purpose so you can keep your own usernames and passwords out of the repo. Format:
+This file is gitignored on purpose so you can keep your own usernames and passwords out of the repo. It's generated/updated automatically by `scripts/manage_users.py add` (see [User management](#user-management)), or you can hand-write it. Format is a list of `(username, password, display_name)` tuples:
 
 ```python
 PRIVATE_ACCOUNTS = [
-    {"username": "alice", "password": "AlicePass123", "name": "Alice"},
-    {"username": "bob", "password": "BobPass456", "name": "Bob"},
+    ("alice", "AlicePass123", "Alice"),
+    ("bob", "BobPass456", "Bob"),
 ]
 ```
 
@@ -80,7 +84,10 @@ These accounts are seeded automatically on first startup.
 2. **Create Python virtual environment**:
    ```bash
    python -m venv .venv
+   # Windows:
    .venv\Scripts\activate
+   # macOS/Linux:
+   source .venv/bin/activate
    ```
 
 3. **Install backend dependencies**:
@@ -90,7 +97,7 @@ These accounts are seeded automatically on first startup.
 
 4. **Configure environment**:
    ```bash
-   copy .env.example .env
+   cp .env.example .env    # Windows: copy .env.example .env
    # Then edit .env with your values (see table below)
    ```
 
@@ -100,23 +107,27 @@ These accounts are seeded automatically on first startup.
    # Copy the output and paste into .env as SECRET_KEY=...
    ```
 
-6. **Install frontend dependencies and build**:
+6. **(Optional) Set up Gmail SMTP** if you want self-registration to work locally — see the Environment variables table below for `SMTP_*` vars, and [DEPLOY.md](DEPLOY.md) for the App Password setup steps. Without it, registration's send-code step returns a clear error instead of failing silently.
+
+7. **Install frontend dependencies and build**:
    ```bash
    npm install
-   npm run build
-   # Vite output lands in app/static/react/ automatically
+   npx vite build
+   # Vite output lands in app/static/react/ automatically. Always run
+   # this from the repo root, not `cd frontend && npm run build` - see
+   # DEPLOY.md for why.
    ```
 
-7. **Start the backend**:
+8. **Start the backend**:
    ```bash
    uvicorn app.main:app --reload
    ```
 
-8. **Open in browser**:
+9. **Open in browser**:
    ```
    http://127.0.0.1:8000/login
    ```
-   Sign in with `guest` / `12345` or your private account credentials.
+   Sign in with `guest` / `12345`, your own private account credentials, or self-register a new account.
 
 ## Environment variables
 
@@ -135,6 +146,14 @@ Copy `.env.example` to `.env` and fill in the values below. All keys are optiona
 | `ENVIRONMENT` | No | `development` | Set to `production` to enable HTTPS-only session cookies |
 | `PENDING_RETRY_INTERVAL_SECONDS` | No | `300` | How often to retry queued LLM messages (seconds) |
 | `APP_PUBLIC_URL` | No | `http://127.0.0.1:8000` | Used for outbound headers; local default is fine during dev |
+| `SMTP_HOST` | No | `smtp.gmail.com` | SMTP server for registration verification emails |
+| `SMTP_PORT` | No | `587` | STARTTLS port |
+| `SMTP_USERNAME` | No (required for registration) | — | Full sending email address, e.g. `noreplystash2026@gmail.com` |
+| `SMTP_PASSWORD` | No (required for registration) | — | A Google **App Password** (needs 2-Step Verification on that account) — NOT your normal Gmail password. Generate at https://myaccount.google.com/apppasswords |
+| `SMTP_FROM_EMAIL` | No | (same as `SMTP_USERNAME`) | "From" address shown to recipients |
+| `SMTP_FROM_NAME` | No | `Stash` | "From" display name shown to recipients |
+
+Without `SMTP_USERNAME`/`SMTP_PASSWORD` set, self-registration's send-code step returns a clear "email sending isn't configured" error instead of failing silently — everything else in the app works fine without them.
 
 ### LLM setup notes
 
@@ -155,20 +174,21 @@ app/
     response.py           QA prompt handler for non-transaction questions
     prompts.py            Centralized prompt templates
   api/
-    auth.py               POST /login, /register, /logout, /session
-    finance.py            POST /api/chat, GET /api/timeline, PUT /api/transactions/{id}, etc.
-    recurring.py          Recurring transaction CRUD and sync
-    reports.py            Monthly reports and category breakdowns
-    settings.py           User settings, export, offline-sync, backup/restore
+    auth.py               POST /login, /register/send-code, /register/verify-code, /logout, GET /session, /unlock, /lock-settings
+    finance.py            Chat, timeline, dashboard, wallets, budgets, transaction edit/delete
+    recurring.py          Recurring transaction CRUD, sync, and manual confirm-to-post
+    reports.py            Monthly reports, trends, and CSV/Excel/PDF export
+    settings.py           User profile + password change, offline-sync, backup/restore
     routes.py             Router aggregation
   auth/
-    auth.py               Session helpers
+    auth.py               Login attempt logic (incl. brute-force lockout), session dependency
+    registration.py       Self-registration: OTP generation, cooldown, attempt lockout, account creation
     password.py           bcrypt password hashing
     session.py            Session validation and user extraction
   database/
-    models.py             SQLAlchemy ORM (User, Income, Expense, etc.)
+    models.py             SQLAlchemy ORM (User, Income, Expense, PendingRegistration, etc.)
     database.py           Engine, session factory, migration runner
-    crud.py               CRUD queries (all scoped by user_id)
+    crud.py                CRUD queries (all scoped by user_id)
     seed.py               Default categories and accounts
     migrations.py         SQL schema
     private_accounts.py   Local-only user accounts (gitignored)
@@ -179,7 +199,8 @@ app/
     export.py             CSV, Excel, PDF export
     sync.py               Offline queue reconciliation
     currency.py           Exchange rate lookups and formatting
-    backup.py             Database backup/restore helpers
+    backup.py             Database backup/restore helpers (path-traversal safe)
+    email_service.py      Gmail SMTP sender for registration verification codes
     notifications.py      Low-balance alert checks
   static/
     react/                Vite-built React app (app/static/react/)
@@ -187,15 +208,17 @@ app/
     manifest.json         PWA manifest
 frontend/
   src/
-    App.jsx               React app root
+    App.jsx               React app root (incl. Login/Register/Verify auth flow)
     main.jsx              React entry point
     api.js                API fetch wrapper
     styles.css            Global styles
     components/           React components (charts, UI widgets, etc.)
   index.html              HTML template
 scripts/
-  manage_users.py         CLI tool to add/delete/list users
+  manage_users.py         CLI tool to add/delete/list users, or delete-all-except one
   reset_password.py       CLI tool to reset a user's password
+.github/
+  workflows/ci.yml        GitHub Actions CI (backend smoke tests + frontend build check)
 ```
 
 ## User management
@@ -212,53 +235,67 @@ python -m scripts.manage_users add alice "MyStrongPassword" "Alice"
 # Delete a user (removes all their transactions, chats, recurring rules)
 python -m scripts.manage_users delete alice
 
+# Delete every user except one (e.g. to reset test accounts, keeping guest)
+python -m scripts.manage_users delete-all-except guest
+
 # Reset password for an existing user
 python -m scripts.reset_password alice NewPassword123
 ```
 
-When you add a user locally, the tool also updates `app/database/private_accounts.py` (if it exists) so the account is seeded on next app startup.
+When you add a user locally, the tool also updates `app/database/private_accounts.py` (if it exists) so the account is seeded on next app startup. Users can also create their own account without the CLI at all, via self-registration on the login page.
 
 ## API endpoints
 
-### Authentication
+### Authentication (`/api/auth`)
 
-- `POST /api/auth/login` — Email or username + password → signed session cookie
+- `POST /api/auth/login` — Email or username + password → signed session cookie (locks out after 5 wrong attempts)
 - `POST /api/auth/register/send-code` — Email + username + password + confirm_password → emails a 6-digit verification code via Gmail SMTP
-- `POST /api/auth/register/verify-code` — Email + code → creates the account and logs in, if the code is correct
+- `POST /api/auth/register/verify-code` — Email + code → creates the account and logs in, if the code is correct (locks out after 5 wrong codes)
 - `POST /api/auth/logout` — Clears session cookie
 - `GET /api/auth/session` — Returns current logged-in user info
+- `POST /api/auth/unlock` — Check the app-lock PIN (locks out after 5 wrong attempts)
+- `POST /api/auth/lock-settings` — Enable/disable app lock, biometric flag, and set/clear the PIN
 
-### Finance (`/api/finance`)
+### Finance (`/api`)
 
 - `POST /api/chat` — Send user message; AI parses and returns structured response + transactions
+- `POST /api/chat/confirm-correction` — Confirm an amount correction the chat flow proposed
+- `POST /api/chat/confirm-delete` — Confirm deleting one or more transactions the chat flow proposed
 - `GET /api/chat/history` — Chat transcript, including chart data (`reportEntries`) for report replies
 - `DELETE /api/chat/message/{id}` — Edit-and-resend: deletes a user message + its assistant reply
-- `GET /api/timeline` — Get transaction history (paginated, scoped to current user)
-- `GET /api/dashboard` — Get balance, monthly summary, smart suggestions
-- `PUT /api/transactions/{id}` — Edit existing transaction
-- `DELETE /api/transactions/{id}` — Delete transaction
+- `DELETE /api/chat/history` — Clears the whole chat transcript (does not touch transaction data)
+- `GET /api/pending` — Chat messages queued because every LLM provider was down when sent
+- `GET /api/dashboard` — Balance, monthly summary, smart suggestions (also catches up any due auto-post recurring schedules)
+- `GET /api/wallets` — Cash vs. online running balances
+- `GET /api/budgets` / `POST /api/budgets` — Per-category monthly spending limits
+- `GET /api/timeline` — Transaction history (by month, or `?all=true` for the last 200)
+- `PUT /api/transactions/{type}/{id}` — Edit an existing income/expense transaction
+- `DELETE /api/transactions/{type}/{id}` — Delete a transaction
 
 ### Recurring (`/api/recurring`)
 
-- `GET /api/recurring` — List recurring transaction rules
+- `GET /api/recurring` — List recurring transaction rules (also syncs any due auto-post schedules first)
 - `POST /api/recurring` — Create new rule
 - `PUT /api/recurring/{id}` — Edit rule
-- `DELETE /api/recurring/{id}` — Delete rule
+- `POST /api/recurring/{id}/disable` — Deactivate a rule (there's no hard delete — disabling keeps history intact)
 - `POST /api/recurring/sync` — Manually trigger auto-posting
+- `GET /api/recurring/due` — Manual (non-auto-post) schedules waiting for the user to confirm, e.g. salary/rent
+- `POST /api/recurring/{id}/confirm` — Confirm posting a manual schedule for this cycle
 
-### Reports (`/api/reports`)
+### Reports & export (`/api`)
 
-- `GET /api/reports/months` — List available month/year pairs
-- `GET /api/reports/month/{year}/{month}` — Category breakdown and daily trends
+- `GET /api/reports` — Full monthly report (category breakdown, etc.)
+- `GET /api/reports/trend` — Income vs. expense trend over a period
+- `GET /api/reports/months` — List available month/year pairs with data
+- `GET /api/export/csv` / `GET /api/export/excel` / `GET /api/export/pdf` — Download a full transaction export
 
-### Settings (`/api/settings`)
+### Settings (`/api`)
 
-- `GET /api/settings` — User profile (currency, preferences, theme)
-- `PUT /api/settings` — Update profile
-- `POST /api/password/change` — Change password (requires old password)
-- `POST /api/settings/export/{format}` — Export as csv/excel/pdf
-- `POST /api/settings/offline-sync` — Reconcile browser IndexedDB queue
+- `GET /api/settings` — User profile (currency, preferences, theme, lock status)
+- `PUT /api/settings` — Update profile; also handles username changes and password changes (pass `old_password` + `new_password`)
+- `POST /api/sync` — Reconcile the browser's offline IndexedDB queue
 - `POST /api/backup` — Create database backup (SQLite only)
+- `GET /api/backup/list` — List available backup filenames
 - `POST /api/backup/restore` — Restore from a backup by filename (SQLite only; requires the account's current password, and only accepts filenames already known to `GET /api/backup/list` — no arbitrary paths)
 
 ## CI/CD
