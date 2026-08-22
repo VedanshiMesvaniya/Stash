@@ -30,15 +30,17 @@ LOGIN_MAX_ATTEMPTS = 5
 LOGIN_LOCKOUT_SECONDS = 15 * 60
 
 
-def attempt_login(db: Session, username: str, password: str) -> tuple[models.User | None, str | None]:
+def attempt_login(db: Session, identifier: str, password: str) -> tuple[models.User | None, str | None]:
     """Returns (user, lockout_message). On success: (user, None). On a wrong
-    password with attempts remaining, or on an unknown username: (None, None)
-    - same generic "incorrect username or password" response either way, so
-    this doesn't leak which usernames exist. Once an account is locked out,
-    returns (None, message) with a friendly wait-time regardless of whether
-    the password given this time was actually correct, since accepting a
-    correct password mid-lockout would defeat the point."""
-    user = crud.get_user_by_username(db, username)
+    password with attempts remaining, or on an unknown identifier: (None, None)
+    - same generic "incorrect email/username or password" response either
+    way, so this doesn't leak which accounts exist. `identifier` may be a
+    username (legacy/seeded accounts) or an email (self-registered accounts
+    always have one) - see crud.get_user_by_identifier. Once an account is
+    locked out, returns (None, message) with a friendly wait-time regardless
+    of whether the password given this time was actually correct, since
+    accepting a correct password mid-lockout would defeat the point."""
+    user = crud.get_user_by_identifier(db, identifier)
     if not user:
         return None, None
 

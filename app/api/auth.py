@@ -1,9 +1,11 @@
 """
 api/auth.py
-Login, logout, and JSON session helpers for the React app. There is
-deliberately NO first-run/setup flow anymore - accounts are pre-created via
-seed.py (see that file), and login is by username + password, not a single
-shared app password.
+Login, logout, registration, and JSON session helpers for the React app.
+Accounts can come from two places: pre-seeded via app/database/seed.py
+(family/demo accounts, username + password only), or self-registered via
+/api/auth/register/send-code + /register/verify-code (email verified via a
+Brevo-sent 6-digit code before the account is actually created - see
+auth/registration.py). Login accepts either a username or an email.
 """
 
 import time
@@ -14,6 +16,7 @@ from sqlalchemy.orm import Session
 
 from app.database.database import get_db
 from app.auth import auth as auth_logic
+from app.auth import registration as registration_logic
 from app.auth.password import verify_password, hash_password
 from app.auth.session import login_session, logout_session, is_authenticated, current_user_id
 from app.database import crud
@@ -39,8 +42,24 @@ def _normalize_theme(theme: str | None) -> str:
 
 
 class LoginPayload(BaseModel):
+    # Accepts either a username (legacy/seeded accounts) or an email
+    # (self-registered accounts always have one) - see
+    # crud.get_user_by_identifier. Field name kept as `username` so it still
+    # lines up with autofill/password-manager expectations on the frontend.
     username: str
     password: str
+
+
+class RegisterSendCodePayload(BaseModel):
+    email: str
+    username: str
+    password: str
+    confirm_password: str
+
+
+class RegisterVerifyPayload(BaseModel):
+    email: str
+    code: str
 
 
 class UnlockPayload(BaseModel):
@@ -63,6 +82,7 @@ def session_state(request: Request, db: Session = Depends(get_db)):
         "authenticated": bool(user),
         "first_run": False,
         "username": user.username if user else None,
+        "email": user.email if user else None,
         "display_name": user.display_name if user else None,
         "settings": {
             "theme": _normalize_theme(user.theme if user else "mist"),
@@ -87,6 +107,23 @@ def api_login(payload: LoginPayload, request: Request, db: Session = Depends(get
         login_session(request, user.id, user.username)
         return {"ok": True}
     return {"ok": False, "error": lockout_message or "Incorrect username or password"}
+
+
+@router.post("/api/auth/register/send-code")
+def api_register_send_code(payload: RegisterSendCodePayload, db: Session = Depends(get_db)):
+    if payload.password != payload.confirm_password:
+        return {"ok": False, "error": "Passwords do not match."}
+    ok, error = registration_logic.start_registration(db, payload.email, payload.username, payload.password)
+    return {"ok": ok, "error": error}
+
+
+@router.post("/api/auth/register/verify-code")
+def api_register_verify_code(payload: RegisterVerifyPayload, request: Request, db: Session = Depends(get_db)):
+    user, error = registration_logic.complete_registration(db, payload.email, payload.code)
+    if user:
+        login_session(request, user.id, user.username)
+        return {"ok": True}
+    return {"ok": False, "error": error}
 
 
 @router.post("/api/auth/logout")

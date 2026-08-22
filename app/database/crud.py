@@ -77,6 +77,21 @@ def get_user_by_username(db: Session, username: str):
     return db.query(models.User).filter(func.lower(models.User.username) == username.lower().strip()).first()
 
 
+def get_user_by_email(db: Session, email: str):
+    return db.query(models.User).filter(func.lower(models.User.email) == email.lower().strip()).first()
+
+
+def get_user_by_identifier(db: Session, identifier: str):
+    """Login accepts either a username (legacy/seeded accounts) or an email
+    (self-registered accounts always have one). Try email first when it
+    looks like one, otherwise username first - either way, fall back to
+    the other so nobody is locked out by a guess about which they typed."""
+    identifier = (identifier or "").strip()
+    if "@" in identifier:
+        return get_user_by_email(db, identifier) or get_user_by_username(db, identifier)
+    return get_user_by_username(db, identifier) or get_user_by_email(db, identifier)
+
+
 # ---------- Income ----------
 
 def create_income(db: Session, user_id: int, amount: float, source: str, description: str, txn_date: date, payment_method: str | None = None):

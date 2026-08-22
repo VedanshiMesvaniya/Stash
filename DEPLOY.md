@@ -5,10 +5,13 @@ This guide covers deploying Stash to production with Render (hosting) and Neon (
 ## What's new in the multi-user update
 
 **Security**
-- Removed hardcoded recovery-password backdoor (`app/auth/nyx0908.py` is gone)
+- No hardcoded recovery password, master key, or auth bypass anywhere in the codebase
 - `SECRET_KEY` now fails app startup loudly if unset — no silent insecure default
-- Password reset is now a CLI-only tool (`scripts/reset_password.py`), not a network endpoint
+- Password reset is available via a CLI-only tool (`scripts/reset_password.py`) or self-service from Settings
 - Multi-user isolation: every transaction table scoped by `user_id` (one family member cannot see another's data)
+- Self-registration with email verification: anyone can create an account via a 6-digit code sent through Brevo, confirmed before the account exists; login now accepts either username or email
+- Login, the app-lock PIN, and registration codes all lock out after repeated wrong attempts
+- Backup restore only accepts known backup filenames (no path traversal) and requires re-entering the account password
 
 **Database**
 - Swapped SQLite-only for Postgres-or-SQLite: set `DATABASE_URL` to Neon connection string in production; leave blank locally for SQLite
@@ -95,12 +98,16 @@ Copy `.env.example` → `.env` locally, or set in Render dashboard for productio
    - Create an API key
    - Do a one-time $10 credit top-up (raises daily cap from 50 to 1,000 requests)
 
-5. **Configure multi-user accounts** (optional):
-   - Edit `app/database/seed.py` to customize family usernames/passwords
-   - This is your only chance before first deploy — once accounts exist, use CLI to change passwords:
+5. **Configure accounts** (optional):
+   - Users can self-register via email verification (see the Brevo setup step below) once deployed — no pre-configuration needed for that path.
+   - To also pre-seed accounts, edit `app/database/seed.py`'s `PUBLIC_ACCOUNTS` list before first deploy — once accounts exist, use the CLI to change passwords instead:
      ```bash
      python -m scripts.reset_password <username> <new_password>
      ```
+
+6. **Set up Brevo for registration emails** (required if you want self-registration to work):
+   - Go to https://app.brevo.com, create a free account, generate an API key under Settings → SMTP & API → API Keys
+   - Verify a sender address under Senders & IP → Senders
 
 ### Deploy steps
 
@@ -134,6 +141,9 @@ Copy `.env.example` → `.env` locally, or set in Render dashboard for productio
      - `OPENROUTER_MODEL` (if using OpenRouter)
      - `ENVIRONMENT` = `production`
      - `APP_PUBLIC_URL` = your Render URL (e.g., `https://stash.onrender.com`)
+     - `BREVO_API_KEY` (if you want self-registration to work)
+     - `BREVO_SENDER_EMAIL` (your verified Brevo sender)
+     - `BREVO_SENDER_NAME` (optional, defaults to "Stash")
 
 5. **Deploy**:
    - Click "Create Web Service"
@@ -148,13 +158,14 @@ Copy `.env.example` → `.env` locally, or set in Render dashboard for productio
 
 ### Multi-user family accounts
 
-By default, Stash seeds 5 family accounts on first deploy from `app/database/seed.py`:
+Two ways to create accounts:
+
+1. **Self-registration** (recommended for most users): visit the app and use "Don't have an account? Create one" — enter email, username, and password, confirm the 6-digit code sent to that email (via Brevo — see the Brevo setup below), and the account is created automatically.
+2. **Pre-seeded accounts**: edit `app/database/seed.py`'s `PUBLIC_ACCOUNTS` list (or the gitignored `app/database/private_accounts.py` for personal ones not meant for the public demo) before first deploy:
 
 ```python
-FAMILY_ACCOUNTS = [
-    {"username": "alice", "password": "alice_password_here", "name": "Alice"},
-    {"username": "bob", "password": "bob_password_here", "name": "Bob"},
-    # ... more accounts
+PUBLIC_ACCOUNTS = [
+    ("guest", "12345", "Guest Demo"),
 ]
 ```
 
@@ -162,10 +173,23 @@ FAMILY_ACCOUNTS = [
 
 ```bash
 # Via Render's shell:
-python -m scripts.reset_password alice NewPassword123
+python -m scripts.reset_password guest NewPassword123
 ```
 
-Each family member's transactions are completely isolated by `user_id` — no cross-contamination.
+Each account's transactions are completely isolated by `user_id` — no cross-contamination, regardless of which of the two methods above created the account.
+
+### Brevo setup (for self-registration email verification)
+
+Self-registration sends its 6-digit verification code via [Brevo](https://www.brevo.com) (formerly Sendinblue):
+
+1. Create a free Brevo account and go to **Settings → SMTP & API → API Keys** to generate a key
+2. Verify a sender address/domain under **Senders & IP → Senders** — Brevo will reject sends from an unverified sender
+3. Set these in your `.env` (locally) or Render environment variables (in production):
+   - `BREVO_API_KEY` — the key from step 1
+   - `BREVO_SENDER_EMAIL` — the verified address from step 2
+   - `BREVO_SENDER_NAME` — display name shown to recipients (defaults to "Stash")
+
+Without these set, registration's send-code step returns a clear error instead of silently failing.
 
 ### Custom user management (post-deployment)
 
@@ -198,6 +222,8 @@ Run these commands via Render's shell or SSH into your container.
 | Render cold start is too slow | This is normal on free tier (~30-60s after 15 min idle). Consider Render paid tier for production. |
 | Export files not generating | Ensure `exports/` directory exists and has write permissions. Check Render logs for errors. |
 | Offline queue not syncing | Browser must have IndexedDB enabled. Check browser DevTools → Application → Storage. |
+| Registration "Email sending isn't configured" | Set `BREVO_API_KEY` and `BREVO_SENDER_EMAIL` in your environment (see Brevo setup above). |
+| Registration email never arrives | Confirm the sender address is verified in Brevo (Senders & IP → Senders) — unverified senders get silently rejected by some providers, or check spam. |
 
 ## Known limits and considerations
 
