@@ -253,4 +253,5 @@ That file is ignored by git so private credentials stay out of commits.
 - Local development can use SQLite.
 - Production is designed for Postgres on Neon.
 - The demo instance is hosted at `https://stash-azsp.onrender.com`.
+- CI runs on GitHub Actions (`.github/workflows/ci.yml`) on every push/PR to `main` and `feature/add_new`; it validates the app but does not deploy — Render's own GitHub integration handles that separately. See the CI/CD section in [README.md](README.md) for what the two jobs (`backend`, `frontend`) actually check.
 

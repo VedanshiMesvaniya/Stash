@@ -217,6 +217,15 @@ python -m scripts.reset_password bob NewPass456
 
 Run these commands via Render's shell or SSH into your container.
 
+## CI/CD
+
+A GitHub Actions workflow (`.github/workflows/ci.yml`) runs on every push/PR to `main` and `feature/add_new`:
+
+- **backend** job — syntax-checks all Python files, imports `app.main`, runs migrations + seeding against a fresh DB, and smoke-tests login through the real routes.
+- **frontend** job — builds the frontend (`npx vite build` from repo root) and fails if the freshly built output doesn't match what's committed in `app/static/react/` — the automated version of the "did you forget to rebuild the frontend" mistake described above.
+
+This workflow only validates — it doesn't deploy anything itself. Render's own GitHub integration (step 2 above) handles deployment on push independently. To make CI actually gate what reaches `main`, add a branch protection rule: **Settings → Branches → Add rule** for `main` → check "Require status checks to pass before merging" → select the `backend` and `frontend` checks.
+
 ## Troubleshooting
 
 | Issue | Solution |

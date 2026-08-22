@@ -261,6 +261,15 @@ When you add a user locally, the tool also updates `app/database/private_account
 - `POST /api/backup` — Create database backup (SQLite only)
 - `POST /api/backup/restore` — Restore from a backup by filename (SQLite only; requires the account's current password, and only accepts filenames already known to `GET /api/backup/list` — no arbitrary paths)
 
+## CI/CD
+
+Every push and PR to `main` or `feature/add_new` runs `.github/workflows/ci.yml` on GitHub Actions, two jobs:
+
+- **backend** — syntax-checks every `.py` file, imports `app.main` (catches broken wiring, not just syntax errors), runs migrations + seeding against a fresh database, and smoke-tests login/session through the real routes with the seeded `guest` account.
+- **frontend** — `npm ci` + `npx vite build` from the repo root, then diffs the freshly built output against what's committed in `app/static/react/`. Fails if they differ, since that means `frontend/src` changed but the prebuilt bundle wasn't rebuilt and committed — Render never rebuilds it itself (see [DEPLOY.md](DEPLOY.md)).
+
+Nothing here deploys anything — Render already auto-deploys from GitHub on its own. The workflow only makes sure whatever reaches `main` actually starts up correctly. To make that enforced rather than advisory, add a branch protection rule on `main` (Settings → Branches → add rule → require status checks → select `backend` and `frontend`).
+
 ## Architecture
 
 See [ARCHITECTURE.md](ARCHITECTURE.md) for a detailed breakdown of the multi-user isolation model, LLM fallback logic, offline sync, and all service modules.
