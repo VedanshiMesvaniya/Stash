@@ -1,0 +1,138 @@
+name: CI
+
+# Runs on every push and PR touching feature/add_new or main. Doesn't deploy
+# anything - Render already auto-deploys from GitHub on its own. The point
+# of this workflow is to make sure that whatever reaches main actually
+# starts up correctly, so pair it with a branch protection rule on main
+# requiring this to pass before merge (Settings -> Branches -> add rule ->
+# require status checks -> select "backend" and "frontend").
+on:
+  push:
+    branches: [main, feature/add_new]
+  pull_request:
+    branches: [main, feature/add_new]
+
+jobs:
+  backend:
+    name: backend (syntax, import, migrations)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Syntax check every Python file
+        run: |
+          python3 - <<'EOF'
+          import ast
+          import pathlib
+          import sys
+
+          failed = False
+          for path in pathlib.Path(".").rglob("*.py"):
+              if any(part in {"node_modules", ".git", "venv", ".venv"} for part in path.parts):
+                  continue
+              try:
+                  ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+              except SyntaxError as e:
+                  print(f"SYNTAX ERROR in {path}: {e}")
+                  failed = True
+
+          if failed:
+              sys.exit(1)
+          print("All Python files parse OK.")
+          EOF
+
+      - name: Import the app (catches broken imports/wiring, not just syntax)
+        env:
+          SECRET_KEY: ci-only-secret-key-not-for-production
+        run: |
+          python3 -c "
+          import os
+          os.environ.pop('DATABASE_URL', None)
+          from app.main import app
+          paths = [r.path for r in app.routes]
+          assert '/api/auth/login' in paths, 'expected routes missing - app did not wire up correctly'
+          print(f'App imported OK, {len(paths)} routes registered.')
+          "
+
+      - name: Run migrations against a fresh database
+        env:
+          SECRET_KEY: ci-only-secret-key-not-for-production
+        run: |
+          python3 -c "
+          import os
+          os.environ.pop('DATABASE_URL', None)
+          from app.database import migrations, seed
+          from app.database.database import SessionLocal
+          migrations.run_migrations()
+          db = SessionLocal()
+          seed.seed_categories(db)
+          seed.seed_users(db)
+          db.close()
+          print('Migrations + seed ran cleanly on a fresh DB.')
+          "
+
+      - name: Smoke test core auth endpoints
+        env:
+          SECRET_KEY: ci-only-secret-key-not-for-production
+        run: |
+          python3 -c "
+          import os
+          os.environ.pop('DATABASE_URL', None)
+          from app.main import app
+          from fastapi.testclient import TestClient
+          client = TestClient(app)
+
+          r = client.get('/')
+          assert r.status_code == 200, f'root page failed: {r.status_code}'
+
+          r = client.post('/api/auth/login', json={'username': 'guest', 'password': '12345'})
+          assert r.json().get('ok') is True, f'seeded guest login failed: {r.json()}'
+
+          r = client.get('/api/auth/session')
+          assert r.json().get('authenticated') is True, 'session check failed after login'
+
+          print('Core auth smoke tests passed.')
+          "
+
+  frontend:
+    name: frontend (build + stale-bundle guard)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build frontend
+        # Always from the repo root, never `cd frontend && npm run build` -
+        # the real vite.config.js lives at the root (see DEPLOY.md).
+        run: npx vite build
+
+      - name: Fail if the committed bundle is stale
+        # app/static/react/ is a committed prebuilt bundle - Render never
+        # rebuilds it (see DEPLOY.md). If this step fails, it means
+        # frontend/src changed but the build in app/static/react wasn't
+        # regenerated and committed before pushing.
+        run: |
+          if ! git diff --quiet -- app/static/react; then
+            echo "::error::app/static/react is out of date with frontend/src."
+            echo "Run 'npx vite build' from the repo root and commit the result."
+            git diff --stat -- app/static/react
+            exit 1
+          fi
+          echo "Committed frontend bundle is up to date."
