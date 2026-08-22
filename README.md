@@ -9,7 +9,7 @@ Stash is a FastAPI + React web application for tracking income, expenses, recurr
 ### Core functionality
 
 - **AI chat-based entry logging**: Natural language input ("spent 50 on groceries yesterday") → AI extracts transaction details
-- **Multi-user**: Every family member, self-registered account, or seeded demo account is completely isolated by `user_id`; one member cannot see another's transactions
+- **Multi-user**:User can self-registered account, or seeded demo account is completely isolated by `user_id`; one member cannot see another's transactions
 - **Two ways to get an account**: self-registration with email verification (a 6-digit code sent via Gmail SMTP), or pre-seeded accounts via `app/database/seed.py`/CLI — see [User management](#user-management) below
 - **Transaction management**:
   - Timeline view with edit/delete controls
