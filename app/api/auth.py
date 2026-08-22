@@ -4,7 +4,7 @@ Login, logout, registration, and JSON session helpers for the React app.
 Accounts can come from two places: pre-seeded via app/database/seed.py
 (family/demo accounts, username + password only), or self-registered via
 /api/auth/register/send-code + /register/verify-code (email verified via a
-Brevo-sent 6-digit code before the account is actually created - see
+Gmail SMTP-sent 6-digit code before the account is actually created - see
 auth/registration.py). Login accepts either a username or an email.
 """
 

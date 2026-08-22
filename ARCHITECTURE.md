@@ -25,7 +25,7 @@ Every transaction table is scoped by `user_id`:
 - `income`, `expense`, `categories`, `recurring_transactions`, `recurring_postings`
 - `chat_messages`, `pending_entries`, all exports
 
-One user can never see, edit, or export another user's data. Accounts come from two places: family/demo accounts seeded at startup via `app/database/seed.py` (static username/password), and self-registered accounts created via `/api/auth/register/send-code` + `/register/verify-code`, which require confirming a 6-digit code emailed via Brevo before the account is actually created. Login accepts either a username or an email.
+One user can never see, edit, or export another user's data. Accounts come from two places: family/demo accounts seeded at startup via `app/database/seed.py` (static username/password), and self-registered accounts created via `/api/auth/register/send-code` + `/register/verify-code`, which require confirming a 6-digit code emailed via Gmail SMTP before the account is actually created. Login accepts either a username or an email.
 
 ## Data model
 
@@ -245,7 +245,7 @@ That file is ignored by git so private credentials stay out of commits.
 - **Password storage**: bcrypt hashing; original never stored; password resets via CLI-only tool or Settings (self-service, requires the current password)
 - **Brute-force lockout**: Login, the app-lock PIN, and registration verification codes each lock out after repeated wrong attempts (see `app/auth/auth.py`, `app/api/auth.py`, `app/auth/registration.py`)
 - **HTTPS-only cookies**: Enabled in production (`ENVIRONMENT=production`)
-- **Self-registration with email verification**: `/api/auth/register/send-code` + `/register/verify-code` let anyone create an account, but nothing is written to the `users` table until they prove control of the email address via a 6-digit code (bcrypt-hashed at rest, 10-minute expiry, 60s resend cooldown, 5-attempt lockout) sent through Brevo's transactional email API - see `app/auth/registration.py` and `app/services/email_service.py`. This is a deliberate move away from invite-only seeding for new accounts; seeded family/demo accounts from `seed.py` still work unchanged.
+- **Self-registration with email verification**: `/api/auth/register/send-code` + `/register/verify-code` let anyone create an account, but nothing is written to the `users` table until they prove control of the email address via a 6-digit code (bcrypt-hashed at rest, 10-minute expiry, 60s resend cooldown, 5-attempt lockout) sent via Gmail SMTP - see `app/auth/registration.py` and `app/services/email_service.py`. This is a deliberate move away from invite-only seeding for new accounts; seeded family/demo accounts from `seed.py` still work unchanged.
 - **Backup/restore hardening**: `POST /api/backup/restore` only accepts filenames already known to the backup listing (rejects path traversal) and requires re-entering the account password, since it overwrites the single shared database for every user.
 
 ## Deployment notes

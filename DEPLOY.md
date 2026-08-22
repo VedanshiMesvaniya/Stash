@@ -9,7 +9,7 @@ This guide covers deploying Stash to production with Render (hosting) and Neon (
 - `SECRET_KEY` now fails app startup loudly if unset — no silent insecure default
 - Password reset is available via a CLI-only tool (`scripts/reset_password.py`) or self-service from Settings
 - Multi-user isolation: every transaction table scoped by `user_id` (one family member cannot see another's data)
-- Self-registration with email verification: anyone can create an account via a 6-digit code sent through Brevo, confirmed before the account exists; login now accepts either username or email
+- Self-registration with email verification: anyone can create an account via a 6-digit code sent through Gmail SMTP, confirmed before the account exists; login now accepts either username or email
 - Login, the app-lock PIN, and registration codes all lock out after repeated wrong attempts
 - Backup restore only accepts known backup filenames (no path traversal) and requires re-entering the account password
 
@@ -99,13 +99,13 @@ Copy `.env.example` → `.env` locally, or set in Render dashboard for productio
    - Do a one-time $10 credit top-up (raises daily cap from 50 to 1,000 requests)
 
 5. **Configure accounts** (optional):
-   - Users can self-register via email verification (see the Brevo setup step below) once deployed — no pre-configuration needed for that path.
+   - Users can self-register via email verification (see the Gmail SMTP setup step below) once deployed — no pre-configuration needed for that path.
    - To also pre-seed accounts, edit `app/database/seed.py`'s `PUBLIC_ACCOUNTS` list before first deploy — once accounts exist, use the CLI to change passwords instead:
      ```bash
      python -m scripts.reset_password <username> <new_password>
      ```
 
-6. **Set up Brevo for registration emails** (required if you want self-registration to work):
+6. **Set up Gmail SMTP for registration emails** (required if you want self-registration to work):
    - Go to https://app.brevo.com, create a free account, generate an API key under Settings → SMTP & API → API Keys
    - Verify a sender address under Senders & IP → Senders
 
@@ -141,9 +141,10 @@ Copy `.env.example` → `.env` locally, or set in Render dashboard for productio
      - `OPENROUTER_MODEL` (if using OpenRouter)
      - `ENVIRONMENT` = `production`
      - `APP_PUBLIC_URL` = your Render URL (e.g., `https://stash.onrender.com`)
-     - `BREVO_API_KEY` (if you want self-registration to work)
-     - `BREVO_SENDER_EMAIL` (your verified Brevo sender)
-     - `BREVO_SENDER_NAME` (optional, defaults to "Stash")
+     - `SMTP_USERNAME` (your Gmail address, if you want self-registration to work)
+     - `SMTP_PASSWORD` (a Google App Password, NOT your Gmail login password)
+     - `SMTP_FROM_EMAIL` (usually the same as SMTP_USERNAME)
+     - `SMTP_FROM_NAME` (optional, defaults to "Stash")
 
 5. **Deploy**:
    - Click "Create Web Service"
@@ -160,7 +161,7 @@ Copy `.env.example` → `.env` locally, or set in Render dashboard for productio
 
 Two ways to create accounts:
 
-1. **Self-registration** (recommended for most users): visit the app and use "Don't have an account? Create one" — enter email, username, and password, confirm the 6-digit code sent to that email (via Brevo — see the Brevo setup below), and the account is created automatically.
+1. **Self-registration** (recommended for most users): visit the app and use "Don't have an account? Create one" — enter email, username, and password, confirm the 6-digit code sent to that email (via Gmail SMTP — see the setup below), and the account is created automatically.
 2. **Pre-seeded accounts**: edit `app/database/seed.py`'s `PUBLIC_ACCOUNTS` list (or the gitignored `app/database/private_accounts.py` for personal ones not meant for the public demo) before first deploy:
 
 ```python
@@ -178,16 +179,21 @@ python -m scripts.reset_password guest NewPassword123
 
 Each account's transactions are completely isolated by `user_id` — no cross-contamination, regardless of which of the two methods above created the account.
 
-### Brevo setup (for self-registration email verification)
+### Gmail SMTP setup (for self-registration email verification)
 
-Self-registration sends its 6-digit verification code via [Brevo](https://www.brevo.com) (formerly Sendinblue):
+Self-registration sends its 6-digit verification code via Gmail's SMTP server:
 
-1. Create a free Brevo account and go to **Settings → SMTP & API → API Keys** to generate a key
-2. Verify a sender address/domain under **Senders & IP → Senders** — Brevo will reject sends from an unverified sender
+1. On the Gmail account you want to send from, turn on **2-Step Verification** at https://myaccount.google.com/security
+2. Generate an **App Password** at https://myaccount.google.com/apppasswords (Google only lets you create these once 2-Step Verification is on) — this is a 16-character code, not your normal Gmail password
 3. Set these in your `.env` (locally) or Render environment variables (in production):
-   - `BREVO_API_KEY` — the key from step 1
-   - `BREVO_SENDER_EMAIL` — the verified address from step 2
-   - `BREVO_SENDER_NAME` — display name shown to recipients (defaults to "Stash")
+   - `SMTP_HOST` — `smtp.gmail.com` (default, only change for a non-Gmail provider)
+   - `SMTP_PORT` — `587` (default)
+   - `SMTP_USERNAME` — your full Gmail address, e.g. `noreplystash2026@gmail.com`
+   - `SMTP_PASSWORD` — the App Password from step 2
+   - `SMTP_FROM_EMAIL` — usually the same as `SMTP_USERNAME`
+   - `SMTP_FROM_NAME` — display name shown to recipients (defaults to "Stash")
+
+Gmail works fine for a small app's verification volume, but it's not meant for high-volume transactional mail — if send volume grows a lot, a dedicated provider would be a better fit.
 
 Without these set, registration's send-code step returns a clear error instead of silently failing.
 
@@ -222,8 +228,8 @@ Run these commands via Render's shell or SSH into your container.
 | Render cold start is too slow | This is normal on free tier (~30-60s after 15 min idle). Consider Render paid tier for production. |
 | Export files not generating | Ensure `exports/` directory exists and has write permissions. Check Render logs for errors. |
 | Offline queue not syncing | Browser must have IndexedDB enabled. Check browser DevTools → Application → Storage. |
-| Registration "Email sending isn't configured" | Set `BREVO_API_KEY` and `BREVO_SENDER_EMAIL` in your environment (see Brevo setup above). |
-| Registration email never arrives | Confirm the sender address is verified in Brevo (Senders & IP → Senders) — unverified senders get silently rejected by some providers, or check spam. |
+| Registration "Email sending isn't configured" | Set `SMTP_USERNAME` and `SMTP_PASSWORD` in your environment (see Gmail SMTP setup above). |
+| Registration email never arrives | Check spam, and confirm `SMTP_PASSWORD` is an App Password (not your regular Gmail password) — Gmail silently rejects the login otherwise. |
 
 ## Known limits and considerations
 

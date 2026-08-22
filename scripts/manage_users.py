@@ -146,6 +146,41 @@ def delete_user(username: str) -> int:
         db.close()
 
 
+def delete_all_except(keep_username: str) -> int:
+    keep_username = keep_username.strip()
+    if not keep_username:
+        print("Username to keep cannot be empty.")
+        return 1
+
+    db = SessionLocal()
+    try:
+        keep_user = crud.get_user_by_username(db, keep_username)
+        if not keep_user:
+            print(f"User '{keep_username}' not found - refusing to delete everyone with no one left to keep.")
+            return 1
+
+        others = db.query(models.User).filter(models.User.id != keep_user.id).all()
+        if not others:
+            print(f"No other users to delete. Only '{keep_username}' exists.")
+            return 0
+
+        for user in others:
+            counts = _delete_user_data(db, user.id)
+            db.delete(user)
+            delete_private_account(user.username)
+            print(
+                f"Deleted user '{user.username}' (rows removed: income={counts['income']}, "
+                f"expense={counts['expense']}, chat_messages={counts['chat_messages']}, "
+                f"recurring_transactions={counts['recurring_transactions']}, "
+                f"recurring_postings={counts['recurring_postings']}, pending_entries={counts['pending_entries']})"
+            )
+        db.commit()
+        print(f"Done. Kept only '{keep_username}'.")
+        return 0
+    finally:
+        db.close()
+
+
 def main() -> int:
     if len(sys.argv) < 2:
         print(__doc__)
@@ -167,6 +202,11 @@ def main() -> int:
             print("Usage: python -m scripts.manage_users delete <username>")
             return 1
         return delete_user(sys.argv[2])
+    if command == "delete-all-except":
+        if len(sys.argv) != 3:
+            print("Usage: python -m scripts.manage_users delete-all-except <username-to-keep>")
+            return 1
+        return delete_all_except(sys.argv[2])
 
     print(f"Unknown command '{command}'.")
     print(__doc__)
