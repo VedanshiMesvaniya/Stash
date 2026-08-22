@@ -223,7 +223,7 @@ When you add a user locally, the tool also updates `app/database/private_account
 ### Authentication
 
 - `POST /api/auth/login` — Email or username + password → signed session cookie
-- `POST /api/auth/register/send-code` — Email + username + password + confirm_password → emails a 6-digit verification code via Brevo
+- `POST /api/auth/register/send-code` — Email + username + password + confirm_password → emails a 6-digit verification code via Gmail SMTP
 - `POST /api/auth/register/verify-code` — Email + code → creates the account and logs in, if the code is correct
 - `POST /api/auth/logout` — Clears session cookie
 - `GET /api/auth/session` — Returns current logged-in user info

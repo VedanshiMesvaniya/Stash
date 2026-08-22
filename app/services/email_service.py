@@ -1,24 +1,36 @@
 """
 email_service.py
 Sends transactional email (currently just registration verification codes)
-via Brevo's REST API (https://api.brevo.com/v3/smtp/email). Uses httpx
-directly instead of the brevo-python SDK - it's one HTTP POST, and this
-avoids pulling in a heavy extra dependency for something this small.
+via SMTP - configured by default for Gmail, but works with any standard
+SMTP server. Uses Python's built-in smtplib, so no extra dependency.
 
 Configure via env vars (see .env.example):
-  BREVO_API_KEY      required to actually send mail
-  BREVO_SENDER_EMAIL sender address (must be a verified sender in Brevo)
-  BREVO_SENDER_NAME  display name for the sender, defaults to "Stash"
+  SMTP_HOST       defaults to smtp.gmail.com
+  SMTP_PORT       defaults to 587 (STARTTLS)
+  SMTP_USERNAME   your full Gmail address, e.g. noreplystash2026@gmail.com
+  SMTP_PASSWORD   a Google *App Password* (NOT your normal Gmail password -
+                  requires 2-Step Verification; generate one at
+                  https://myaccount.google.com/apppasswords)
+  SMTP_FROM_EMAIL defaults to SMTP_USERNAME
+  SMTP_FROM_NAME  display name shown to recipients, defaults to "Stash"
+
+Gmail is fine for a small app's verification codes, but it's not built
+for high-volume transactional mail - if Stash ever needs to send at real
+scale, a dedicated provider (Brevo, SES, Postmark, etc.) would be a
+better fit than a personal/service Gmail account.
 """
 
 import os
+import smtplib
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
 
-import httpx
-
-BREVO_API_URL = "https://api.brevo.com/v3/smtp/email"
-BREVO_API_KEY = os.getenv("BREVO_API_KEY", "").strip()
-BREVO_SENDER_EMAIL = os.getenv("BREVO_SENDER_EMAIL", "").strip()
-BREVO_SENDER_NAME = os.getenv("BREVO_SENDER_NAME", "Stash").strip() or "Stash"
+SMTP_HOST = os.getenv("SMTP_HOST", "smtp.gmail.com").strip()
+SMTP_PORT = int(os.getenv("SMTP_PORT", "587").strip() or "587")
+SMTP_USERNAME = os.getenv("SMTP_USERNAME", "").strip()
+SMTP_PASSWORD = os.getenv("SMTP_PASSWORD", "").strip()
+SMTP_FROM_EMAIL = os.getenv("SMTP_FROM_EMAIL", "").strip() or SMTP_USERNAME
+SMTP_FROM_NAME = os.getenv("SMTP_FROM_NAME", "Stash").strip() or "Stash"
 
 # Harvest Moon palette, matching frontend/src/styles.css, so the email
 # looks like it came from the app rather than a generic mailer template.
@@ -28,7 +40,7 @@ _BG = "#151313"
 
 
 class EmailSendError(Exception):
-    """Raised when Brevo rejects the send or the request itself fails."""
+    """Raised when the SMTP send fails for any reason."""
 
 
 def _verification_email_html(code: str) -> str:
@@ -57,27 +69,29 @@ def send_verification_email(to_email: str, code: str) -> None:
     """Sends the 6-digit verification code to to_email. Raises
     EmailSendError on any failure - callers should catch this and surface
     a clean error rather than letting the raw exception leak upward."""
-    if not BREVO_API_KEY or not BREVO_SENDER_EMAIL:
+    if not SMTP_USERNAME or not SMTP_PASSWORD:
         raise EmailSendError(
-            "Email sending isn't configured. Set BREVO_API_KEY and BREVO_SENDER_EMAIL."
+            "Email sending isn't configured. Set SMTP_USERNAME and SMTP_PASSWORD "
+            "(an app password, not your regular account password)."
         )
 
-    body = {
-        "sender": {"name": BREVO_SENDER_NAME, "email": BREVO_SENDER_EMAIL},
-        "to": [{"email": to_email}],
-        "subject": f"{code} is your Stash verification code",
-        "htmlContent": _verification_email_html(code),
-    }
-    headers = {
-        "api-key": BREVO_API_KEY,
-        "accept": "application/json",
-        "content-type": "application/json",
-    }
+    message = MIMEMultipart("alternative")
+    message["Subject"] = f"{code} is your Stash verification code"
+    message["From"] = f"{SMTP_FROM_NAME} <{SMTP_FROM_EMAIL}>"
+    message["To"] = to_email
+    message.attach(MIMEText(_verification_email_html(code), "html"))
 
     try:
-        response = httpx.post(BREVO_API_URL, json=body, headers=headers, timeout=10.0)
-    except httpx.HTTPError as e:
-        raise EmailSendError(f"Could not reach Brevo: {e}") from e
-
-    if response.status_code >= 300:
-        raise EmailSendError(f"Brevo rejected the email (status {response.status_code}): {response.text}")
+        with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=10) as server:
+            server.starttls()
+            server.login(SMTP_USERNAME, SMTP_PASSWORD)
+            server.sendmail(SMTP_FROM_EMAIL, [to_email], message.as_string())
+    except smtplib.SMTPAuthenticationError as e:
+        raise EmailSendError(
+            "SMTP login failed - check SMTP_USERNAME/SMTP_PASSWORD. If using Gmail, "
+            "SMTP_PASSWORD must be an App Password, not your normal password."
+        ) from e
+    except smtplib.SMTPException as e:
+        raise EmailSendError(f"Could not send email: {e}") from e
+    except OSError as e:
+        raise EmailSendError(f"Could not reach SMTP server {SMTP_HOST}:{SMTP_PORT}: {e}") from e
