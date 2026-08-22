@@ -7,7 +7,7 @@ This guide covers deploying Stash to production with Render (hosting) and Neon (
 **Security**
 - No hardcoded recovery password, master key, or auth bypass anywhere in the codebase
 - `SECRET_KEY` now fails app startup loudly if unset — no silent insecure default
-- Password reset is available via a CLI-only tool (`scripts/reset_password.py`) or self-service from Settings
+- Password reset for private/seeded accounts is handled via a private, non-repo CLI tool, or self-service from Settings for self-registered accounts
 - Multi-user isolation: every transaction table scoped by `user_id` (one family member cannot see another's data)
 - Self-registration with email verification: anyone can create an account via a 6-digit code sent through Gmail SMTP, confirmed before the account exists; login now accepts either username or email
 - Login, the app-lock PIN, and registration codes all lock out after repeated wrong attempts
@@ -100,10 +100,7 @@ Copy `.env.example` → `.env` locally, or set in Render dashboard for productio
 
 5. **Configure accounts** (optional):
    - Users can self-register via email verification (see the Gmail SMTP setup step below) once deployed — no pre-configuration needed for that path.
-   - To also pre-seed accounts, edit `app/database/seed.py`'s `PUBLIC_ACCOUNTS` list before first deploy — once accounts exist, use the CLI to change passwords instead:
-     ```bash
-     python -m scripts.reset_password <username> <new_password>
-     ```
+   - To also pre-seed accounts, edit `app/database/seed.py`'s `PUBLIC_ACCOUNTS` list before first deploy — once accounts exist, password changes are handled privately (outside this repo), not by re-editing `seed.py`.
 
 6. **Set up Gmail SMTP for registration emails** (required if you want self-registration to work):
    - Go to https://app.brevo.com, create a free account, generate an API key under Settings → SMTP & API → API Keys
@@ -170,12 +167,7 @@ PUBLIC_ACCOUNTS = [
 ]
 ```
 
-**Important**: Edit this BEFORE first deployment. Once accounts exist in the database, updating `seed.py` won't change their passwords. Use the CLI tool instead:
-
-```bash
-# Via Render's shell:
-python -m scripts.reset_password guest NewPassword123
-```
+**Important**: Edit this BEFORE first deployment. Once accounts exist in the database, updating `seed.py` won't change their passwords — password resets for these accounts are handled privately, outside this repo.
 
 Each account's transactions are completely isolated by `user_id` — no cross-contamination, regardless of which of the two methods above created the account.
 
@@ -199,23 +191,7 @@ Without these set, registration's send-code step returns a clear error instead o
 
 ### Custom user management (post-deployment)
 
-Use the CLI tool to manage users after deployment:
-
-```bash
-# List all users
-python -m scripts.manage_users list
-
-# Add a new user
-python -m scripts.manage_users add charlie "StrongPass123" "Charlie"
-
-# Delete a user (removes all their data)
-python -m scripts.manage_users delete alice
-
-# Reset a password
-python -m scripts.reset_password bob NewPass456
-```
-
-Run these commands via Render's shell or SSH into your container.
+User management for private/seeded accounts (adding, deleting, resetting passwords) is handled with a private tool kept outside this repo, run via Render's shell or SSH into your container. Users can also self-register through the app's login page without any of this.
 
 ## CI/CD
 
@@ -233,7 +209,7 @@ This workflow only validates — it doesn't deploy anything itself. Render's own
 | App won't start: "SECRET_KEY env var not set" | Generate one: `python -c "import secrets; print(secrets.token_hex(32))"` and set in Render dashboard |
 | LLM requests fail silently | Check that `GROQ_API_KEY`, `NVIDIA_API_KEY`, and `OPENROUTER_API_KEY` are set in Render (only one is strictly required, but all three gives the most resilient fallback chain). Pending messages auto-retry every 5 min. |
 | Chat messages stuck in `pending_entries` | Both LLM providers are down. Wait for retry loop (every 5 min) or check API keys. |
-| Password reset not working | Use CLI: `python -m scripts.reset_password <username> <new_password>` via Render shell |
+| Password reset not working (private/seeded account) | Handled via the private, non-repo CLI tool over Render shell. Self-registered users can reset from Settings instead. |
 | Render cold start is too slow | This is normal on free tier (~30-60s after 15 min idle). Consider Render paid tier for production. |
 | Export files not generating | Ensure `exports/` directory exists and has write permissions. Check Render logs for errors. |
 | Offline queue not syncing | Browser must have IndexedDB enabled. Check browser DevTools → Application → Storage. |
