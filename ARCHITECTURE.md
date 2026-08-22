@@ -25,7 +25,7 @@ Every transaction table is scoped by `user_id`:
 - `income`, `expense`, `categories`, `recurring_transactions`, `recurring_postings`
 - `chat_messages`, `pending_entries`, all exports
 
-One user can never see, edit, or export another user's data. Multi-user families are seeded at startup via `app/database/seed.py` with static username/password credentials (no self-signup endpoint).
+One user can never see, edit, or export another user's data. Accounts come from two places: family/demo accounts seeded at startup via `app/database/seed.py` (static username/password), and self-registered accounts created via `/api/auth/register/send-code` + `/register/verify-code`, which require confirming a 6-digit code emailed via Brevo before the account is actually created. Login accepts either a username or an email.
 
 ## Data model
 
@@ -98,7 +98,7 @@ Notes:
   - POST `/api/password/change` — Change password
   - POST `/api/settings/export/{format}` — Export as CSV/Excel/PDF
   - POST `/api/settings/offline-sync` — Reconcile browser IndexedDB queue
-  - POST `/api/backup`, GET `/api/restore` — Backup/restore (SQLite only)
+  - POST `/api/backup`, POST `/api/backup/restore` — Backup/restore (SQLite only; restore requires re-entering the account password and only accepts known backup filenames)
 
 ### Database layer
 
@@ -238,20 +238,15 @@ That file is ignored by git so private credentials stay out of commits.
 
 ## Security model
 
-- **No hardcoded backdoors**: Removed recovery-password hardcoded access (`app/auth/nyx0908.py` is gone)
+- **No hardcoded backdoors**: No recovery password, master key, or bypass exists anywhere in the auth code path
 - **SECRET_KEY enforcement**: App fails to start without `SECRET_KEY` env var (no default)
 - **Session signing**: Signed cookies prevent tampering; expires after 30 days
 - **Multi-user isolation**: Every query filtered by `user_id` at the ORM layer
-- **Password storage**: bcrypt hashing; original never stored; password resets via CLI-only tool
-  (self-signup users can also change their own password from Settings)
+- **Password storage**: bcrypt hashing; original never stored; password resets via CLI-only tool or Settings (self-service, requires the current password)
+- **Brute-force lockout**: Login, the app-lock PIN, and registration verification codes each lock out after repeated wrong attempts (see `app/auth/auth.py`, `app/api/auth.py`, `app/auth/registration.py`)
 - **HTTPS-only cookies**: Enabled in production (`ENVIRONMENT=production`)
-- **Open signup trade-off**: Stash was originally invite-only by design ("nobody can create an account they weren't
-  given"). It's now open signup + Google sign-in — a deliberate, explicit change, not a default; worth knowing if
-  you're reasoning about this app's threat model, since it now accepts accounts from anyone with an email.
-- **Google sign-in verification**: ID tokens are verified via a call to Google's `tokeninfo` endpoint (checking `aud`
-  and `email_verified`), not local JWT signature verification. That's a reasonable trade-off at Stash's traffic level
-  (one HTTPS round-trip to Google per login) but isn't the standard high-traffic approach (which verifies signatures
-  locally against Google's published JWKs) — worth revisiting if login volume ever gets meaningfully large.
+- **Self-registration with email verification**: `/api/auth/register/send-code` + `/register/verify-code` let anyone create an account, but nothing is written to the `users` table until they prove control of the email address via a 6-digit code (bcrypt-hashed at rest, 10-minute expiry, 60s resend cooldown, 5-attempt lockout) sent through Brevo's transactional email API - see `app/auth/registration.py` and `app/services/email_service.py`. This is a deliberate move away from invite-only seeding for new accounts; seeded family/demo accounts from `seed.py` still work unchanged.
+- **Backup/restore hardening**: `POST /api/backup/restore` only accepts filenames already known to the backup listing (rejects path traversal) and requires re-entering the account password, since it overwrites the single shared database for every user.
 
 ## Deployment notes
 

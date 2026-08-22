@@ -882,6 +882,20 @@ h1, h2, h3, p { margin: 0; }
 }
 .auth-card .page-title { margin-top: var(--space-sm); }
 .auth-card form { width: 100%; margin-top: var(--space-sm); }
+.auth-hint { font-size: 13px; color: var(--on-surface-variant); margin: 4px 0 0; }
+.auth-switch-link {
+  background: none;
+  border: none;
+  color: var(--primary);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  margin-top: var(--space-sm);
+  padding: 4px;
+}
+.auth-switch-link:hover { text-decoration: underline; }
+.auth-switch-link:disabled { opacity: 0.5; cursor: not-allowed; text-decoration: none; }
+.alert-info { background: color-mix(in srgb, var(--primary) 12%, transparent); color: var(--on-surface); border: 1px solid color-mix(in srgb, var(--primary) 28%, transparent); width: 100%; margin-top: var(--space-sm); }
 
 .splash-screen { min-height: 100dvh; display: flex; align-items: center; justify-content: center; background: var(--background); }
 .splash-card { display: flex; flex-direction: column; align-items: center; gap: 14px; }

@@ -48,7 +48,14 @@ def list_backups() -> list[str]:
 
 def restore_backup(filename: str) -> None:
     _require_sqlite()
-    src = os.path.join(BACKUP_DIR, filename)
+    # filename comes straight from the client - never trust it as a path.
+    # Only allow bare filenames that are already in our own backup listing
+    # (no "../", no absolute paths, no symlink tricks), so this can only
+    # ever restore a backup this app itself created.
+    safe_name = os.path.basename(filename)
+    if safe_name != filename or safe_name not in set(list_backups()):
+        raise ValueError(f"'{filename}' is not a known backup.")
+    src = os.path.join(BACKUP_DIR, safe_name)
     if not os.path.isfile(src):
         raise FileNotFoundError(f"Backup {filename} not found.")
     # Safety net: back up the current DB before overwriting it.

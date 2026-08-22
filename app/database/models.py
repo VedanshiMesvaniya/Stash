@@ -25,6 +25,13 @@ class User(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     username = Column(String, nullable=False, unique=True, index=True)
+    # Nullable for backward compatibility with pre-existing seeded accounts
+    # (see seed.py) that only ever had a username. New accounts always get
+    # one via the /api/auth/register flow. Uniqueness for new rows is
+    # enforced at the application layer (registration.py) rather than a DB
+    # constraint, since SQLite can't add a UNIQUE constraint via ALTER TABLE
+    # ADD COLUMN on an existing table - see migrations.py.
+    email = Column(String, nullable=True, unique=True, index=True)
     password_hash = Column(String, nullable=False)
     display_name = Column(String, nullable=True)
 
@@ -35,6 +42,39 @@ class User(Base):
     lock_enabled = Column(Boolean, nullable=False, default=False)
     lock_pin_hash = Column(String, nullable=True)
     biometric_enabled = Column(Boolean, nullable=False, default=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    # Brute-force protection for username+password login. Stored as a plain
+    # counter + epoch-seconds float (matching the session's login_at style)
+    # rather than DateTime, so the same column type works unmodified on both
+    # SQLite and Postgres. See auth/auth.py attempt_login for the logic.
+    failed_login_attempts = Column(Integer, nullable=False, default=0)
+    login_locked_until = Column(Float, nullable=True)
+
+    # Same idea for the app-lock PIN (settings/lock screen), which is a much
+    # shorter secret and needs its own independent counter - see
+    # api/auth.py api_unlock.
+    failed_pin_attempts = Column(Integer, nullable=False, default=0)
+    pin_locked_until = Column(Float, nullable=True)
+
+
+class PendingRegistration(Base):
+    """A registration that's had its email/username/password submitted but
+    not yet verified. Nothing lands in the real `users` table until the
+    6-digit code is confirmed, so an unverified signup can't squat on a
+    username/email or be used to log in. Rows are deleted once verified
+    (promoted to a real User) or replaced when the same email registers
+    again (a fresh code invalidates any old one for that address)."""
+    __tablename__ = "pending_registrations"
+
+    id = Column(Integer, primary_key=True, index=True)
+    email = Column(String, nullable=False, unique=True, index=True)
+    username = Column(String, nullable=False)
+    password_hash = Column(String, nullable=False)
+    code_hash = Column(String, nullable=False)
+    expires_at = Column(Float, nullable=False)
+    failed_attempts = Column(Integer, nullable=False, default=0)
+    last_sent_at = Column(Float, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
 

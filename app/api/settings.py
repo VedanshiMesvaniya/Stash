@@ -62,6 +62,16 @@ class SyncPayload(BaseModel):
     transactions: list[dict]
 
 
+class RestoreBackupRequest(BaseModel):
+    filename: str
+    # Restoring overwrites the ONE shared database for every family member
+    # on the account, not just the caller's own data - re-confirming the
+    # caller's own password before doing something that destructive (and
+    # rejecting anything but a filename this app already knows about) is
+    # the same "type your password again" pattern used for changing it.
+    password: str
+
+
 @router.get("/settings")
 def get_settings(request: Request, user: models.User = Depends(get_current_user)):
     currency = _normalize_currency(user.currency)
@@ -143,8 +153,17 @@ def list_backups(request: Request, user: models.User = Depends(get_current_user)
 
 
 @router.post("/backup/restore")
-def restore_backup(filename: str, request: Request, user: models.User = Depends(get_current_user)):
-    backup_service.restore_backup(filename)
+def restore_backup(
+    payload: RestoreBackupRequest,
+    request: Request,
+    user: models.User = Depends(get_current_user),
+):
+    if not verify_password(payload.password, user.password_hash):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Incorrect password")
+    try:
+        backup_service.restore_backup(payload.filename)
+    except (ValueError, FileNotFoundError) as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     return {"ok": True}
 
 

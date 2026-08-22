@@ -155,7 +155,7 @@ app/
     response.py           QA prompt handler for non-transaction questions
     prompts.py            Centralized prompt templates
   api/
-    auth.py               POST /login, /logout, /session
+    auth.py               POST /login, /register, /logout, /session
     finance.py            POST /api/chat, GET /api/timeline, PUT /api/transactions/{id}, etc.
     recurring.py          Recurring transaction CRUD and sync
     reports.py            Monthly reports and category breakdowns
@@ -222,7 +222,9 @@ When you add a user locally, the tool also updates `app/database/private_account
 
 ### Authentication
 
-- `POST /api/auth/login` — Username + password → signed session cookie
+- `POST /api/auth/login` — Email or username + password → signed session cookie
+- `POST /api/auth/register/send-code` — Email + username + password + confirm_password → emails a 6-digit verification code via Brevo
+- `POST /api/auth/register/verify-code` — Email + code → creates the account and logs in, if the code is correct
 - `POST /api/auth/logout` — Clears session cookie
 - `GET /api/auth/session` — Returns current logged-in user info
 
@@ -257,7 +259,7 @@ When you add a user locally, the tool also updates `app/database/private_account
 - `POST /api/settings/export/{format}` — Export as csv/excel/pdf
 - `POST /api/settings/offline-sync` — Reconcile browser IndexedDB queue
 - `POST /api/backup` — Create database backup (SQLite only)
-- `GET /api/restore` — Restore from backup (SQLite only)
+- `POST /api/backup/restore` — Restore from a backup by filename (SQLite only; requires the account's current password, and only accepts filenames already known to `GET /api/backup/list` — no arbitrary paths)
 
 ## Architecture
 

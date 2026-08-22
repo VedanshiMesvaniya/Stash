@@ -314,19 +314,26 @@ function App() {
 }
 
 function AuthPage({ onSuccess, onThemeChange, theme }) {
-  const [username, setUsername] = useState('');
+  const [mode, setMode] = useState('login'); // 'login' | 'register' | 'verify'
+  const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
+  const [regEmail, setRegEmail] = useState('');
+  const [regUsername, setRegUsername] = useState('');
+  const [regPassword, setRegPassword] = useState('');
+  const [regConfirm, setRegConfirm] = useState('');
+  const [code, setCode] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [info, setInfo] = useState('');
 
-  const submit = async (event) => {
+  const submitLogin = async (event) => {
     event.preventDefault();
     setBusy(true);
     setError('');
     try {
       const result = await apiFetch('/api/auth/login', {
         method: 'POST',
-        body: JSON.stringify({ username, password }),
+        body: JSON.stringify({ username: identifier, password }),
       });
       if (!result.ok) throw new Error(result.error || 'Authentication failed');
       await onSuccess();
@@ -337,40 +344,204 @@ function AuthPage({ onSuccess, onThemeChange, theme }) {
     }
   };
 
+  const submitRegister = async (event) => {
+    event.preventDefault();
+    setBusy(true);
+    setError('');
+    setInfo('');
+    try {
+      const result = await apiFetch('/api/auth/register/send-code', {
+        method: 'POST',
+        body: JSON.stringify({
+          email: regEmail,
+          username: regUsername,
+          password: regPassword,
+          confirm_password: regConfirm,
+        }),
+      });
+      if (!result.ok) throw new Error(result.error || 'Could not send verification code');
+      setInfo(`We sent a 6-digit code to ${regEmail}.`);
+      setMode('verify');
+    } catch (err) {
+      setError(err.message || 'Could not send verification code');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const submitVerify = async (event) => {
+    event.preventDefault();
+    setBusy(true);
+    setError('');
+    try {
+      const result = await apiFetch('/api/auth/register/verify-code', {
+        method: 'POST',
+        body: JSON.stringify({ email: regEmail, code }),
+      });
+      if (!result.ok) throw new Error(result.error || 'Verification failed');
+      await onSuccess();
+    } catch (err) {
+      setError(err.message || 'Verification failed');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const resendCode = async () => {
+    setBusy(true);
+    setError('');
+    setInfo('');
+    try {
+      const result = await apiFetch('/api/auth/register/send-code', {
+        method: 'POST',
+        body: JSON.stringify({
+          email: regEmail,
+          username: regUsername,
+          password: regPassword,
+          confirm_password: regConfirm,
+        }),
+      });
+      if (!result.ok) throw new Error(result.error || 'Could not resend code');
+      setInfo(`We sent a new code to ${regEmail}.`);
+    } catch (err) {
+      setError(err.message || 'Could not resend code');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const switchMode = (nextMode) => {
+    setMode(nextMode);
+    setError('');
+    setInfo('');
+  };
+
   return (
     <div className="auth-page">
       <div className="auth-card">
         <img src={LOGO_SRC} alt="Stash" className="brand-mark" style={{ width: 56, height: 56, borderRadius: 16 }} />
         <div className="brand-wordmark" style={{ fontSize: 26, marginTop: 4 }}>Stash</div>
 
-        <h1 className="page-title">Welcome back</h1>
+        {mode === 'login' && (
+          <>
+            <h1 className="page-title">Welcome back</h1>
+            <form className="stack" onSubmit={submitLogin}>
+              <input
+                className="input"
+                type="text"
+                required
+                autoComplete="username"
+                autoCapitalize="none"
+                placeholder="Email or username"
+                value={identifier}
+                onChange={(event) => setIdentifier(event.target.value)}
+              />
+              <input
+                className="input"
+                type="password"
+                required
+                minLength={1}
+                autoComplete="current-password"
+                placeholder="Password"
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+              />
+              <button className="btn btn-primary btn-full" type="submit" disabled={busy}>
+                {busy ? 'Signing in...' : 'Log in'}
+              </button>
+            </form>
+            <button type="button" className="auth-switch-link" onClick={() => switchMode('register')}>
+              Don't have an account? Create one
+            </button>
+          </>
+        )}
 
-        <form className="stack" onSubmit={submit}>
-          <input
-            className="input"
-            type="text"
-            required
-            autoComplete="username"
-            autoCapitalize="none"
-            placeholder="Username"
-            value={username}
-            onChange={(event) => setUsername(event.target.value)}
-          />
-          <input
-            className="input"
-            type="password"
-            required
-            minLength={1}
-            autoComplete="current-password"
-            placeholder="Password"
-            value={password}
-            onChange={(event) => setPassword(event.target.value)}
-          />
-          <button className="btn btn-primary btn-full" type="submit" disabled={busy}>
-            {busy ? 'Signing in...' : 'Log in'}
-          </button>
-        </form>
+        {mode === 'register' && (
+          <>
+            <h1 className="page-title">Create your account</h1>
+            <form className="stack" onSubmit={submitRegister}>
+              <input
+                className="input"
+                type="email"
+                required
+                autoComplete="email"
+                autoCapitalize="none"
+                placeholder="Email"
+                value={regEmail}
+                onChange={(event) => setRegEmail(event.target.value)}
+              />
+              <input
+                className="input"
+                type="text"
+                required
+                minLength={3}
+                autoComplete="username"
+                autoCapitalize="none"
+                placeholder="Username"
+                value={regUsername}
+                onChange={(event) => setRegUsername(event.target.value)}
+              />
+              <input
+                className="input"
+                type="password"
+                required
+                minLength={8}
+                autoComplete="new-password"
+                placeholder="Password (min. 8 characters)"
+                value={regPassword}
+                onChange={(event) => setRegPassword(event.target.value)}
+              />
+              <input
+                className="input"
+                type="password"
+                required
+                minLength={8}
+                autoComplete="new-password"
+                placeholder="Confirm password"
+                value={regConfirm}
+                onChange={(event) => setRegConfirm(event.target.value)}
+              />
+              <button className="btn btn-primary btn-full" type="submit" disabled={busy}>
+                {busy ? 'Sending code...' : 'Send verification code'}
+              </button>
+            </form>
+            <button type="button" className="auth-switch-link" onClick={() => switchMode('login')}>
+              Already have an account? Log in
+            </button>
+          </>
+        )}
 
+        {mode === 'verify' && (
+          <>
+            <h1 className="page-title">Check your email</h1>
+            <p className="auth-hint">Enter the 6-digit code we sent to {regEmail}.</p>
+            <form className="stack" onSubmit={submitVerify}>
+              <input
+                className="input"
+                type="text"
+                required
+                inputMode="numeric"
+                pattern="[0-9]{6}"
+                maxLength={6}
+                autoComplete="one-time-code"
+                placeholder="6-digit code"
+                value={code}
+                onChange={(event) => setCode(event.target.value.replace(/\D/g, '').slice(0, 6))}
+              />
+              <button className="btn btn-primary btn-full" type="submit" disabled={busy}>
+                {busy ? 'Verifying...' : 'Verify and create account'}
+              </button>
+            </form>
+            <button type="button" className="auth-switch-link" onClick={resendCode} disabled={busy}>
+              Resend code
+            </button>
+            <button type="button" className="auth-switch-link" onClick={() => switchMode('register')}>
+              Back to registration
+            </button>
+          </>
+        )}
+
+        {info ? <div className="alert alert-info">{info}</div> : null}
         {error ? <div className="alert alert-error">{error}</div> : null}
 
         <ThemeToggle theme={theme} onThemeChange={onThemeChange} />
