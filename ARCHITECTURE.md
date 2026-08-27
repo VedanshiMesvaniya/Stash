@@ -168,6 +168,7 @@ Notes:
   - `export_csv()`, `export_excel()`, `export_pdf()`
   - Exports full transaction timeline per user (scoped by `user_id`)
   - Files written to `exports/{csv,excel,pdf}/` with timestamp and user_id in filename
+  - Category/source and description cells are sanitized against CSV/Excel formula injection (CWE-1236): any value starting with `=`, `+`, `-`, `@`, tab, or CR is prefixed with a leading apostrophe before being written, so spreadsheet apps render it as text instead of evaluating it as a formula
 
 - **app/services/sync.py**
   - `reconcile_offline_queue()` — Merges browser IndexedDB transactions into database

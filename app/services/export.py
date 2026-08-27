@@ -17,12 +17,34 @@ from app.database import crud
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 EXPORT_DIR = os.path.join(BASE_DIR, "exports")
 
+# Cell values that start with any of these are treated as formulas by
+# Excel/Google Sheets/LibreOffice ("CSV/Excel formula injection", CWE-1236).
+# Category/source and description come from free-text chat input (parsed by
+# the LLM into transaction fields), so they're effectively user-controlled -
+# a message like "=cmd|'/c calc'!A1" or "@SUM(1+1)" would be stored verbatim
+# and then land in an exported cell, where a spreadsheet app may evaluate it
+# on open. Prefixing with a leading apostrophe forces spreadsheet apps to
+# treat the value as plain text instead of a formula, without changing what
+# the user actually sees in-app (this only affects the exported file).
+_FORMULA_TRIGGER_CHARS = ("=", "+", "-", "@", "\t", "\r")
+
+
+def _sanitize_cell(value):
+    if isinstance(value, str) and value.startswith(_FORMULA_TRIGGER_CHARS):
+        return "'" + value
+    return value
+
 
 def _rows(db: Session, user_id: int):
     timeline = crud.get_timeline(db, user_id, limit=10000)
     return [
-        {"Date": str(t["date"]), "Type": t["type"], "Category/Source": t.get("display_label") or t["label"],
-         "Amount": t["amount"], "Description": t["description"] or ""}
+        {
+            "Date": str(t["date"]),
+            "Type": t["type"],
+            "Category/Source": _sanitize_cell(t.get("display_label") or t["label"]),
+            "Amount": t["amount"],
+            "Description": _sanitize_cell(t["description"] or ""),
+        }
         for t in timeline
     ]
 
