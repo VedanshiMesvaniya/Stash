@@ -124,7 +124,7 @@ Notes:
 ### AI and LLM
 
 - **app/ai/llm.py**
-  - Calls Groq (`llama-3.1-8b-instant`) first
+  - Calls Groq (`openai/gpt-oss-120b`) first
   - Falls back to NVIDIA NIM (`nvidia/nvidia-nemotron-nano-9b-v2`) if Groq fails/times out/rate-limits
   - Falls back to OpenRouter (`openrouter/free`) if NVIDIA also fails
   - If all three are down, raises `LLMUnavailableError` — caller queues to `pending_entries`
