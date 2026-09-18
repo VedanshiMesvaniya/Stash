@@ -1,6 +1,6 @@
 """
 llm.py
-Cloud LLM client: Groq (llama-3.1-8b-instant) as primary, NVIDIA NIM
+Cloud LLM client: Groq (openai/gpt-oss-120b) as primary, NVIDIA NIM
 (nvidia/nvidia-nemotron-nano-9b-v2) as second fallback, OpenRouter
 (openrouter/free) as third/last-resort fallback. All three speak the same
 OpenAI-style /chat/completions shape, so this is one small client with
@@ -12,8 +12,22 @@ regardless of what Groq's general docs list). Tried openai/gpt-oss-120b
 next, but that's a reasoning model - it burns tokens on hidden
 chain-of-thought before writing JSON, which caused json_validate_failed /
 empty-output errors on the short structured calls this app makes (intent
-classification, extraction). Settled on llama-3.1-8b-instant: still free,
-still on Groq, genuinely non-reasoning, so no hidden-token surprises.
+classification, extraction). Settled on llama-3.1-8b-instant instead at
+the time: still free, still on Groq, genuinely non-reasoning, so no
+hidden-token surprises.
+
+Update (Sept 2026): Groq deprecated llama-3.1-8b-instant and
+llama-3.3-70b-versatile outright (announced June 17 2026, decommissioned
+Aug 16 2026 - both dates have now passed, so the old default was a dead
+model returning model_not_found). Groq's own migration guidance points to
+openai/gpt-oss-20b or openai/gpt-oss-120b as the replacements. Moved back
+to openai/gpt-oss-120b (not the smaller 20b) since Groq's free tier gives
+both the exact same rate limits (30 RPM / 1,000 RPD / 200,000 TPD) - no
+cost to running the bigger, more capable model. The empty-output problem
+from the earlier attempt is already solved below: reasoning_effort="low"
+is sent automatically for any "openai/gpt-oss*" model, which keeps the
+hidden chain-of-thought short enough to leave room for the actual JSON
+answer on these short structured calls.
 
 Note: meta-llama/llama-3.3-70b-instruct:free (the previous OpenRouter
 fallback) was pulled from OpenRouter's free tier entirely - free-model
@@ -51,7 +65,7 @@ import os
 import httpx
 
 GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
-GROQ_MODEL = os.getenv("GROQ_MODEL", "llama-3.1-8b-instant")
+GROQ_MODEL = os.getenv("GROQ_MODEL", "openai/gpt-oss-120b")
 GROQ_BASE_URL = "https://api.groq.com/openai/v1/chat/completions"
 
 NVIDIA_API_KEY = os.getenv("NVIDIA_API_KEY", "")

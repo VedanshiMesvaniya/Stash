@@ -16,11 +16,11 @@ Stash is a FastAPI + React web application for tracking income, expenses, recurr
   - Chat-based transaction correction and deletion (single or multi-select)
   - Cash vs. online wallet split, and per-category monthly budgets
 - **Recurring transactions**: Set-and-forget income/expense rules with auto-posting, or manual confirm-to-post for schedules like salary/rent
-- **Smart dashboard**:
-  - Current balance and monthly summary
-  - Top spending categories
-  - Low-balance alerts
-  - Actionable financial insights
+- **Smart dashboard** (glass UI — white cards over a charcoal sidebar, one design, no light/dark toggle):
+  - Current balance, monthly income/expense progress, and quick-action shortcuts
+  - Live chat panel embedded right on the dashboard for desktop, alongside the full Chat page
+  - Top spending categories, most-used category, and category comparison widgets
+  - Low-balance alerts and actionable financial insights
 - **Reports**: Monthly breakdowns by category, daily/period trend charts, income vs. expense trends
 - **Export formats**: CSV, Excel (XLSX), PDF—all scoped per user
 - **Backup/restore**: Full database snapshots (local SQLite only; use Neon's branching on production); restoring requires re-entering the account password and only accepts filenames the app already knows about
@@ -138,7 +138,7 @@ Copy `.env.example` to `.env` and fill in the values below. All keys are optiona
 | `SECRET_KEY` | **Yes** | — | `python -c "import secrets; print(secrets.token_hex(32))"` |
 | `DATABASE_URL` | No | (SQLite) | Leave blank for local SQLite in `data/finance.db`; set to Neon connection string for production |
 | `GROQ_API_KEY` | No (recommended) | — | Get from https://console.groq.com/keys; enables fast AI parsing |
-| `GROQ_MODEL` | No | `llama-3.1-8b-instant` | Groq model name |
+| `GROQ_MODEL` | No | `openai/gpt-oss-120b` | Groq model name |
 | `NVIDIA_API_KEY` | No (recommended) | — | Get from https://build.nvidia.com; second LLM provider (free NIM tier) |
 | `NVIDIA_MODEL` | No | `nvidia/nvidia-nemotron-nano-9b-v2` | NVIDIA NIM model name |
 | `OPENROUTER_API_KEY` | No (recommended) | — | Get from https://openrouter.ai/keys; third/last-resort LLM provider |

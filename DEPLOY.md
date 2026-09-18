@@ -58,7 +58,7 @@ Copy `.env.example` → `.env` locally, or set in Render dashboard for productio
 | `SECRET_KEY` | **Yes** | — | — | `python -c "import secrets; print(secrets.token_hex(32))"` — no fallback, app refuses to start without it |
 | `DATABASE_URL` | No | (SQLite) | **Required** | Leave blank for local SQLite in `data/finance.db`; set to Neon connection string for Postgres |
 | `GROQ_API_KEY` | No | — | Recommended | Get from https://console.groq.com/keys; first LLM provider |
-| `GROQ_MODEL` | No | `llama-3.1-8b-instant` | — | Groq model name |
+| `GROQ_MODEL` | No | `openai/gpt-oss-120b` | — | Groq model name |
 | `NVIDIA_API_KEY` | No | — | Recommended | Get from https://build.nvidia.com; second LLM provider (free NIM tier, no card required) |
 | `NVIDIA_MODEL` | No | `nvidia/nvidia-nemotron-nano-9b-v2` | — | NVIDIA NIM model name |
 | `OPENROUTER_API_KEY` | No | — | Recommended | Get from https://openrouter.ai/keys; third/last-resort LLM provider. Do $10 one-time credit top-up. |

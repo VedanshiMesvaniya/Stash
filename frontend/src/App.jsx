@@ -1,7 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { apiFetch, dayLabel, fromDateInput, money, toDateInput } from './api';
 import SplashScreen from './components/ui/SplashScreen';
-import ThemeToggle from './components/ui/ThemeToggle';
 import SectionHeader from './components/ui/SectionHeader';
 import MetricCard from './components/ui/MetricCard';
 import TimelineItem from './components/ui/TimelineItem';
@@ -36,11 +35,6 @@ const emptySession = {
     currency: 'INR',
   },
 };
-
-const THEME_OPTIONS = [
-  { key: 'obsidian', label: 'Dark', swatch: '#151313' },
-  { key: 'mist', label: 'Light', swatch: '#fcf9f8' },
-];
 
 const CURRENCY_OPTIONS = [
   { key: 'INR', label: 'India (INR)' },
@@ -543,8 +537,6 @@ function AuthPage({ onSuccess, onThemeChange, theme }) {
 
         {info ? <div className="alert alert-info">{info}</div> : null}
         {error ? <div className="alert alert-error">{error}</div> : null}
-
-        <ThemeToggle theme={theme} onThemeChange={onThemeChange} />
       </div>
     </div>
   );
@@ -571,7 +563,6 @@ function AppShell({
             <div className="account-title">{session.display_name || session.username || 'Stash'}</div>
             <div className="account-subtitle">Private wallet</div>
           </div>
-          <ThemeToggle theme={theme} onThemeChange={onThemeChange} />
         </div>
       </aside>
 
@@ -694,12 +685,21 @@ function Page({ route, theme, session, onNavigate, onTouchData, refreshToken, on
   return <DashboardPage session={session} onNavigate={onNavigate} refreshToken={refreshToken} onTouchData={onTouchData} />;
 }
 
+const DASHBOARD_QUICK_ACTIONS = [
+  { path: '/chat', label: 'Chat', icon: 'auto_awesome' },
+  { path: '/timeline', label: 'Timeline', icon: 'receipt_long' },
+  { path: '/reports', label: 'Reports', icon: 'query_stats' },
+  { path: '/settings', label: 'Recurring', icon: 'sync' },
+  { path: '/settings', label: 'Settings', icon: 'tune' },
+];
+
 function DashboardPage({ session, onNavigate, refreshToken, onTouchData }) {
   const [data, setData] = useState(() => readJsonCache(DASHBOARD_CACHE_KEY, null));
   const [recurring, setRecurring] = useState(() => readJsonCache(RECURRING_CACHE_KEY, []));
   const [dueRecurring, setDueRecurring] = useState([]);
   const [confirmingId, setConfirmingId] = useState(null);
   const [error, setError] = useState('');
+  const [summary, setSummary] = useState(null);
 
   const loadDueRecurring = async () => {
     try {
@@ -766,101 +766,195 @@ function DashboardPage({ session, onNavigate, refreshToken, onTouchData }) {
     };
   }, [refreshToken]);
 
+  useEffect(() => {
+    let alive = true;
+    const today = new Date();
+    apiFetch(`/api/reports?year=${today.getFullYear()}&month=${today.getMonth() + 1}`, { method: 'GET', headers: {} })
+      .then((report) => {
+        if (alive) setSummary(report);
+      })
+      .catch(() => {
+        // Non-fatal - the summary widgets just stay empty.
+      });
+    return () => {
+      alive = false;
+    };
+  }, [refreshToken]);
+
   const currency = session.settings?.currency || 'INR';
+  const income = data?.income || 0;
+  const expense = data?.expense || 0;
+  const usedPercent = income > 0 ? Math.min(100, Math.round((expense / income) * 100)) : 0;
+  const categories = summary ? Object.entries(summary.category_breakdown || {}) : [];
 
   return (
     <div className="stack">
-      <SectionHeader
-        title="Dashboard"
-      />
+      <SectionHeader title="Dashboard" />
 
       {error ? <div className="alert alert-error">{error}</div> : null}
 
-      <section className="card hero-card">
-        <div className="eyebrow">Current balance</div>
-        <div className="hero-balance">{money(data?.balance || 0, currency)}</div>
-        {/* <div className="hero-subtle">Computed live from income minus expense.</div> */}
-      </section>
-
-      <section className="grid metrics">
-        <MetricCard label="This Month Income" value={money(data?.income || 0, currency)} tone="good" />
-        <MetricCard label="This Month Expense" value={money(data?.expense || 0, currency)} tone="bad" />
-        <MetricCard label="Savings" value={money(data?.saved || 0, currency)} tone="accent" />
-      </section>
-
-      <section className="grid two-up">
-        <div className="card card-pad">
-          <div className="card-head">
-            <div>
-              <h2 className="card-title">Recent transaction timeline</h2>
-              <div className="card-note">Latest income and expense activity</div>
+      <div className="dashboard-layout">
+        <div className="dashboard-main stack">
+          <section className="card hero-card">
+            <div className="hero-top">
+              <div>
+                <div className="hero-greeting">Welcome back, {session.display_name || session.username || 'there'}</div>
+                <div className="eyebrow">Current balance</div>
+                <div className="hero-balance">{money(data?.balance || 0, currency)}</div>
+              </div>
+              <button
+                type="button"
+                className="hero-bolt"
+                aria-label="Log something with Stash"
+                onClick={() => onNavigate('/chat')}
+              >
+                <span className="material-symbols-rounded" aria-hidden="true">bolt</span>
+              </button>
             </div>
-            <button className="btn btn-ghost" onClick={() => onNavigate('/timeline')}>Open timeline</button>
-          </div>
-          <div className="timeline">
-            {data?.recent_timeline?.length ? (
-              data.recent_timeline.map((item) => (
-                <TimelineItem key={`${item.type}-${item.label}-${item.date}-${item.amount}`} item={item} currency={currency} />
-              ))
-            ) : (
-              <div className="empty-state">No transactions yet. Tell Stash what happened today.</div>
-            )}
-          </div>
-        </div>
-
-        <div className="card card-pad">
-          <div className="card-head">
-            <div>
-              <h2 className="card-title">Recurring</h2>
-              <div className="card-note">Salary, rent, EMIs, and subscriptions on autopilot</div>
-            </div>
-            <button className="btn btn-ghost" onClick={() => onNavigate('/settings')}>Manage</button>
-          </div>
-          {dueRecurring.length ? (
-            <div className="stack" style={{ marginBottom: 10 }}>
-              {dueRecurring.map((row) => (
-                <div className="recurring-due-banner" key={row.id}>
-                  <div className="recurring-due-info">
-                    <span className="recurring-due-name">{row.name}</span>
-                    <span className="recurring-due-sub">
-                      {row.transaction_type === 'income' ? 'Salary due' : 'Rent due'} · {money(row.amount, currency)} · {shortDate(row.next_due_date)}
-                    </span>
-                  </div>
-                  <button
-                    type="button"
-                    className="recurring-confirm-btn"
-                    aria-label={`Confirm ${row.name}`}
-                    disabled={confirmingId === row.id}
-                    onClick={() => confirmDueRecurring(row.id)}
-                  >
-                    <span className="material-symbols-rounded" aria-hidden="true">add</span>
-                  </button>
+            {income > 0 ? (
+              <div className="hero-progress">
+                <div className="hero-progress-label">
+                  You've used {usedPercent}% of this month's income
                 </div>
-              ))}
-            </div>
-          ) : null}
-          <div className="stack">
-            {recurring.length ? recurring.slice(0, 4).map((row) => (
-              <RecurringCard
-                key={row.id}
-                row={row}
-                currency={currency}
-                onEdit={(editRow) => {
-                  sessionStorage.setItem('stash_edit_recurring_id', String(editRow.id));
-                  onNavigate('/settings');
-                }}
-              />
-            )) : (
-              <div className="empty-state">No recurring rules yet.</div>
-            )}
+                <div className="progress-track hero-progress-track">
+                  <div className="progress-fill" style={{ width: `${usedPercent}%` }} />
+                </div>
+                <div className="hero-progress-figures">
+                  <span>{money(expense, currency)}</span>
+                  <span>{money(income, currency)}</span>
+                </div>
+              </div>
+            ) : null}
+          </section>
+
+          <div className="quick-actions-row">
+            {DASHBOARD_QUICK_ACTIONS.map((action) => (
+              <button
+                key={action.label}
+                type="button"
+                className="quick-action-circle"
+                onClick={() => onNavigate(action.path)}
+              >
+                <span className="quick-action-icon">
+                  <span className="material-symbols-rounded" aria-hidden="true">{action.icon}</span>
+                </span>
+                <span className="quick-action-label">{action.label}</span>
+              </button>
+            ))}
           </div>
+
+          <section className="grid metrics">
+            <MetricCard label="This Month Income" value={money(income, currency)} tone="good" />
+            <MetricCard label="This Month Expense" value={money(expense, currency)} tone="bad" />
+            <MetricCard label="Savings" value={money(data?.saved || 0, currency)} tone="accent" />
+          </section>
+
+          <section className="grid two-up">
+            <div className="card card-pad">
+              <div className="card-head">
+                <div>
+                  <h2 className="card-title">Recent transaction timeline</h2>
+                  <div className="card-note">Latest income and expense activity</div>
+                </div>
+                <button className="btn btn-ghost" onClick={() => onNavigate('/timeline')}>Open timeline</button>
+              </div>
+              <div className="timeline">
+                {data?.recent_timeline?.length ? (
+                  data.recent_timeline.map((item) => (
+                    <TimelineItem key={`${item.type}-${item.label}-${item.date}-${item.amount}`} item={item} currency={currency} />
+                  ))
+                ) : (
+                  <div className="empty-state">No transactions yet. Tell Stash what happened today.</div>
+                )}
+              </div>
+            </div>
+
+            <div className="card card-pad">
+              <div className="card-head">
+                <div>
+                  <h2 className="card-title">Recurring</h2>
+                  <div className="card-note">Salary, rent, EMIs, and subscriptions on autopilot</div>
+                </div>
+                <button className="btn btn-ghost" onClick={() => onNavigate('/settings')}>Manage</button>
+              </div>
+              {dueRecurring.length ? (
+                <div className="stack" style={{ marginBottom: 10 }}>
+                  {dueRecurring.map((row) => (
+                    <div className="recurring-due-banner" key={row.id}>
+                      <div className="recurring-due-info">
+                        <span className="recurring-due-name">{row.name}</span>
+                        <span className="recurring-due-sub">
+                          {row.transaction_type === 'income' ? 'Salary due' : 'Rent due'} · {money(row.amount, currency)} · {shortDate(row.next_due_date)}
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        className="recurring-confirm-btn"
+                        aria-label={`Confirm ${row.name}`}
+                        disabled={confirmingId === row.id}
+                        onClick={() => confirmDueRecurring(row.id)}
+                      >
+                        <span className="material-symbols-rounded" aria-hidden="true">add</span>
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+              <div className="stack">
+                {recurring.length ? recurring.slice(0, 4).map((row) => (
+                  <RecurringCard
+                    key={row.id}
+                    row={row}
+                    currency={currency}
+                    onEdit={(editRow) => {
+                      sessionStorage.setItem('stash_edit_recurring_id', String(editRow.id));
+                      onNavigate('/settings');
+                    }}
+                  />
+                )) : (
+                  <div className="empty-state">No recurring rules yet.</div>
+                )}
+              </div>
+            </div>
+          </section>
+
+          <section className="stack">
+            <div className="section-label">Summary</div>
+            <div className="grid summary-grid">
+              <div className="card card-pad summary-widget">
+                <div className="card-note">This month by category</div>
+                <PieViz entries={categories} />
+              </div>
+              <div className="card card-pad summary-widget">
+                <div className="card-note">Category comparison</div>
+                <BarViz entries={categories} />
+              </div>
+              <div className="widget-dark-card">
+                <div className="widget-dark-label">Most used category</div>
+                <div className="widget-dark-value">{summary?.most_used_category || '—'}</div>
+                <div className="widget-dark-sub">
+                  {categories.length ? `${categories.length} categories this month` : 'No spending yet this month'}
+                </div>
+              </div>
+            </div>
+          </section>
         </div>
-      </section>
+
+        <aside className="dashboard-chat">
+          <ChatPage
+            session={session}
+            onNavigate={onNavigate}
+            onTouchData={onTouchData}
+            refreshToken={refreshToken}
+            compact
+          />
+        </aside>
+      </div>
     </div>
   );
 }
 
-function ChatPage({ session, onNavigate, onTouchData, refreshToken }) {
+function ChatPage({ session, onNavigate, onTouchData, refreshToken, compact = false }) {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('online'); // 'cash' | 'online' - defaults to online (#33)
@@ -870,6 +964,7 @@ function ChatPage({ session, onNavigate, onTouchData, refreshToken }) {
   const [error, setError] = useState('');
   const textareaRef = useRef(null);
   const walletMenuRef = useRef(null);
+  const logRef = useRef(null);
 
   useEffect(() => {
     if (!walletMenuOpen) return undefined;
@@ -891,6 +986,11 @@ function ChatPage({ session, onNavigate, onTouchData, refreshToken }) {
 
   const scrollBottom = () => {
     requestAnimationFrame(() => {
+      if (compact) {
+        const el = logRef.current;
+        if (el) el.scrollTop = el.scrollHeight;
+        return;
+      }
       const scrollTarget = Math.max(document.body.scrollHeight, document.documentElement.scrollHeight);
       window.scrollTo({ top: scrollTarget, behavior: 'auto' });
     });
@@ -1111,27 +1211,39 @@ function ChatPage({ session, onNavigate, onTouchData, refreshToken }) {
   }, [candidatePayload]);
 
   return (
-    <div className="chat-shell chat-page-shell">
-      <SectionHeader
-        title="Chat with Stash"
-        action={
-          messages.length ? (
-            <button
-              type="button"
-              className="btn btn-ghost btn-inline"
-              onClick={requestClearChat}
-              disabled={busy || loading}
-              aria-label="Clear chat"
-            >
-              <span className="material-symbols-rounded" aria-hidden="true">delete_sweep</span>
-              Clear chat
-            </button>
-          ) : null
-        }
-      />
+    <div className={compact ? 'chat-shell chat-shell-compact' : 'chat-shell chat-page-shell'}>
+      {compact ? (
+        <div className="chat-compact-head">
+          <span className="ai-pill">
+            <span className="material-symbols-rounded" aria-hidden="true">auto_awesome</span>
+            AI Chatbot
+          </span>
+          <button type="button" className="btn btn-ghost btn-inline" onClick={() => onNavigate('/chat')}>
+            Open full chat
+          </button>
+        </div>
+      ) : (
+        <SectionHeader
+          title="Chat with Stash"
+          action={
+            messages.length ? (
+              <button
+                type="button"
+                className="btn btn-ghost btn-inline"
+                onClick={requestClearChat}
+                disabled={busy || loading}
+                aria-label="Clear chat"
+              >
+                <span className="material-symbols-rounded" aria-hidden="true">delete_sweep</span>
+                Clear chat
+              </button>
+            ) : null
+          }
+        />
+      )}
 
       <div className="chat-panel">
-        <div className="chat-log">
+        <div className="chat-log" ref={logRef}>
           {loading ? <div className="empty-state">Loading chat...</div> : null}
           {error ? <div className="alert alert-error">{error}</div> : null}
           {!loading && !messages.length ? <div className="empty-state">No conversation yet.</div> : null}
@@ -2134,22 +2246,6 @@ function SettingsPage({ session, theme, onThemeChange, onSessionSync, onTouchDat
                     ))}
                   </div>
                 ) : null}
-              </div>
-            </label>
-            <label className="field theme-field">
-              <span>Theme</span>
-              <div className="theme-palette">
-                {THEME_OPTIONS.map((option) => (
-                  <button
-                    key={option.key}
-                    type="button"
-                    className={`theme-chip ${settings.theme === option.key ? 'active' : ''}`}
-                    onClick={() => setSettings((prev) => ({ ...prev, theme: option.key }))}
-                  >
-                    <span className="theme-swatch" style={{ background: option.swatch }} />
-                    <span>{option.label}</span>
-                  </button>
-                ))}
               </div>
             </label>
           </div>
