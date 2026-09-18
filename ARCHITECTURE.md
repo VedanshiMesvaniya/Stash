@@ -196,13 +196,23 @@ The React app lives in `frontend/src/App.jsx`:
 - **Session**: Signed cookie (`stash_session`) managed by FastAPI SessionMiddleware
 - **Auth**: POST to `/login` or `/logout` (HTML form submission); cookie auto-validated on every request
 - **API calls**: `apiFetch()` wrapper adds cookie to all requests; 401 response redirects to login
-- **State management**: Local React state for session, theme, page data, and UI flags
+- **State management**: Local React state for session, page data, and UI flags
 - **Offline queue**: IndexedDB-backed transaction queue (syncs on reconnect via `POST /api/settings/offline-sync`)
 - **Pages**:
-  - Dashboard: Balance, monthly summary, smart suggestions, quick add buttons
+  - Dashboard: Balance + this-month income/expense progress, quick-action shortcuts, recent timeline, recurring, category summary widgets, and a live embedded chat panel (desktop)
+  - Chat: Full conversational transaction logging, also embedded compact on the dashboard
   - Timeline: Transaction history with edit/delete controls, chat integration
   - Reports: Category breakdowns and daily trend charts
-  - Settings: User profile, currency, theme, password change, export/import
+  - Settings: User profile, currency, password change, export/import
+
+### Design system — "Glass"
+
+- One design, no light/dark toggle. Monochrome white-glass cards and a charcoal sidebar, with a single burnt-orange accent (`--primary: #dc6743`), colors sampled from the reference mockups.
+- `.card` uses `backdrop-filter: blur()` plus translucent white over a soft gradient page background for the glass effect.
+- The sidebar and mobile bottom nav are always dark charcoal (`--sidebar-bg`), independent of the surface tokens, with a rounded orange active-icon pill.
+- `frontend/src/styles.css` defines every color as a single CSS variable set in `:root` (no more `[data-theme='obsidian']` / `[data-theme='mist']` blocks) — retheming means editing variables, not duplicating rules.
+- The user's `settings.theme` field still round-trips through `/api/settings` for backward compatibility, but no UI reads it anymore.
+- `ChatPage` takes a `compact` prop: full-page mode keeps the fixed composer and page-level scroll; compact mode (used in the dashboard's embedded panel) scrolls its own container and lays out the composer inline. Both share the same send/candidate-confirmation logic.
 
 ### Key UI improvements
 
