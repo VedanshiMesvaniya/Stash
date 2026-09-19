@@ -277,7 +277,7 @@ frontend/
 Every push and PR to `main` or `feature/add_new` runs `.github/workflows/ci.yml` on GitHub Actions, two jobs:
 
 - **backend** — syntax-checks every `.py` file, imports `app.main` (catches broken wiring, not just syntax errors), runs migrations + seeding against a fresh database, and smoke-tests login/session through the real routes with the seeded `guest` account.
-- **frontend** — `npm ci` + `npx vite build` from the repo root, then diffs the freshly built output against what's committed in `app/static/react/`. Fails if they differ, since that means `frontend/src` changed but the prebuilt bundle wasn't rebuilt and committed — Render never rebuilds it itself (see [DEPLOY.md](DEPLOY.md)).
+- **frontend** — `npm ci` + `npx vite build` from the repo root, then diffs the freshly built output against what's committed in `app/static/react/`. Fails if they differ (line-ending-only differences are ignored), since that means `frontend/src` changed but the prebuilt bundle wasn't rebuilt and committed — Render never rebuilds it itself (see [DEPLOY.md](DEPLOY.md)).
 
 Nothing here deploys anything — Render already auto-deploys from GitHub on its own. The workflow only makes sure whatever reaches `main` actually starts up correctly. To make that enforced rather than advisory, add a branch protection rule on `main` (Settings → Branches → add rule → require status checks → select `backend` and `frontend`).
 

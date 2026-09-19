@@ -128,11 +128,16 @@ jobs:
         # rebuilds it (see DEPLOY.md). If this step fails, it means
         # frontend/src changed but the build in app/static/react wasn't
         # regenerated and committed before pushing.
+        #
+        # --ignore-space-at-eol makes the comparison tolerant of CRLF vs LF
+        # (a Windows editor/autocrlf re-saving index.html), which changes no
+        # behaviour. Any real content difference (new hash, changed asset,
+        # missing file) still fails.
         run: |
-          if ! git diff --quiet -- app/static/react; then
+          if ! git diff --quiet --ignore-space-at-eol -- app/static/react; then
             echo "::error::app/static/react is out of date with frontend/src."
             echo "Run 'npx vite build' from the repo root and commit the result."
-            git diff --stat -- app/static/react
+            git diff --ignore-space-at-eol --stat -- app/static/react
             exit 1
           fi
           echo "Committed frontend bundle is up to date."
