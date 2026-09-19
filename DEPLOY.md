@@ -113,7 +113,7 @@ Copy `.env.example` → `.env` locally, or set in Render dashboard for productio
    npm install
    npm run build
    ```
-   This creates the Vite bundle in `app/static/react/`. Commit the changes. Don't hand-edit files in that folder (even `index.html`) - the CI stale-bundle check compares byte-for-byte, so a CRLF line-ending change alone will fail it. `.gitattributes` forces LF there to guard against this on Windows.
+   This creates the Vite bundle in `app/static/react/`. Commit the changes. Don't hand-edit files in that folder (even `index.html`) - change `frontend/` and rebuild instead. `.gitattributes` forces LF there so Windows line endings don't sneak in, and the CI stale-bundle check ignores line-ending-only differences.
 
 2. **Create Render web service**:
    - Go to https://render.com → Dashboard → New + → Web Service
@@ -198,7 +198,7 @@ User management for private/seeded accounts (adding, deleting, resetting passwor
 A GitHub Actions workflow (`.github/workflows/ci.yml`) runs on every push/PR to `main` and `feature/add_new`:
 
 - **backend** job — syntax-checks all Python files, imports `app.main`, runs migrations + seeding against a fresh DB, and smoke-tests login through the real routes.
-- **frontend** job — builds the frontend (`npx vite build` from repo root) and fails if the freshly built output doesn't match what's committed in `app/static/react/` — the automated version of the "did you forget to rebuild the frontend" mistake described above.
+- **frontend** job — builds the frontend (`npx vite build` from repo root) and fails if the freshly built output doesn't match what's committed in `app/static/react/` (line-ending-only differences are ignored) — the automated version of the "did you forget to rebuild the frontend" mistake described above.
 
 This workflow only validates — it doesn't deploy anything itself. Render's own GitHub integration (step 2 above) handles deployment on push independently. To make CI actually gate what reaches `main`, add a branch protection rule: **Settings → Branches → Add rule** for `main` → check "Require status checks to pass before merging" → select the `backend` and `frontend` checks.
 
