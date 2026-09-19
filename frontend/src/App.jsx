@@ -10,7 +10,6 @@ import { PieViz, BarViz, TrendBarViz } from './components/charts/Charts';
 
 const NAV_ITEMS = [
   { path: '/', label: 'Dashboard', icon: 'space_dashboard' },
-  { path: '/chat', label: 'Chat', icon: 'auto_awesome' },
   { path: '/timeline', label: 'Timeline', icon: 'receipt_long' },
   { path: '/reports', label: 'Reports', icon: 'query_stats' },
   { path: '/settings', label: 'Settings', icon: 'tune' },
@@ -686,7 +685,6 @@ function Page({ route, theme, session, onNavigate, onTouchData, refreshToken, on
 }
 
 const DASHBOARD_QUICK_ACTIONS = [
-  { path: '/chat', label: 'Chat', icon: 'auto_awesome' },
   { path: '/timeline', label: 'Timeline', icon: 'receipt_long' },
   { path: '/reports', label: 'Reports', icon: 'query_stats' },
   { path: '/settings', label: 'Recurring', icon: 'sync' },
@@ -794,153 +792,39 @@ function DashboardPage({ session, onNavigate, refreshToken, onTouchData }) {
       {error ? <div className="alert alert-error">{error}</div> : null}
 
       <div className="dashboard-layout">
-        <div className="dashboard-main stack">
-          <section className="card hero-card">
-            <div className="hero-top">
-              <div>
-                <div className="hero-greeting">Welcome back, {session.display_name || session.username || 'there'}</div>
-                <div className="eyebrow">Current balance</div>
-                <div className="hero-balance">{money(data?.balance || 0, currency)}</div>
-              </div>
-              <button
-                type="button"
-                className="hero-bolt"
-                aria-label="Log something with Stash"
-                onClick={() => onNavigate('/chat')}
-              >
-                <span className="material-symbols-rounded" aria-hidden="true">bolt</span>
-              </button>
+        <section className="card hero-card area-hero">
+          <div className="hero-top">
+            <div>
+              <div className="hero-greeting">Welcome back, {session.display_name || session.username || 'there'}</div>
+              <div className="eyebrow">Current balance</div>
+              <div className="hero-balance">{money(data?.balance || 0, currency)}</div>
             </div>
-            {income > 0 ? (
-              <div className="hero-progress">
-                <div className="hero-progress-label">
-                  You've used {usedPercent}% of this month's income
-                </div>
-                <div className="progress-track hero-progress-track">
-                  <div className="progress-fill" style={{ width: `${usedPercent}%` }} />
-                </div>
-                <div className="hero-progress-figures">
-                  <span>{money(expense, currency)}</span>
-                  <span>{money(income, currency)}</span>
-                </div>
-              </div>
-            ) : null}
-          </section>
-
-          <div className="quick-actions-row">
-            {DASHBOARD_QUICK_ACTIONS.map((action) => (
-              <button
-                key={action.label}
-                type="button"
-                className="quick-action-circle"
-                onClick={() => onNavigate(action.path)}
-              >
-                <span className="quick-action-icon">
-                  <span className="material-symbols-rounded" aria-hidden="true">{action.icon}</span>
-                </span>
-                <span className="quick-action-label">{action.label}</span>
-              </button>
-            ))}
+            <button
+              type="button"
+              className="hero-bolt"
+              aria-label="Chat with Stash"
+              onClick={() => document.getElementById('dashboard-chat-panel')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+            >
+              <span className="material-symbols-rounded" aria-hidden="true">bolt</span>
+            </button>
           </div>
-
-          <section className="grid metrics">
-            <MetricCard label="This Month Income" value={money(income, currency)} tone="good" />
-            <MetricCard label="This Month Expense" value={money(expense, currency)} tone="bad" />
-            <MetricCard label="Savings" value={money(data?.saved || 0, currency)} tone="accent" />
-          </section>
-
-          <section className="grid two-up">
-            <div className="card card-pad">
-              <div className="card-head">
-                <div>
-                  <h2 className="card-title">Recent transaction timeline</h2>
-                  <div className="card-note">Latest income and expense activity</div>
-                </div>
-                <button className="btn btn-ghost" onClick={() => onNavigate('/timeline')}>Open timeline</button>
+          {income > 0 ? (
+            <div className="hero-progress">
+              <div className="hero-progress-label">
+                You've used {usedPercent}% of this month's income
               </div>
-              <div className="timeline">
-                {data?.recent_timeline?.length ? (
-                  data.recent_timeline.map((item) => (
-                    <TimelineItem key={`${item.type}-${item.label}-${item.date}-${item.amount}`} item={item} currency={currency} />
-                  ))
-                ) : (
-                  <div className="empty-state">No transactions yet. Tell Stash what happened today.</div>
-                )}
+              <div className="progress-track hero-progress-track">
+                <div className="progress-fill" style={{ width: `${usedPercent}%` }} />
+              </div>
+              <div className="hero-progress-figures">
+                <span>{money(expense, currency)}</span>
+                <span>{money(income, currency)}</span>
               </div>
             </div>
+          ) : null}
+        </section>
 
-            <div className="card card-pad">
-              <div className="card-head">
-                <div>
-                  <h2 className="card-title">Recurring</h2>
-                  <div className="card-note">Salary, rent, EMIs, and subscriptions on autopilot</div>
-                </div>
-                <button className="btn btn-ghost" onClick={() => onNavigate('/settings')}>Manage</button>
-              </div>
-              {dueRecurring.length ? (
-                <div className="stack" style={{ marginBottom: 10 }}>
-                  {dueRecurring.map((row) => (
-                    <div className="recurring-due-banner" key={row.id}>
-                      <div className="recurring-due-info">
-                        <span className="recurring-due-name">{row.name}</span>
-                        <span className="recurring-due-sub">
-                          {row.transaction_type === 'income' ? 'Salary due' : 'Rent due'} · {money(row.amount, currency)} · {shortDate(row.next_due_date)}
-                        </span>
-                      </div>
-                      <button
-                        type="button"
-                        className="recurring-confirm-btn"
-                        aria-label={`Confirm ${row.name}`}
-                        disabled={confirmingId === row.id}
-                        onClick={() => confirmDueRecurring(row.id)}
-                      >
-                        <span className="material-symbols-rounded" aria-hidden="true">add</span>
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              ) : null}
-              <div className="stack">
-                {recurring.length ? recurring.slice(0, 4).map((row) => (
-                  <RecurringCard
-                    key={row.id}
-                    row={row}
-                    currency={currency}
-                    onEdit={(editRow) => {
-                      sessionStorage.setItem('stash_edit_recurring_id', String(editRow.id));
-                      onNavigate('/settings');
-                    }}
-                  />
-                )) : (
-                  <div className="empty-state">No recurring rules yet.</div>
-                )}
-              </div>
-            </div>
-          </section>
-
-          <section className="stack">
-            <div className="section-label">Summary</div>
-            <div className="grid summary-grid">
-              <div className="card card-pad summary-widget">
-                <div className="card-note">This month by category</div>
-                <PieViz entries={categories} />
-              </div>
-              <div className="card card-pad summary-widget">
-                <div className="card-note">Category comparison</div>
-                <BarViz entries={categories} />
-              </div>
-              <div className="widget-dark-card">
-                <div className="widget-dark-label">Most used category</div>
-                <div className="widget-dark-value">{summary?.most_used_category || '—'}</div>
-                <div className="widget-dark-sub">
-                  {categories.length ? `${categories.length} categories this month` : 'No spending yet this month'}
-                </div>
-              </div>
-            </div>
-          </section>
-        </div>
-
-        <aside className="dashboard-chat">
+        <aside className="dashboard-chat area-chat" id="dashboard-chat-panel">
           <ChatPage
             session={session}
             onNavigate={onNavigate}
@@ -949,6 +833,118 @@ function DashboardPage({ session, onNavigate, refreshToken, onTouchData }) {
             compact
           />
         </aside>
+
+        <div className="quick-actions-row area-actions">
+          {DASHBOARD_QUICK_ACTIONS.map((action) => (
+            <button
+              key={action.label}
+              type="button"
+              className="quick-action-circle"
+              onClick={() => onNavigate(action.path)}
+            >
+              <span className="quick-action-icon">
+                <span className="material-symbols-rounded" aria-hidden="true">{action.icon}</span>
+              </span>
+              <span className="quick-action-label">{action.label}</span>
+            </button>
+          ))}
+        </div>
+
+        <section className="grid metrics area-metrics">
+          <MetricCard label="This Month Income" value={money(income, currency)} tone="good" />
+          <MetricCard label="This Month Expense" value={money(expense, currency)} tone="bad" />
+          <MetricCard label="Savings" value={money(data?.saved || 0, currency)} tone="accent" />
+        </section>
+
+        <section className="grid two-up area-cards">
+          <div className="card card-pad">
+            <div className="card-head">
+              <div>
+                <h2 className="card-title">Recent transaction timeline</h2>
+                <div className="card-note">Latest income and expense activity</div>
+              </div>
+              <button className="btn btn-ghost" onClick={() => onNavigate('/timeline')}>Open timeline</button>
+            </div>
+            <div className="timeline">
+              {data?.recent_timeline?.length ? (
+                data.recent_timeline.map((item) => (
+                  <TimelineItem key={`${item.type}-${item.label}-${item.date}-${item.amount}`} item={item} currency={currency} />
+                ))
+              ) : (
+                <div className="empty-state">No transactions yet. Tell Stash what happened today.</div>
+              )}
+            </div>
+          </div>
+
+          <div className="card card-pad">
+            <div className="card-head">
+              <div>
+                <h2 className="card-title">Recurring</h2>
+                <div className="card-note">Salary, rent, EMIs, and subscriptions on autopilot</div>
+              </div>
+              <button className="btn btn-ghost" onClick={() => onNavigate('/settings')}>Manage</button>
+            </div>
+            {dueRecurring.length ? (
+              <div className="stack" style={{ marginBottom: 10 }}>
+                {dueRecurring.map((row) => (
+                  <div className="recurring-due-banner" key={row.id}>
+                    <div className="recurring-due-info">
+                      <span className="recurring-due-name">{row.name}</span>
+                      <span className="recurring-due-sub">
+                        {row.transaction_type === 'income' ? 'Salary due' : 'Rent due'} · {money(row.amount, currency)} · {shortDate(row.next_due_date)}
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      className="recurring-confirm-btn"
+                      aria-label={`Confirm ${row.name}`}
+                      disabled={confirmingId === row.id}
+                      onClick={() => confirmDueRecurring(row.id)}
+                    >
+                      <span className="material-symbols-rounded" aria-hidden="true">add</span>
+                    </button>
+                  </div>
+                ))}
+              </div>
+            ) : null}
+            <div className="stack">
+              {recurring.length ? recurring.slice(0, 4).map((row) => (
+                <RecurringCard
+                  key={row.id}
+                  row={row}
+                  currency={currency}
+                  onEdit={(editRow) => {
+                    sessionStorage.setItem('stash_edit_recurring_id', String(editRow.id));
+                    onNavigate('/settings');
+                  }}
+                />
+              )) : (
+                <div className="empty-state">No recurring rules yet.</div>
+              )}
+            </div>
+          </div>
+        </section>
+
+        <section className="stack area-summary">
+          <div className="section-label">Summary</div>
+          <div className="grid summary-grid">
+            <div className="card card-pad summary-widget">
+              <div className="card-note">This month by category</div>
+              <PieViz entries={categories} />
+            </div>
+            <div className="card card-pad summary-widget">
+              <div className="card-note">Category comparison</div>
+              <BarViz entries={categories} />
+            </div>
+            <div className="widget-dark-card">
+              <div className="widget-dark-label">Most used category</div>
+              <div className="widget-dark-value">{summary?.most_used_category || '—'}</div>
+              <div className="widget-dark-sub">
+                {categories.length ? `${categories.length} categories this month` : 'No spending yet this month'}
+              </div>
+            </div>
+          </div>
+        </section>
       </div>
     </div>
   );
@@ -1218,9 +1214,17 @@ function ChatPage({ session, onNavigate, onTouchData, refreshToken, compact = fa
             <span className="material-symbols-rounded" aria-hidden="true">auto_awesome</span>
             AI Chatbot
           </span>
-          <button type="button" className="btn btn-ghost btn-inline" onClick={() => onNavigate('/chat')}>
-            Open full chat
-          </button>
+          {messages.length ? (
+            <button
+              type="button"
+              className="btn btn-ghost btn-inline"
+              onClick={requestClearChat}
+              disabled={busy || loading}
+              aria-label="Clear chat"
+            >
+              <span className="material-symbols-rounded" aria-hidden="true">delete_sweep</span>
+            </button>
+          ) : null}
         </div>
       ) : (
         <SectionHeader

@@ -353,9 +353,39 @@ h1, h2, h3, p { margin: 0; }
 /* =========================================================================
    Dashboard layout — main content + live chat panel (desktop)
    ========================================================================= */
-.dashboard-layout { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: var(--space-md); align-items: start; }
-.dashboard-main { min-width: 0; display: flex; flex-direction: column; gap: var(--space-md); }
-.dashboard-chat { position: sticky; top: var(--space-lg); }
+.dashboard-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 360px;
+  grid-template-areas:
+    "hero    chat"
+    "actions chat"
+    "metrics chat"
+    "cards   chat"
+    "summary summary";
+  gap: var(--space-md);
+  align-items: start;
+}
+.area-hero { grid-area: hero; }
+.area-actions { grid-area: actions; }
+.area-metrics { grid-area: metrics; }
+.area-cards { grid-area: cards; }
+.area-summary { grid-area: summary; }
+.dashboard-chat { grid-area: chat; position: sticky; top: var(--space-lg); min-width: 0; }
+
+@media (max-width: 1080px) {
+  .dashboard-layout {
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      "hero"
+      "chat"
+      "actions"
+      "metrics"
+      "cards"
+      "summary";
+  }
+  .dashboard-chat { position: static; }
+  .chat-shell-compact { height: 62vh; min-height: 460px; }
+}
 
 .quick-actions-row { display: flex; gap: var(--space-md); flex-wrap: wrap; padding: 2px; }
 .quick-action-circle { display: flex; flex-direction: column; align-items: center; gap: 8px; background: none; border: none; cursor: pointer; color: var(--on-surface-variant); }
@@ -393,11 +423,6 @@ h1, h2, h3, p { margin: 0; }
 .widget-dark-label { font-size: 11px; color: rgba(255, 255, 255, 0.65); font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; }
 .widget-dark-value { font-size: 22px; font-weight: 800; }
 .widget-dark-sub { font-size: 12px; color: rgba(255, 255, 255, 0.55); }
-
-@media (max-width: 1080px) {
-  .dashboard-layout { grid-template-columns: 1fr; }
-  .dashboard-chat { display: none; }
-}
 
 .metric-card { padding: var(--space-sm) var(--space-md); }
 .metric-label { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--on-surface-variant); }
