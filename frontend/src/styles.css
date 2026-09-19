@@ -276,8 +276,10 @@ h1, h2, h3, p { margin: 0; }
 }
 .confirm-dialog {
   width: min(360px, 100%);
-  background: var(--surface-container-high);
-  border: 1px solid var(--outline-soft);
+  background: color-mix(in srgb, var(--surface) 90%, transparent);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid rgba(255, 255, 255, 0.6);
   border-radius: var(--radius-lg);
   padding: var(--space-md);
   box-shadow: var(--shadow-lg);
@@ -445,12 +447,16 @@ h1, h2, h3, p { margin: 0; }
 .field { display: flex; flex-direction: column; gap: 6px; font-size: 12px; font-weight: 600; color: var(--on-surface-variant); font-family: var(--font-mono); letter-spacing: 0.03em; text-transform: uppercase; }
 .field.wide { grid-column: 1 / -1; }
 
+:root { accent-color: var(--primary); }
+
 .input, .select {
   font-family: var(--font-ui);
   font-size: 14px;
   font-weight: 500;
   color: var(--on-surface);
-  background: var(--surface-container-low);
+  background: color-mix(in srgb, var(--surface) 82%, transparent);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
   border: 1px solid var(--outline-soft);
   border-radius: var(--radius);
   padding: 11px 14px;
@@ -461,6 +467,18 @@ h1, h2, h3, p { margin: 0; }
 .input:focus, .select:focus {
   border-color: var(--secondary);
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--secondary) 18%, transparent);
+}
+/* Native <select> dropdown options are OS-rendered and mostly outside CSS's
+   reach, but Chromium/Firefox do respect option colors - this keeps the
+   open list close to the theme instead of the browser's default blue. */
+.select option {
+  background: var(--surface);
+  color: var(--on-surface);
+}
+.select option:checked,
+.select option:hover {
+  background: var(--primary);
+  color: var(--on-primary);
 }
 
 .themed-dropdown, .currency-picker { position: relative; }
@@ -474,7 +492,9 @@ h1, h2, h3, p { margin: 0; }
   padding: 11px 14px;
   border-radius: var(--radius);
   border: 1px solid var(--outline-soft);
-  background: var(--surface-container-low);
+  background: color-mix(in srgb, var(--surface) 82%, transparent);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
   color: var(--on-surface);
   font-size: 14px;
   font-weight: 500;
@@ -490,8 +510,10 @@ h1, h2, h3, p { margin: 0; }
   left: 0;
   right: 0;
   z-index: 30;
-  background: var(--surface-container-high);
-  border: 1px solid var(--outline-soft);
+  background: color-mix(in srgb, var(--surface) 92%, transparent);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid rgba(255, 255, 255, 0.6);
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-md);
   padding: 6px;
@@ -677,15 +699,15 @@ h1, h2, h3, p { margin: 0; }
 
 .composer {
   display: flex;
-  align-items: flex-end;
-  gap: 10px;
+  align-items: center;
+  gap: 8px;
   max-width: 780px;
   width: calc(100% - var(--space-md) * 2);
   margin: 0 auto;
-  padding: 10px 10px 10px 18px;
+  padding: 6px 6px 6px 16px;
   background: var(--surface-container-high);
   border: 1px solid var(--outline-soft);
-  border-radius: var(--radius-xl);
+  border-radius: var(--radius-full);
   box-shadow: var(--shadow-md);
   flex-shrink: 0;
   position: fixed;
@@ -700,102 +722,39 @@ h1, h2, h3, p { margin: 0; }
   border: none;
   background: transparent;
   resize: none;
-  padding: 10px 0;
-  max-height: 200px;
+  padding: 7px 0;
+  font-size: 14px;
+  line-height: 1.4;
+  max-height: 160px;
   box-shadow: none;
 }
 .composer-textarea:focus { border: none; box-shadow: none; }
-.composer .btn-primary { border-radius: var(--radius-full); width: 42px; height: 42px; padding: 0; flex-shrink: 0; }
+.composer .btn-primary { border-radius: var(--radius-full); width: 34px; height: 34px; padding: 0; flex-shrink: 0; }
 
 .btn-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 6px 12px;
-  border-radius: var(--radius-full);
-  font-size: 0.8rem;
-  line-height: 1;
-}
-.btn-pill .material-symbols-rounded { font-size: 16px; }
-.btn-pill.active { background: var(--secondary); color: var(--on-secondary, #fff); border-color: transparent; }
-
-.composer-wallet-menu { position: relative; display: flex; align-items: center; gap: 8px; flex-shrink: 0; align-self: center; }
-.btn-icon {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 36px;
-  height: 36px;
-  border-radius: var(--radius-full);
-  padding: 0;
-  flex-shrink: 0;
-}
-.composer-plus.active { background: var(--surface-container-high); border-color: var(--secondary); }
-.composer-plus .material-symbols-rounded { font-size: 20px; transition: transform 0.15s ease; }
-.composer-plus.active .material-symbols-rounded { transform: rotate(45deg); }
-
-.wallet-selected-badge {
   display: inline-flex;
   align-items: center;
   gap: 4px;
   padding: 5px 10px;
   border-radius: var(--radius-full);
   font-size: 0.75rem;
-  font-weight: 600;
-  border: 1px solid var(--outline-soft);
-  color: var(--on-surface-variant);
-  white-space: nowrap;
+  line-height: 1;
 }
-.wallet-selected-badge .material-symbols-rounded { font-size: 15px; }
-.wallet-selected-online { border-color: color-mix(in srgb, var(--secondary) 45%, transparent); color: var(--secondary); }
-.wallet-selected-cash { border-color: color-mix(in srgb, #d97706 45%, transparent); color: #b45309; }
+.btn-pill .material-symbols-rounded { font-size: 15px; }
+.btn-pill.active { background: var(--secondary); color: var(--on-secondary, #fff); border-color: transparent; }
 
-/* Pulse draws the eye to the fact that a payment method is selected and
-   about to be applied - fires once on mount/change, not forever, so it
-   doesn't get annoying during a long chat session. */
-@keyframes wallet-pulse {
-  0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--secondary) 45%, transparent); }
-  70% { box-shadow: 0 0 0 8px color-mix(in srgb, var(--secondary) 0%, transparent); }
-  100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--secondary) 0%, transparent); }
-}
-.composer-pulse { animation: wallet-pulse 1.4s ease-out 2; }
-
-.composer-wallet-popover {
-  position: absolute;
-  bottom: calc(100% + 8px);
-  left: 0;
-  z-index: 20;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  background: var(--surface-container-high);
-  border: 1px solid var(--outline-soft);
-  border-radius: var(--radius-lg);
-  padding: 6px;
-  box-shadow: var(--shadow-md);
-  min-width: 160px;
-}
-.composer-wallet-option {
-  display: flex;
+.btn-icon {
+  display: inline-flex;
   align-items: center;
-  gap: 8px;
-  padding: 8px 10px;
-  border-radius: var(--radius-md);
-  border: none;
-  background: transparent;
-  color: var(--on-surface);
-  font-size: 0.85rem;
-  cursor: pointer;
-  text-align: left;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: var(--radius-full);
+  padding: 0;
+  flex-shrink: 0;
 }
-.composer-wallet-option:hover { background: var(--surface-container-highest, var(--surface-container-high)); }
-.composer-wallet-option.active { color: var(--secondary); font-weight: 600; }
-.composer-wallet-option .material-symbols-rounded { font-size: 18px; }
 
 @media (max-width: 640px) {
-  .composer-wallet-menu { position: absolute; top: -46px; left: 10px; }
-  .wallet-selected-badge span:not(.material-symbols-rounded) { display: none; }
-
   /* 31 daily bars can't be both readable and non-overlapping in a ~300px
      mobile card - rather than squeeze them unreadably thin (or let them
      force the whole page to scroll horizontally, which was the actual bug:
@@ -831,7 +790,9 @@ h1, h2, h3, p { margin: 0; }
   gap: var(--space-sm);
   padding: 14px 16px;
   border-radius: var(--radius-md);
-  background: var(--surface-container);
+  background: color-mix(in srgb, var(--surface) 82%, transparent);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
   border: 1px solid var(--outline-soft);
 }
 .transaction-right { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; }
@@ -843,19 +804,42 @@ h1, h2, h3, p { margin: 0; }
 .transaction-editor {
   padding: 14px 16px;
   border-radius: var(--radius-md);
-  background: var(--surface-container-low);
+  background: color-mix(in srgb, var(--surface) 88%, transparent);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
   border: 1px solid var(--outline-soft);
 }
 .transaction-editor-grid { display: grid; gap: var(--space-sm); grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
 
 .recurring-list { grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
-.recurring-card { padding: var(--space-sm) var(--space-md); display: flex; flex-direction: column; gap: 10px; border-radius: var(--radius-lg); background: var(--surface-container); border: 1px solid var(--outline-soft); }
+.recurring-card {
+  padding: var(--space-sm) var(--space-md);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  border-radius: var(--radius-lg);
+  background: color-mix(in srgb, var(--surface) 82%, transparent);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--outline-soft);
+}
 .recurring-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
 .recurring-meta { display: flex; align-items: center; justify-content: space-between; font-size: 12.5px; color: var(--on-surface-variant); }
 .recurring-meta.subtle { opacity: 0.75; font-family: var(--font-mono); font-size: 11px; }
 .recurring-actions { display: flex; gap: 8px; }
 .recurring-actions .btn { flex: 1; }
-.recurring-due-banner { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 12px; border-radius: var(--radius-md); background: color-mix(in srgb, var(--primary) 12%, var(--surface-container)); border: 1px solid var(--outline-soft); }
+.recurring-due-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--primary) 12%, color-mix(in srgb, var(--surface) 82%, transparent));
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--outline-soft);
+}
 .recurring-due-info { display: flex; flex-direction: column; gap: 2px; }
 .recurring-due-name { font-weight: 600; font-size: 13px; color: var(--on-surface); }
 .recurring-due-sub { font-size: 11.5px; color: var(--on-surface-variant); }
@@ -935,7 +919,9 @@ h1, h2, h3, p { margin: 0; }
   height: 28px;
   border-radius: 50%;
   border: 1px solid var(--outline-soft);
-  background: var(--surface-container);
+  background: color-mix(in srgb, var(--surface) 82%, transparent);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
   color: var(--on-surface-variant);
   display: flex;
   align-items: center;
@@ -949,8 +935,10 @@ h1, h2, h3, p { margin: 0; }
   top: 36px;
   right: 0;
   z-index: 5;
-  background: var(--surface-container);
-  border: 1px solid var(--outline-soft);
+  background: color-mix(in srgb, var(--surface) 92%, transparent);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid rgba(255, 255, 255, 0.6);
   border-radius: var(--radius-md);
   padding: var(--space-sm);
   box-shadow: var(--shadow-lg);
@@ -987,8 +975,10 @@ h1, h2, h3, p { margin: 0; }
 .auth-card {
   width: 100%;
   max-width: 400px;
-  background: var(--surface-container);
-  border: 1px solid var(--outline-soft);
+  background: color-mix(in srgb, var(--surface) 84%, transparent);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid rgba(255, 255, 255, 0.6);
   border-radius: var(--radius-xl);
   padding: var(--space-lg) var(--space-md);
   box-shadow: var(--shadow-lg);
