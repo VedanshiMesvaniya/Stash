@@ -677,15 +677,15 @@ h1, h2, h3, p { margin: 0; }
 
 .composer {
   display: flex;
-  align-items: flex-end;
-  gap: 10px;
+  align-items: center;
+  gap: 8px;
   max-width: 780px;
   width: calc(100% - var(--space-md) * 2);
   margin: 0 auto;
-  padding: 10px 10px 10px 18px;
+  padding: 6px 6px 6px 16px;
   background: var(--surface-container-high);
   border: 1px solid var(--outline-soft);
-  border-radius: var(--radius-xl);
+  border-radius: var(--radius-full);
   box-shadow: var(--shadow-md);
   flex-shrink: 0;
   position: fixed;
@@ -700,53 +700,55 @@ h1, h2, h3, p { margin: 0; }
   border: none;
   background: transparent;
   resize: none;
-  padding: 10px 0;
-  max-height: 200px;
+  padding: 7px 0;
+  font-size: 14px;
+  line-height: 1.4;
+  max-height: 160px;
   box-shadow: none;
 }
 .composer-textarea:focus { border: none; box-shadow: none; }
-.composer .btn-primary { border-radius: var(--radius-full); width: 42px; height: 42px; padding: 0; flex-shrink: 0; }
+.composer .btn-primary { border-radius: var(--radius-full); width: 34px; height: 34px; padding: 0; flex-shrink: 0; }
 
 .btn-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 6px 12px;
-  border-radius: var(--radius-full);
-  font-size: 0.8rem;
-  line-height: 1;
-}
-.btn-pill .material-symbols-rounded { font-size: 16px; }
-.btn-pill.active { background: var(--secondary); color: var(--on-secondary, #fff); border-color: transparent; }
-
-.composer-wallet-menu { position: relative; display: flex; align-items: center; gap: 8px; flex-shrink: 0; align-self: center; }
-.btn-icon {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 36px;
-  height: 36px;
-  border-radius: var(--radius-full);
-  padding: 0;
-  flex-shrink: 0;
-}
-.composer-plus.active { background: var(--surface-container-high); border-color: var(--secondary); }
-.composer-plus .material-symbols-rounded { font-size: 20px; transition: transform 0.15s ease; }
-.composer-plus.active .material-symbols-rounded { transform: rotate(45deg); }
-
-.wallet-selected-badge {
   display: inline-flex;
   align-items: center;
   gap: 4px;
   padding: 5px 10px;
   border-radius: var(--radius-full);
   font-size: 0.75rem;
+  line-height: 1;
+}
+.btn-pill .material-symbols-rounded { font-size: 15px; }
+.btn-pill.active { background: var(--secondary); color: var(--on-secondary, #fff); border-color: transparent; }
+
+.composer-wallet-menu { position: relative; display: flex; align-items: center; gap: 6px; flex-shrink: 0; align-self: center; }
+.btn-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: var(--radius-full);
+  padding: 0;
+  flex-shrink: 0;
+}
+.composer-plus.active { background: var(--surface-container-high); border-color: var(--secondary); }
+.composer-plus .material-symbols-rounded { font-size: 18px; transition: transform 0.15s ease; }
+.composer-plus.active .material-symbols-rounded { transform: rotate(45deg); }
+
+.wallet-selected-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 4px 9px;
+  border-radius: var(--radius-full);
+  font-size: 0.7rem;
   font-weight: 600;
   border: 1px solid var(--outline-soft);
   color: var(--on-surface-variant);
   white-space: nowrap;
 }
-.wallet-selected-badge .material-symbols-rounded { font-size: 15px; }
+.wallet-selected-badge .material-symbols-rounded { font-size: 13px; }
 .wallet-selected-online { border-color: color-mix(in srgb, var(--secondary) 45%, transparent); color: var(--secondary); }
 .wallet-selected-cash { border-color: color-mix(in srgb, #d97706 45%, transparent); color: #b45309; }
 
