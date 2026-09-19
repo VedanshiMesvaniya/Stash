@@ -113,7 +113,7 @@ Copy `.env.example` → `.env` locally, or set in Render dashboard for productio
    npm install
    npm run build
    ```
-   This creates the Vite bundle in `app/static/react/`. Commit the changes.
+   This creates the Vite bundle in `app/static/react/`. Commit the changes. Don't hand-edit files in that folder (even `index.html`) - the CI stale-bundle check compares byte-for-byte, so a CRLF line-ending change alone will fail it. `.gitattributes` forces LF there to guard against this on Windows.
 
 2. **Create Render web service**:
    - Go to https://render.com → Dashboard → New + → Web Service
