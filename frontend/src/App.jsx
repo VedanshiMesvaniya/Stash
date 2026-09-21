@@ -854,6 +854,13 @@ function DashboardPage({ session, onNavigate, refreshToken, onTouchData }) {
           <MetricCard label="This Month Income" value={money(income, currency)} tone="good" />
           <MetricCard label="This Month Expense" value={money(expense, currency)} tone="bad" />
           <MetricCard label="Savings" value={money(data?.saved || 0, currency)} tone="accent" />
+          <div className="metric-card metric-card-dark">
+            <div className="metric-label">Most Used Category</div>
+            <div className="metric-value">{summary?.most_used_category || '—'}</div>
+            <div className="metric-sub">
+              {categories.length ? `${categories.length} categories this month` : 'No spending yet this month'}
+            </div>
+          </div>
         </section>
 
         <section className="grid two-up area-cards">
@@ -921,27 +928,6 @@ function DashboardPage({ session, onNavigate, refreshToken, onTouchData }) {
               )) : (
                 <div className="empty-state">No recurring rules yet.</div>
               )}
-            </div>
-          </div>
-        </section>
-
-        <section className="stack area-summary">
-          <div className="section-label">Summary</div>
-          <div className="grid summary-grid">
-            <div className="card card-pad summary-widget">
-              <div className="card-note">This month by category</div>
-              <PieViz entries={categories} />
-            </div>
-            <div className="card card-pad summary-widget">
-              <div className="card-note">Category comparison</div>
-              <BarViz entries={categories} />
-            </div>
-            <div className="widget-dark-card">
-              <div className="widget-dark-label">Most used category</div>
-              <div className="widget-dark-value">{summary?.most_used_category || '—'}</div>
-              <div className="widget-dark-sub">
-                {categories.length ? `${categories.length} categories this month` : 'No spending yet this month'}
-              </div>
             </div>
           </div>
         </section>

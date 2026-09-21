@@ -362,8 +362,7 @@ h1, h2, h3, p { margin: 0; }
     "hero    chat"
     "actions chat"
     "metrics chat"
-    "cards   chat"
-    "summary summary";
+    "cards   chat";
   gap: var(--space-md);
   align-items: start;
 }
@@ -371,7 +370,6 @@ h1, h2, h3, p { margin: 0; }
 .area-actions { grid-area: actions; }
 .area-metrics { grid-area: metrics; }
 .area-cards { grid-area: cards; }
-.area-summary { grid-area: summary; }
 .dashboard-chat { grid-area: chat; position: sticky; top: var(--space-lg); min-width: 0; }
 
 @media (max-width: 1080px) {
@@ -382,8 +380,7 @@ h1, h2, h3, p { margin: 0; }
       "chat"
       "actions"
       "metrics"
-      "cards"
-      "summary";
+      "cards";
   }
   .dashboard-chat { position: static; }
   .chat-shell-compact { height: 62vh; min-height: 460px; }
@@ -408,25 +405,22 @@ h1, h2, h3, p { margin: 0; }
 .quick-action-circle:hover .quick-action-icon { transform: translateY(-2px); box-shadow: var(--shadow-lg); color: var(--primary); }
 .quick-action-label { font-size: 12px; font-weight: 600; }
 
-.section-label { font-size: 18px; font-weight: 800; color: var(--on-surface); }
-.summary-grid { grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); align-items: stretch; }
-.summary-widget { display: flex; flex-direction: column; gap: 10px; align-items: center; text-align: center; justify-content: center; }
-.widget-dark-card {
+.metric-card { padding: var(--space-sm) var(--space-md); }
+/* Dashboard metric block: 2x2 (income, expense / savings, most used category).
+   Four tiles in one row get too narrow beside the chat column for INR amounts. */
+.area-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+@media (max-width: 420px) {
+  .area-metrics { grid-template-columns: 1fr; }
+}
+.metric-card-dark {
   background: linear-gradient(160deg, var(--sidebar-bg), var(--sidebar-bg-2));
   color: var(--sidebar-text-active);
   border-radius: var(--radius-lg);
-  padding: var(--space-md);
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  gap: 6px;
   box-shadow: var(--shadow-card);
 }
-.widget-dark-label { font-size: 11px; color: rgba(255, 255, 255, 0.65); font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; }
-.widget-dark-value { font-size: 22px; font-weight: 800; }
-.widget-dark-sub { font-size: 12px; color: rgba(255, 255, 255, 0.55); }
-
-.metric-card { padding: var(--space-sm) var(--space-md); }
+.metric-card-dark .metric-label { color: rgba(255, 255, 255, 0.65); }
+.metric-card-dark .metric-value { color: inherit; overflow-wrap: anywhere; }
+.metric-sub { font-size: 12px; color: rgba(255, 255, 255, 0.55); margin-top: 4px; }
 .metric-label { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--on-surface-variant); }
 .metric-value { font-size: 22px; font-weight: 700; margin-top: 8px; color: var(--on-surface); }
 .metric-good { color: var(--success); }
