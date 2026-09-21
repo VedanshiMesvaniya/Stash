@@ -217,6 +217,26 @@ class MerchantMemory(Base):
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
 
+class UserGlossaryTerm(Base):
+    """A term the USER explicitly taught Stash ("kalakand goes under
+    Snacks"). Unlike MerchantMemory (a statistical habit that needs two
+    hits before it is trusted) this is a direct instruction, so it applies
+    from the very first time and it outranks the built-in product glossary
+    (app/glossary) for this user only. Scoped per user - what an item means
+    to one household says nothing about another's. `term` is stored
+    normalised (see app.glossary.normalize_term)."""
+    __tablename__ = "user_glossary"
+    __table_args__ = (UniqueConstraint("user_id", "transaction_type", "term", name="uq_user_glossary_user_type_term"),)
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    transaction_type = Column(String, nullable=False)  # income or expense
+    term = Column(String, nullable=False)
+    category_or_source = Column(String, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+
 class WalletMemory(Base):
     """Feature #20 Auto-Fill Missing Fields: learns which wallet (cash vs
     online) a user tends to actually use for a given category/source, so a

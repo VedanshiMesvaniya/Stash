@@ -1,0 +1,27 @@
+{
+  "category": "Other",
+  "type": "income",
+  "description": "Income with no better source: interest, dividends, rent received, resale proceeds, loans received, opening balances.",
+  "groups": {
+    "category_names": [
+      "other income", "other", "others", "misc income", "miscellaneous income", "opening balance",
+      "starting balance", "initial balance", "balance forward", "carry forward", "brought forward"
+    ],
+    "interest_investments_sales": [
+      "interest", "interest credited", "interest received", "savings interest", "bank interest",
+      "fd interest", "fd maturity", "rd maturity", "ppf interest", "dividend", "dividends",
+      "dividend received", "mutual fund redemption", "redemption", "redeemed", "sold shares",
+      "sold stocks", "share sale", "stock sale", "sold mutual fund", "capital gains", "profit booked",
+      "profit on trade", "trading profit", "maturity", "maturity amount", "policy maturity",
+      "insurance maturity", "rent received", "rental income", "rent from tenant", "tenant rent",
+      "house rent income", "shop rent income", "sold", "sale proceeds", "sale of", "resale", "sold old",
+      "sold on olx", "olx", "olx sale", "sold phone", "sold laptop", "sold bike", "sold car",
+      "sold furniture", "scrap sale", "scrap", "raddi", "raddi sale", "lottery", "lottery win", "prize",
+      "prize money", "winnings", "quiz prize", "contest prize", "scholarship", "scholarship received",
+      "government subsidy", "subsidy", "govt scholarship", "dbt", "borrowed", "loan received",
+      "loan taken", "loan credited", "lent money returned", "money returned", "returned by friend",
+      "friend returned", "repaid", "repayment received", "advance received", "advance returned",
+      "chit fund maturity", "chit maturity", "committee received", "bishi received", "bhishi received"
+    ]
+  }
+}

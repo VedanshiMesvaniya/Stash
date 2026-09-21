@@ -1,0 +1,107 @@
+{
+  "category": "Bills",
+  "type": "expense",
+  "description": "Recurring bills and services: electricity, water, gas cylinder, internet, phone recharge, DTH, rent, EMI, insurance, subscriptions/OTT, household help, bank fees and memberships.",
+  "groups": {
+    "category_names": [
+      "bills", "bill", "utilities", "utility", "utility bill", "utility bills", "monthly bills",
+      "monthly bill", "subscriptions", "subscription", "dues", "monthly dues", "emi payment",
+      "recurring payment"
+    ],
+    "electricity": [
+      "electricity", "electricity bill", "electric bill", "light bill", "lights bill", "bijli",
+      "bijli bill", "bijali", "bijli ka bill", "current bill", "power bill", "eb bill", "mseb", "msedcl",
+      "pgvcl", "ugvcl", "dgvcl", "mgvcl", "gebl", "torrent power", "adani electricity", "tata power",
+      "bses", "bescom", "tneb", "tangedco", "kseb", "wbsedcl", "cesc", "uppcl", "jvvnl",
+      "electricity board", "meter recharge", "prepaid meter", "smart meter recharge", "solar bill",
+      "inverter bill"
+    ],
+    "water_gas_tax": [
+      "water bill", "pani bill", "paani bill", "water tax", "water charges", "water tanker", "tanker",
+      "water can", "water jar", "water can delivery", "ro water", "ro service", "ro filter",
+      "aquaguard service", "property tax", "house tax", "municipal tax", "municipal", "corporation tax",
+      "gas bill", "png bill", "png", "piped gas", "lpg", "lpg cylinder", "gas cylinder", "cooking gas",
+      "cylinder", "cylinder booking", "gas booking", "gas refill", "indane", "indane gas", "bharatgas",
+      "bharat gas", "hp gas", "mahanagar gas", "adani gas", "sabarmati gas", "gujarat gas", "igl", "mgl",
+      "garbage charges", "sewage", "drainage tax"
+    ],
+    "telecom_internet_tv": [
+      "internet", "internet bill", "wifi", "wi-fi", "wifi bill", "broadband", "broadband bill", "fibre",
+      "fiber", "jio fiber", "jiofiber", "jio airfiber", "airtel xstream", "xstream", "act fibernet",
+      "hathway", "den broadband", "excitel", "tikona", "bsnl broadband", "recharge", "mobile recharge",
+      "phone recharge", "sim recharge", "prepaid recharge", "postpaid bill", "prepaid", "postpaid",
+      "phone bill", "mobile bill", "mobile plan", "data pack", "data recharge", "top up recharge", "jio",
+      "jio recharge", "airtel", "airtel recharge", "vi recharge", "vodafone", "vodafone idea", "bsnl",
+      "idea recharge", "sim card", "landline", "landline bill", "telephone bill", "dth", "dth recharge",
+      "tata play", "tata sky", "dish tv", "d2h", "videocon d2h", "sun direct", "airtel dth", "cable tv",
+      "cable bill", "cable wala", "cablewala", "set top box", "ott recharge"
+    ],
+    "rent_housing_loans": [
+      "rent", "house rent", "home rent", "flat rent", "room rent", "shop rent", "office rent", "pg",
+      "pg rent", "pg fees", "hostel rent", "rent paid", "rent payment", "maintenance",
+      "society maintenance", "society charges", "flat maintenance", "maintenance charges",
+      "apartment maintenance", "sinking fund", "emi", "emis", "loan emi", "home loan", "home loan emi",
+      "car loan", "bike loan", "personal loan", "education loan", "gold loan", "business loan",
+      "loan repayment", "loan instalment", "loan installment", "installment", "instalment",
+      "credit card bill", "credit card payment", "credit card due", "cc bill", "card bill",
+      "card outstanding", "card payment", "bnpl", "simpl", "lazypay", "amazon pay later", "slice card",
+      "kreditbee", "cred payment", "cred", "hdfc card", "sbi card", "icici card", "axis card"
+    ],
+    "insurance": [
+      "insurance", "insurance premium", "premium", "health insurance", "mediclaim", "medical insurance",
+      "life insurance", "term insurance", "term plan", "vehicle insurance", "bike insurance",
+      "car insurance", "two wheeler insurance", "home insurance", "travel insurance", "lic",
+      "lic premium", "lic policy", "star health", "hdfc life", "sbi life", "max life",
+      "icici prudential", "tata aia", "bajaj allianz", "care health", "niva bupa", "digit insurance",
+      "acko", "policybazaar", "policy bazaar", "policy renewal", "insurance renewal"
+    ],
+    "subscriptions_digital": [
+      "netflix", "prime", "amazon prime", "prime video", "prime membership", "hotstar", "disney hotstar",
+      "disney+", "disney plus", "jiohotstar", "jio hotstar", "jiocinema", "jio cinema", "spotify",
+      "youtube premium", "yt premium", "youtube music", "sonyliv", "sony liv", "zee5", "voot",
+      "altbalaji", "mxplayer", "apple tv", "apple music", "gaana", "wynk", "wynk music", "jiosaavn",
+      "saavn", "audible", "kindle unlimited", "icloud", "icloud storage", "google one", "google storage",
+      "drive storage", "dropbox", "onedrive", "chatgpt", "chatgpt plus", "chat gpt", "openai",
+      "claude pro", "claude subscription", "perplexity pro", "gemini advanced", "github copilot",
+      "copilot", "cursor pro", "midjourney", "canva", "canva pro", "notion", "figma", "adobe",
+      "creative cloud", "photoshop", "grammarly", "microsoft 365", "office 365", "m365",
+      "linkedin premium", "domain", "domain renewal", "hosting", "web hosting", "godaddy", "hostinger",
+      "namecheap", "aws", "aws bill", "azure", "google cloud", "gcp", "digitalocean", "heroku", "vercel",
+      "netlify", "vpn", "nordvpn", "expressvpn", "antivirus", "norton", "mcafee", "quick heal",
+      "kaspersky", "ott subscription", "ott", "streaming", "streaming subscription", "app subscription",
+      "membership fee", "monthly subscription", "annual subscription", "yearly subscription",
+      "swiggy one", "zomato gold membership", "amazon prime membership", "flipkart plus", "newspaper",
+      "newspaper bill", "akhbar", "akhbar bill", "paper bill", "hawker", "magazine subscription",
+      "times of india", "gujarat samachar", "divya bhaskar", "sandesh newspaper", "the hindu",
+      "indian express"
+    ],
+    "services_household": [
+      "maid", "maid salary", "kaamwali", "kaam wali", "bai", "bai salary", "cook salary", "helper",
+      "helper salary", "house help", "househelp", "domestic help", "servant", "driver salary",
+      "watchman", "watchman salary", "security guard", "sweeper", "safai wali", "dhobi", "laundry",
+      "laundry bill", "dry clean", "dry cleaning", "dry cleaner", "ironing", "iron wala", "press wala",
+      "plumber", "electrician", "carpenter", "painter", "house painting", "white wash", "whitewash",
+      "pest control", "termite treatment", "ac service", "ac repair", "ac servicing", "ac installation",
+      "fridge repair", "washing machine repair", "appliance repair", "tv repair", "laptop repair",
+      "mobile repair", "phone repair", "screen repair", "screen replacement", "urban company",
+      "urbanclap", "housekeeping", "home service", "home services", "gardener", "mali",
+      "gardening service", "nanny", "babysitter", "attendant", "caretaker", "tutor fees home",
+      "tailor charges"
+    ],
+    "fees_charges": [
+      "bank charges", "bank charge", "annual fee", "annual charges", "annual maintenance charges", "amc",
+      "processing fee", "processing charges", "late fee", "late fees", "late payment fee", "penalty",
+      "atm charges", "sms charges", "minimum balance charges", "convenience fee", "platform fee",
+      "service charge", "service charges", "gst charges", "interest charges", "overdraft charges",
+      "forex charges", "card fee", "demat charges", "dp charges", "locker rent", "locker charges",
+      "bank locker", "gym", "gym fees", "gym fee", "gym membership", "fitness membership", "cult fit",
+      "cultfit", "yoga class fees", "zumba", "swimming pool fees", "club fees", "club membership",
+      "library membership", "coworking", "co-working", "coworking space"
+    ],
+    "native_script": [
+      "बिजली बिल", "लाइट बिल", "पानी बिल", "गैस सिलेंडर", "किराया", "रिचार्ज", "इंटरनेट", "वाईफाई",
+      "ईएमआई", "बीमा", "मेंटेनेंस", "લાઈટ બિલ", "લાઇટ બિલ", "વીજળી બિલ", "પાણી બિલ", "ગેસ સિલિન્ડર",
+      "ભાડું", "રિચાર્જ", "ઇન્ટરનેટ", "વાઈફાઈ", "ઈએમઆઈ", "વીમો", "મેન્ટેનન્સ", "કામવાળી"
+    ]
+  }
+}

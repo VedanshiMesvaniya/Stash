@@ -1,0 +1,41 @@
+{
+  "category": "Other",
+  "type": "expense",
+  "description": "Known items that deliberately have no better home: charity/religious offerings, tips, tobacco, salon/spa services, courier, fines. Listing an item here stops Stash asking about it.",
+  "groups": {
+    "category_names": [
+      "other", "others", "misc", "miscellaneous", "miscellaneous expense", "general expense",
+      "uncategorized", "uncategorised", "random expense", "unknown expense", "khutrak", "chutak",
+      "vividh"
+    ],
+    "religious_charity": [
+      "temple", "mandir", "mandir donation", "temple donation", "temple offering", "puja", "pooja",
+      "poojan", "puja samagri", "pooja samagri", "pooja items", "puja items", "pujan", "prasad",
+      "prasadam", "offering", "offerings", "donation", "donations", "donated", "daan", "charity",
+      "charity donation", "dakshina", "dakshina to pandit", "pandit", "pandit ji", "panditji",
+      "brahmin bhojan", "church", "church offering", "mosque", "masjid", "gurudwara", "gurdwara",
+      "langar", "zakat", "sadaqah", "tithe", "trust donation", "ngo", "ngo donation", "crowdfunding",
+      "ketto", "milaap", "cow shelter", "gaushala", "gau seva", "gaushala donation", "annadan",
+      "anna daan", "yajna", "havan", "satyanarayan katha", "katha", "bhandara", "jagran", "chadhava",
+      "chadar", "chadar dargah", "dargah", "mannat", "shagun", "shagun envelope", "vyavhar", "vyavahar",
+      "vevar", "lifafa", "envelope shagun", "aashirwad", "tips", "tip", "bakshish", "baksheesh",
+      "gratuity tip", "waiter tip"
+    ],
+    "tobacco_personal_services": [
+      "cigarette", "cigarettes", "cigar", "cigars", "ciggarette", "smoke", "smokes", "bidi", "beedi",
+      "tobacco", "gutka", "gutkha", "khaini", "mawa tobacco", "pan masala", "paan masala", "rajnigandha",
+      "vimal pan masala", "snuff", "vape", "vaping", "e-cigarette", "haircut", "hair cut",
+      "hair cutting", "barber", "salon", "saloon", "hair salon", "beauty salon", "parlour", "parlor",
+      "beauty parlour", "beauty parlor", "spa", "massage", "body massage", "head massage", "champi",
+      "facial", "waxing", "threading", "eyebrows", "manicure", "pedicure", "bleach parlour",
+      "bridal makeup", "makeup artist", "mehndi artist", "mehendi artist", "shaving", "shave", "tattoo",
+      "piercing", "nail art", "hair spa", "hair treatment", "keratin", "hair smoothening", "courier",
+      "courier charges", "postage", "speed post", "post office charges", "registered post",
+      "parcel charges", "cargo", "packers and movers", "packers movers", "moving charges",
+      "shifting charges", "lost", "lost money", "lost wallet", "stolen", "stolen money", "traffic fine",
+      "traffic challan", "e-challan", "echallan", "challan", "rto fine", "police fine", "government fee",
+      "govt fee", "stamp duty", "stamp paper", "notary", "notary charges", "affidavit", "legal fees",
+      "lawyer fees", "advocate fees", "court fees", "cbse fee"
+    ]
+  }
+}

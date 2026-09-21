@@ -1,0 +1,19 @@
+{
+  "category": "Salary",
+  "type": "income",
+  "description": "Regular pay from a job: salary, bonus, incentive, stipend, arrears.",
+  "groups": {
+    "category_names": [
+      "salary", "salaries", "sallary", "salery", "pagar", "pagaar", "pagr", "paycheck", "paycheque",
+      "pay check", "pay cheque", "pay slip", "payslip", "wage", "wages", "monthly pay", "monthly salary",
+      "salary credited", "salary credit", "salary received", "salary deposit", "ctc", "take home"
+    ],
+    "pay_components": [
+      "bonus", "annual bonus", "diwali bonus", "festival bonus", "performance bonus", "joining bonus",
+      "retention bonus", "referral bonus", "incentive", "incentives", "overtime", "ot pay", "arrears",
+      "salary arrears", "increment", "appraisal", "allowance", "da", "hra", "gratuity",
+      "leave encashment", "encashment", "notice pay", "full and final", "fnf", "stipend",
+      "internship stipend", "honorarium", "pension", "retirement pension", "wages received"
+    ]
+  }
+}

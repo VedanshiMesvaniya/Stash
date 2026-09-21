@@ -1,0 +1,23 @@
+{
+  "category": "Gift",
+  "type": "income",
+  "description": "Money received as a gift or from family/friends with no other stated source.",
+  "groups": {
+    "category_names": [
+      "gift", "gifts", "gifted", "gift received", "gift money", "present", "presents"
+    ],
+    "family_friends": [
+      "pocket money", "pocket money from", "birthday money", "birthday gift money", "shagun", "salami",
+      "eidi", "eid money", "diwali gift", "diwali money", "rakhi money", "rakhi gift",
+      "wedding gift money", "cash gift", "money gift", "uncle", "aunt", "aunty", "auntie", "grandma",
+      "grandpa", "grandmother", "grandfather", "mom", "dad", "mother", "father", "parents", "brother",
+      "sister", "relative", "relatives", "cousin", "friend gave", "friend transferred", "mama", "mami",
+      "kaka", "kaki", "kakaji", "bua", "fua", "fufa", "masi", "mausi", "nani", "nana", "dada", "dadi",
+      "bhai", "didi", "bhabhi", "jija", "chacha", "chachi", "taya", "tai", "mummy", "mumma", "papa",
+      "pappa", "bapuji", "bapu", "dadaji", "dadiji", "nanaji", "naniji", "sasural", "in laws",
+      "father in law", "mother in law", "husband gave", "wife gave", "spouse gave", "boyfriend gave",
+      "girlfriend gave", "family gave", "family transfer", "from family", "from home", "from parents",
+      "home money"
+    ]
+  }
+}

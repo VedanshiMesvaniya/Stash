@@ -1,0 +1,38 @@
+{
+  "category": "Petrol",
+  "type": "expense",
+  "description": "Fuel and vehicle running costs: petrol/diesel/CNG/EV charging, servicing, tyres, washes and repairs.",
+  "groups": {
+    "category_names": [
+      "petrol", "patrol", "fuel", "fuels", "diesel", "cng", "gasoline", "vehicle expense",
+      "vehicle expenses", "bike expense", "car expense", "vehicle running"
+    ],
+    "fuel": [
+      "petrol pump", "patrol pump", "fuel station", "filling station", "gas station", "petrol bunk",
+      "petrol tank", "tank full", "tank fill", "full tank", "fuel up", "fuel fill", "fuel filling",
+      "fuel charges", "petrol bill", "petrol for bike", "petrol for car", "bike petrol", "car petrol",
+      "scooter petrol", "activa petrol", "cng fill", "cng filling", "cng station", "diesel fill",
+      "premium petrol", "xp95", "power petrol", "speed petrol", "xtra premium", "ev charging",
+      "ev charge", "charging station", "ev charger", "car charging", "bike charging", "battery swap",
+      "indian oil", "indianoil", "iocl", "bpcl", "bharat petroleum", "hindustan petroleum", "hp petrol",
+      "hp pump", "nayara", "nayara energy", "reliance petrol", "reliance petrol pump", "jio bp", "jiobp",
+      "essar petrol", "shell petrol", "shell pump", "gas fill", "gas filling", "petrolpump"
+    ],
+    "vehicle_running": [
+      "bike service", "bike servicing", "car service", "car servicing", "vehicle service",
+      "scooter service", "activa service", "oil change", "engine oil", "mobil oil", "castrol",
+      "puncture", "puncture repair", "tyre", "tyres", "tire", "tires", "tyre change", "tyre puncture",
+      "tubeless", "tyre pressure", "air filling", "car wash", "bike wash", "vehicle wash",
+      "car cleaning", "bike cleaning", "vehicle repair", "bike repair", "car repair", "scooter repair",
+      "mechanic", "garage", "bike mechanic", "car mechanic", "denting", "painting car",
+      "wheel alignment", "wheel balancing", "wiper", "wipers", "clutch plate", "brake pad", "brake pads",
+      "brake oil", "coolant", "car battery", "bike battery", "battery replacement", "spark plug",
+      "chain sprocket", "bike chain", "bike accessories", "car accessories", "seat cover", "car mat",
+      "helmet", "helmets", "puc", "pollution check", "pollution certificate", "puc certificate",
+      "vehicle parts", "spare parts", "bike parts", "car parts", "silencer", "headlight", "indicator"
+    ],
+    "native_script": [
+      "पेट्रोल", "डीजल", "सीएनजी", "ईंधन", "પેટ્રોલ", "ડીઝલ", "સીએનજી"
+    ]
+  }
+}

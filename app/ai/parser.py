@@ -20,6 +20,7 @@ from sqlalchemy.orm import Session
 from . import extractor, intent_detector, response
 from .llm import LLMUnavailableError
 from app.database import crud
+from app.services import category_learning
 
 logger = logging.getLogger(__name__)
 
@@ -110,6 +111,15 @@ def handle_message(message: str, db: Session, user_id: int, payment_method_hint:
     currency = user.currency if user else "INR"
 
     pending = crud.get_pending_selection(db, user_id)
+    if pending and pending["kind"] == category_learning.PENDING_KIND:
+        # Stash asked "which category is <item>?" on the previous turn - see
+        # if this message answers it (no LLM call). If it is really
+        # something else the question is dropped and we carry on normally.
+        answered = category_learning.handle_answer(db, user_id, message, pending, currency)
+        if answered is not None:
+            return answered
+        pending = None
+
     if pending and pending["kind"] == "delete":
         resolved = _resolve_pending_selection(message, pending["options"])
         if resolved == "cancel":
@@ -217,6 +227,14 @@ def handle_message(message: str, db: Session, user_id: int, payment_method_hint:
         if transactions:
             created = finance.create_transactions(db, user_id, transactions, currency=currency)
 
+        # Items the glossary and LLM could not place were saved as "Other";
+        # ask about them in this same reply. Skipped when a clarification
+        # question is already going out, so the user is never asked two
+        # things at once.
+        category_question = None
+        if created and not clarification_needed:
+            category_question = category_learning.ask_about_unknown_terms(db, user_id, created)
+
         if clarification_needed and clarification_question:
             balance = finance.crud.get_balance(db, user_id)
             reply_text = clarification_question
@@ -257,6 +275,8 @@ def handle_message(message: str, db: Session, user_id: int, payment_method_hint:
         reply_text = finance.format_transaction_reply(created, balance=balance, currency=currency)
         if confirmations or withdraw_errors:
             reply_text = "\n".join(confirmations + withdraw_errors) + (f"\n\n{reply_text}" if created else "")
+        if category_question:
+            reply_text = f"{reply_text}\n\n{category_question}"
         return {
             "intent": "transaction",
             "reply": reply_text,

@@ -1,0 +1,61 @@
+{
+  "category": "Medical",
+  "type": "expense",
+  "description": "Health spending: medicines/pharmacy, doctors, hospitals, lab tests, dental, eye care, supplements.",
+  "groups": {
+    "category_names": [
+      "medical", "medicine", "medicines", "health", "healthcare", "health care", "medical expense",
+      "medical expenses", "medical bill", "medical bills", "dawa", "dawai", "davai", "dava", "dawaai",
+      "dawa dawai", "aushadh", "aushadhi", "dava dawa"
+    ],
+    "medicines_pharmacy": [
+      "tablet", "tablets", "capsule", "capsules", "syrup", "injection", "injections", "ointment",
+      "eye drops", "ear drops", "nasal spray", "inhaler", "medicine bill", "medical store",
+      "medical shop", "chemist", "chemist shop", "pharmacy", "pharmacy bill", "apollo pharmacy",
+      "apollo", "pharmeasy", "pharm easy", "1mg", "tata 1mg", "netmeds", "medplus", "med plus",
+      "wellness forever", "jan aushadhi", "medkart", "truemeds", "dawa bazaar", "crocin", "dolo",
+      "dolo 650", "paracetamol", "calpol", "combiflam", "disprin", "saridon", "vicks", "vicks vaporub",
+      "vaporub", "cough syrup", "cold medicine", "fever medicine", "pain killer", "painkiller",
+      "pain relief", "eno", "digene", "gelusil", "pudin hara", "pudina hara", "hajmola tablet",
+      "zandu balm", "amrutanjan", "iodex", "volini", "moov", "boroline", "betadine", "savlon",
+      "band aid", "bandaid", "bandage", "gauze", "first aid", "first aid kit", "ors", "electral",
+      "cetirizine", "azithromycin", "amoxicillin", "antibiotic", "antibiotics", "antacid", "insulin",
+      "bp tablets", "sugar tablets", "thyroid tablet", "vitamin", "vitamins", "vitamin d", "vitamin c",
+      "multivitamin", "calcium tablet", "iron tablet", "b12", "omega 3", "fish oil capsule",
+      "supplement", "supplements", "health supplement", "ayurvedic medicine", "ayurvedic", "ayurveda",
+      "ayurved", "vaidya", "hakim", "homeopathy", "homeopath", "homeopathic", "homoeopathy",
+      "herbal medicine", "chyawanprash", "chyawanprash jar", "dabur chyawanprash", "giloy",
+      "giloy juice", "ashwagandha", "triphala", "patanjali medicine", "thermometer", "bp machine",
+      "bp monitor", "glucometer", "glucose strips", "oximeter", "pulse oximeter", "nebulizer",
+      "steamer vaporizer", "heating pad", "hot water bag", "mask", "masks", "n95", "surgical mask",
+      "face mask", "gloves medical", "pregnancy test", "condom", "condoms", "contraceptive"
+    ],
+    "doctors_hospitals": [
+      "doctor", "doctors", "dr", "doctor fee", "doctor fees", "doctor visit", "consultation",
+      "consultation fee", "consultation fees", "consulting fee", "opd", "opd fees", "clinic",
+      "clinic fees", "hospital", "hospital bill", "hospital charges", "hospital admission",
+      "nursing home", "admission charges", "surgery", "operation", "icu", "ambulance", "emergency",
+      "emergency room", "casualty", "checkup", "check up", "health checkup", "full body checkup",
+      "master health checkup", "blood test", "urine test", "sugar test", "lab test", "lab tests",
+      "pathology", "pathlab", "path lab", "diagnostic", "diagnostics", "thyrocare", "dr lal pathlabs",
+      "lal path lab", "lal pathlabs", "metropolis", "srl", "xray", "x-ray", "mri", "ct scan",
+      "sonography", "ultrasound", "usg", "ecg", "2d echo", "echo test", "vaccine", "vaccination",
+      "vaccination charges", "flu shot", "dentist", "dental", "dental checkup", "tooth", "teeth",
+      "teeth cleaning", "scaling", "braces", "root canal", "tooth filling", "tooth extraction",
+      "dental clinic", "eye test", "eye checkup", "eye doctor", "eye specialist", "spectacles", "specs",
+      "eyeglasses", "eye glasses", "contact lens", "contact lenses", "lenses", "lenskart", "optician",
+      "opticals", "optical shop", "hearing aid", "physio", "physiotherapy", "physiotherapist", "therapy",
+      "therapist", "counselling", "counseling", "psychologist", "psychiatrist", "dermatologist",
+      "gynecologist", "gynaecologist", "pediatrician", "orthopedic", "cardiologist", "neurologist",
+      "ent doctor", "skin doctor", "eye surgeon", "specialist", "specialist fees", "second opinion",
+      "telemedicine", "online consultation", "practo", "mfine", "lybrate", "delivery charges hospital",
+      "maternity", "delivery hospital", "ivf", "dialysis", "chemotherapy", "radiology", "biopsy",
+      "endoscopy", "colonoscopy", "mammography", "ayushman", "health card", "vet", "veterinary",
+      "vet fees", "dog vaccination", "pet vaccination", "pet doctor"
+    ],
+    "native_script": [
+      "दवा", "दवाई", "डॉक्टर", "अस्पताल", "इंजेक्शन", "चश्मा", "દવા", "દવાઓ", "ડોક્ટર", "દવાખાનું",
+      "હોસ્પિટલ", "ચશ્મા", "ઈન્જેક્શન"
+    ]
+  }
+}

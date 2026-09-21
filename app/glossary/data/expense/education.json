@@ -1,0 +1,72 @@
+{
+  "category": "Education",
+  "type": "expense",
+  "description": "Learning: school/college fees, tuition & coaching, online courses, exams, books and stationery.",
+  "groups": {
+    "category_names": [
+      "education", "study", "studies", "studying", "learning", "school expense", "college expense",
+      "education expense", "educational", "academic", "academics", "shiksha"
+    ],
+    "fees_institutions": [
+      "school", "school fee", "school fees", "school fee payment", "fees", "tuition", "tution",
+      "tuition fee", "tuition fees", "tution fees", "tuitions", "tuition class", "tuition classes",
+      "coaching", "coaching fee", "coaching fees", "coaching class", "coaching classes",
+      "coaching institute", "class", "classes", "class fees", "college", "college fee", "college fees",
+      "university", "university fee", "university fees", "semester fee", "semester fees", "sem fee",
+      "exam fee", "exam fees", "examination fee", "exam form", "exam form fee", "form fee", "form fees",
+      "application fee", "application fees", "admission", "admission fee", "admission fees",
+      "registration fee", "registration fees", "enrollment fee", "enrolment fee", "hostel fee",
+      "hostel fees", "library fee", "library fees", "lab fee", "lab fees", "development fee",
+      "annual day fee", "school trip", "picnic school", "school picnic", "school van", "school van fees",
+      "school bus fees", "school bus", "pta", "mba fees", "mca fees", "btech fees", "engineering fees",
+      "medical college fees", "kindergarten", "playgroup", "play school", "preschool", "nursery fees",
+      "creche", "daycare", "day care", "kumon", "abacus", "vedic maths", "montessori", "madrasa",
+      "madarsa", "gurukul", "pathshala", "sunday school"
+    ],
+    "online_learning_exams": [
+      "course", "courses", "online course", "online courses", "course fee", "course fees", "udemy",
+      "coursera", "edx", "unacademy", "byjus", "byju", "physics wallah", "physicswallah", "pw",
+      "vedantu", "khan academy", "linkedin learning", "skillshare", "masterclass", "great learning",
+      "greatlearning", "upgrad", "simplilearn", "scaler", "coding ninjas", "codingninjas",
+      "geeksforgeeks", "gfg", "leetcode", "leetcode premium", "hackerrank", "codecademy", "datacamp",
+      "pluralsight", "duolingo", "duolingo plus", "babbel", "certification", "certificate",
+      "certificate fee", "certification fee", "exam", "exams", "entrance exam", "entrance fee",
+      "mock test", "mock tests", "test series", "test series fee", "jee", "neet", "upsc", "gpsc", "spsc",
+      "ssc", "ielts", "toefl", "gre", "gmat", "pte", "cuet", "clat", "cat exam", "bootcamp", "boot camp",
+      "workshop", "workshop fee", "seminar", "seminar fee", "webinar", "webinar fee", "conference fee",
+      "conference registration", "publication fee", "journal fee", "paper publication",
+      "research paper fee", "thesis", "thesis printing", "project report", "project report printing",
+      "internship fee", "training fee", "training course", "skill course", "skill development",
+      "spoken english", "english class", "language class", "french class", "german class",
+      "japanese class", "dance class", "dance classes", "music class", "music classes", "singing class",
+      "swimming class", "swimming classes", "yoga class", "drawing class", "painting classes",
+      "coding class", "coding classes", "computer class", "computer classes", "tally course",
+      "typing class", "driving school", "driving class", "driving lessons", "learner license",
+      "rto exam"
+    ],
+    "books_stationery": [
+      "book", "books", "textbook", "textbooks", "text book", "text books", "reference book",
+      "reference books", "guide book", "guidebook", "study material", "study materials", "notes xerox",
+      "notebook", "notebooks", "note book", "note books", "copy books", "exercise book",
+      "exercise books", "journal book", "diary", "diaries", "planner", "stationery", "stationary",
+      "stationery items", "stationery shop", "stationary shop", "pen", "pens", "ball pen", "gel pen",
+      "fountain pen", "pencil", "pencils", "eraser", "sharpener", "geometry box", "compass box",
+      "pencil box", "ruler", "highlighter", "marker", "markers", "sketch pen", "sketch pens",
+      "colour pencils", "color pencils", "crayons", "water colours", "watercolors", "drawing book",
+      "drawing sheets", "chart paper", "project file", "files", "file folder", "folder", "folders",
+      "clip board", "clipboard", "stapler", "a4 paper", "a4 sheets", "printout", "printouts",
+      "print out", "print outs", "printing", "print", "xerox", "photocopy", "photocopies", "zerox",
+      "zeroxes", "lamination", "laminating", "spiral binding", "binding", "hard binding",
+      "thesis binding", "id card print", "calculator", "scientific calculator", "school bag",
+      "school bags", "school uniform", "uniform", "uniforms", "school shoes", "school tie",
+      "school belt", "school diary", "bookstore", "book store", "book shop", "bookshop", "crossword",
+      "sapna book house", "amazon books", "kindle book", "kindle books", "ebook", "e-book", "ebooks",
+      "audiobook", "tuition book", "ncert", "ncert books", "rd sharma", "hc verma",
+      "gujarat board books", "gseb books"
+    ],
+    "native_script": [
+      "स्कूल फीस", "फीस", "किताब", "ट्यूशन", "कोचिंग", "कॉलेज", "पढ़ाई", "સ્કૂલ ફી", "ફી", "ચોપડી",
+      "ચોપડીઓ", "ટ્યુશન", "કોચિંગ", "કોલેજ", "ભણતર"
+    ]
+  }
+}

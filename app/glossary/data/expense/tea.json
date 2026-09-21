@@ -1,0 +1,35 @@
+{
+  "category": "Tea",
+  "type": "expense",
+  "description": "Tea and coffee bought as a drink - tapri chai, cafes, coffee chains. (Tea/coffee powder for the kitchen lives in Groceries.)",
+  "groups": {
+    "category_names": [
+      "tea", "chai", "coffee", "cofee", "chai coffee", "tea coffee", "tea stall", "tea shop", "tea time",
+      "tea break", "coffee shop", "coffee break", "coffee house"
+    ],
+    "tea": [
+      "cutting chai", "masala chai", "adrak chai", "elaichi chai", "ginger tea", "green tea",
+      "lemon tea", "iced tea", "ice tea", "black tea", "kadak chai", "tapri", "tapri chai", "chai tapri",
+      "chaiwala", "chai wala", "chai walla", "chaiwalla", "milk tea", "doodh chai", "kulhad chai",
+      "kulhad", "irani chai", "sulemani chai", "chai latte", "masala tea", "herbal tea", "kahwa",
+      "kashmiri kahwa", "tulsi tea", "hibiscus tea", "bubble tea", "boba tea", "matcha", "tea cup",
+      "tea cups", "chai cup", "chai nasta", "chai pani", "chai pani ka kharcha", "chai pe", "chai adda",
+      "chai pilo", "chai break", "tea pilo"
+    ],
+    "coffee": [
+      "cold coffee", "filter coffee", "black coffee", "hot coffee", "iced coffee", "ice coffee",
+      "cappuccino", "cappucino", "latte", "espresso", "americano", "mocha", "flat white", "macchiato",
+      "frappe", "frappuccino", "affogato", "irish coffee", "dalgona", "dalgona coffee", "cold brew",
+      "coffee cup", "coffee shop bill"
+    ],
+    "cafes_merchants": [
+      "ccd", "cafe coffee day", "starbucks", "chaayos", "chai point", "chai sutta bar", "tea post",
+      "teapost", "tea villa", "teavilla", "barista", "third wave coffee", "blue tokai", "costa coffee",
+      "tim hortons", "chai thela", "chai sutta", "chaap chai", "chai break cafe", "coffee day",
+      "indian coffee house", "mad over donuts", "chai lounge"
+    ],
+    "native_script": [
+      "चाय", "कॉफी", "कटिंग चाय", "ચા", "કોફી", "કટિંગ ચા"
+    ]
+  }
+}
