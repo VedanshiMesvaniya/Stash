@@ -9,6 +9,7 @@ Stash is a FastAPI + React web application for tracking income, expenses, recurr
 ### Core functionality
 
 - **AI chat-based entry logging**: Natural language input ("spent 50 on groceries yesterday") → AI extracts transaction details
+- **Product glossary (auto-categorization)**: a ~6,000-term JSON glossary of everyday Indian items, brands and merchants (English, Hinglish, Hindi/Gujarati script) maps things like "dahi", "PGVCL" or "fafda" to the right category before the LLM's own guess is trusted. When an item isn't in the glossary, Stash saves it under Other, asks which category it belongs to in the same chat reply, and remembers the answer for that user — see [app/glossary/data/README.md](app/glossary/data/README.md)
 - **Multi-user**: Every family member, self-registered account, or seeded demo account is completely isolated by `user_id`; one member cannot see another's transactions
 - **Two ways to get an account**: self-registration with email verification (a 6-digit code sent via Gmail SMTP), or pre-seeded private accounts via `app/database/seed.py` (see [Private accounts](#private-accounts-local-development) below)
 - **Transaction management**:
@@ -173,6 +174,11 @@ app/
     parser.py             Date parsing (N days ago, last week, etc.)
     response.py           QA prompt handler for non-transaction questions
     prompts.py            Centralized prompt templates
+  glossary/
+    engine.py             Loads + matches the product glossary (whole-word, longest-match, tie-safe)
+    data/expense/*.json   One file per expense category (groceries, snacks, tea, food, ...)
+    data/income/*.json    One file per income source (salary, freelance, gift, refund, other)
+    data/README.md        Format, per-category conventions, how to add terms
   api/
     auth.py               POST /login, /register/send-code, /register/verify-code, /logout, GET /session, /unlock, /lock-settings
     finance.py            Chat, timeline, dashboard, wallets, budgets, transaction edit/delete
@@ -194,6 +200,7 @@ app/
     private_accounts.py   Local-only user accounts (gitignored)
   services/
     finance.py            Transaction creation from chat
+    category_learning.py  Ask-and-remember loop for items the glossary doesn't know
     recurring.py          Auto-posting recurring transactions
     analytics.py          Dashboard data and smart suggestions
     export.py             CSV, Excel, PDF export
@@ -215,7 +222,10 @@ frontend/
     components/           React components (charts, UI widgets, etc.)
   index.html              HTML template
 .github/
-  workflows/ci.yml        GitHub Actions CI (backend smoke tests + frontend build check)
+  workflows/ci.yml        GitHub Actions CI (backend smoke tests + glossary validation + frontend build check)
+scripts/
+  validate_glossary.py    Validates the glossary JSON (also run in CI)
+  diagnose_llm.py         LLM provider diagnostics
 ```
 
 ## API endpoints
@@ -276,7 +286,7 @@ frontend/
 
 Every push and PR to `main` or `feature/add_new` runs `.github/workflows/ci.yml` on GitHub Actions, two jobs:
 
-- **backend** — syntax-checks every `.py` file, imports `app.main` (catches broken wiring, not just syntax errors), runs migrations + seeding against a fresh database, and smoke-tests login/session through the real routes with the seeded `guest` account.
+- **backend** — syntax-checks every `.py` file, imports `app.main` (catches broken wiring, not just syntax errors), runs migrations + seeding against a fresh database, validates the product glossary JSON (`scripts/validate_glossary.py`), and smoke-tests login/session through the real routes with the seeded `guest` account.
 - **frontend** — `npm ci` + `npx vite build` from the repo root, then diffs the freshly built output against what's committed in `app/static/react/`. Fails if they differ (line-ending-only differences are ignored), since that means `frontend/src` changed but the prebuilt bundle wasn't rebuilt and committed — Render never rebuilds it itself (see [DEPLOY.md](DEPLOY.md)).
 
 Nothing here deploys anything — Render already auto-deploys from GitHub on its own. The workflow only makes sure whatever reaches `main` actually starts up correctly. To make that enforced rather than advisory, add a branch protection rule on `main` (Settings → Branches → add rule → require status checks → select `backend` and `frontend`).

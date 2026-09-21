@@ -1,0 +1,24 @@
+{
+  "category": "Refund",
+  "type": "income",
+  "description": "Money coming back: refunds, cashback, reimbursements, tax refunds, claims.",
+  "groups": {
+    "category_names": [
+      "refund", "refunds", "refunded", "refund received", "money back", "moneyback", "cashback",
+      "cash back", "cashbacks", "reimbursement", "reimbursements", "reimburse", "reimbursed",
+      "reimbursement received", "chargeback", "reversal", "reversed", "payment reversal",
+      "transaction reversal", "failed transaction refund"
+    ],
+    "typical_refunds": [
+      "returned", "return refund", "order refund", "order cancelled refund", "cancelled order refund",
+      "cancelled order", "cancellation refund", "ticket refund", "ticket cancellation refund",
+      "booking refund", "flight refund", "train refund", "hotel refund", "tax refund", "itr refund",
+      "income tax refund", "gst refund", "tds refund", "deposit refund", "security deposit returned",
+      "security deposit refund", "caution money", "caution money refund", "fee refund",
+      "school fee refund", "insurance claim", "claim settlement", "claim received", "mediclaim received",
+      "warranty refund", "amazon refund", "flipkart refund", "swiggy refund", "zomato refund",
+      "paytm cashback", "phonepe cashback", "gpay cashback", "google pay reward", "credit card cashback",
+      "card cashback", "reward points redeemed", "cashback received"
+    ]
+  }
+}

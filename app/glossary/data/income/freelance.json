@@ -1,0 +1,22 @@
+{
+  "category": "Freelance",
+  "type": "income",
+  "description": "Self-employed and gig income: freelance/client payments, consulting, commissions, royalties, ad revenue.",
+  "groups": {
+    "category_names": [
+      "freelance", "freelancing", "freelancer", "gig", "gigs", "side hustle", "side income", "side gig",
+      "part time income", "consulting", "consultancy", "consultant", "consulting fee", "consulting fees"
+    ],
+    "client_work": [
+      "client payment", "client", "clients", "invoice", "invoices", "invoice paid", "invoice payment",
+      "project payment", "project income", "project fee", "contract", "contract payment",
+      "contract work", "upwork", "fiverr", "toptal", "freelancer.com", "peopleperhour", "guru.com",
+      "99designs", "commission", "commissions", "royalty", "royalties", "adsense", "youtube income",
+      "youtube revenue", "affiliate", "affiliate income", "sponsorship", "sponsorships", "brand deal",
+      "brand collaboration", "content payment", "writing payment", "design payment",
+      "development payment", "tuition income", "tuition money", "teaching income", "home tuition money",
+      "training income", "workshop income", "sold service", "service income", "business income",
+      "shop income", "profit share"
+    ]
+  }
+}

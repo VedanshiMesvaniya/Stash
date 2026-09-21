@@ -693,9 +693,40 @@ def get_pending_selection(db: Session, user_id: int):
     row = db.query(models.PendingSelection).filter(models.PendingSelection.user_id == user_id).first()
     if not row:
         return None
-    return {"kind": row.kind, "options": json.loads(row.options_json)}
+    return {"kind": row.kind, "options": json.loads(row.options_json), "created_at": row.created_at}
 
 
 def clear_pending_selection(db: Session, user_id: int):
     db.query(models.PendingSelection).filter(models.PendingSelection.user_id == user_id).delete()
     db.commit()
+
+
+# --- User-taught glossary terms (see models.UserGlossaryTerm) ---
+
+def get_user_glossary_terms(db: Session, user_id: int, transaction_type: str) -> dict[str, str]:
+    """{normalised term: category_or_source} for everything this user has
+    explicitly taught Stash."""
+    rows = db.query(models.UserGlossaryTerm).filter(
+        models.UserGlossaryTerm.user_id == user_id,
+        models.UserGlossaryTerm.transaction_type == transaction_type,
+    ).all()
+    return {row.term: row.category_or_source for row in rows}
+
+
+def set_user_glossary_term(db: Session, user_id: int, transaction_type: str, term: str, category_or_source: str):
+    """Upsert - teaching the same term again simply replaces its category."""
+    row = db.query(models.UserGlossaryTerm).filter(
+        models.UserGlossaryTerm.user_id == user_id,
+        models.UserGlossaryTerm.transaction_type == transaction_type,
+        models.UserGlossaryTerm.term == term,
+    ).first()
+    if row:
+        row.category_or_source = category_or_source
+    else:
+        row = models.UserGlossaryTerm(
+            user_id=user_id, transaction_type=transaction_type, term=term, category_or_source=category_or_source,
+        )
+        db.add(row)
+    db.commit()
+    db.refresh(row)
+    return row

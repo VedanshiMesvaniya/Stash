@@ -27,6 +27,8 @@ or partial transaction list and fell back to a generic hardcoded prompt.
 import re
 from datetime import date, timedelta
 
+from app import glossary
+
 from . import llm
 from .prompts import (
     CATEGORIES_EXPENSE,
@@ -317,6 +319,16 @@ def _resolve_category_or_source(txn_type: str, raw_value: str | None, descriptio
     valid_list = CATEGORIES_INCOME if txn_type == "income" else CATEGORIES_EXPENSE
     hint_map = INCOME_CATEGORY_HINTS if txn_type == "income" else EXPENSE_CATEGORY_HINTS
 
+    # Product glossary first (app/glossary): a deterministic "what is this
+    # item" answer that does not depend on the LLM recognising it - this is
+    # what stops e.g. "Dahi" from landing in "Other". It only speaks up
+    # when it has ONE clear best match for THIS transaction's description;
+    # on a tie between categories it stays silent and the LLM guess/hint
+    # tables below decide, exactly as before.
+    known = glossary.lookup(description, txn_type)
+    if known and known.category in valid_list:
+        return known.category
+
     if raw_value:
         raw_clean = raw_value.strip()
         # Case-insensitive exact match against the valid list first.
@@ -344,6 +356,7 @@ def explain_category(txn_type: str, category_or_source: str, description: str | 
     """Feature #26 - Explain AI Decisions. Recomputes, against the SAME
     hint tables used at extraction time, whether the category came from a
     recognizable keyword. Returns (reason_kind, keyword):
+      - ("glossary_match", term)  - description contains an item from the product glossary
       - ("hint_match", keyword)   - description contains a known keyword/merchant
       - ("no_match", None)        - no keyword matched; category_or_source was
                                      either explicitly stated or an LLM guess
@@ -353,6 +366,9 @@ def explain_category(txn_type: str, category_or_source: str, description: str | 
     are checked separately in services/finance.py, which has DB access."""
     if not description:
         return ("no_match", None)
+    known = glossary.lookup(description, txn_type)
+    if known and known.category == category_or_source:
+        return ("glossary_match", known.term)
     hint_map = INCOME_CATEGORY_HINTS if txn_type == "income" else EXPENSE_CATEGORY_HINTS
     hints = hint_map.get(category_or_source, ())
     lowered = description.lower()

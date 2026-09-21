@@ -1,0 +1,61 @@
+{
+  "category": "Travel",
+  "type": "expense",
+  "description": "Getting around: cabs, autos, buses, trains, flights, hotels/stays, tolls, parking, tours and trips.",
+  "groups": {
+    "category_names": [
+      "travel", "travelling", "traveling", "trip", "trips", "tour", "tours", "commute", "commuting",
+      "transport", "transportation", "fare", "journey", "yatra", "safar", "musafari", "pravas",
+      "vacation", "holiday", "holidays", "vacations", "outstation"
+    ],
+    "local_transport": [
+      "cab", "cabs", "cab fare", "taxi", "taxis", "taxi fare", "uber", "uber auto", "uber go",
+      "uber moto", "ola", "ola cab", "ola auto", "ola bike", "ola money", "rapido", "rapido bike",
+      "rapido auto", "namma yatri", "blablacar", "indrive", "meru cab", "auto", "autos", "auto rickshaw",
+      "autorickshaw", "rickshaw", "riksha", "rikshaw", "rickshaws", "chhakda", "chakda", "chhakdo",
+      "tuk tuk", "bike taxi", "shuttle", "shuttle bus", "e-rickshaw", "erickshaw", "toto", "tempo",
+      "share auto", "sharing auto", "bus", "buses", "bus fare", "bus ticket", "bus pass", "city bus",
+      "local bus", "st bus", "gsrtc", "msrtc", "ksrtc", "rsrtc", "upsrtc", "brts", "amts", "best bus",
+      "redbus", "red bus", "abhibus", "volvo", "volvo bus", "sleeper bus", "private bus", "travels bus",
+      "bus booking", "metro", "metro card", "metro ticket", "metro recharge", "delhi metro",
+      "mumbai metro", "namma metro", "monorail", "tram", "local train", "mumbai local", "suburban",
+      "train pass", "season pass", "monthly pass", "tempo traveller"
+    ],
+    "intercity_air_rail": [
+      "train", "trains", "train ticket", "train fare", "train booking", "railway", "railways",
+      "railway ticket", "irctc", "tatkal", "tatkal ticket", "indian railways", "rail ticket",
+      "vande bharat", "rajdhani", "shatabdi", "duronto", "flight", "flights", "flight ticket",
+      "flight booking", "air ticket", "air tickets", "airfare", "air fare", "airline", "indigo",
+      "air india", "spicejet", "vistara", "akasa", "akasa air", "airasia", "go first", "alliance air",
+      "star air", "makemytrip", "make my trip", "mmt", "goibibo", "cleartrip", "yatra.com", "ixigo",
+      "easemytrip", "easy my trip", "redbus booking", "paytm travel", "airport", "airport transfer",
+      "airport cab", "airport taxi", "airport parking", "airport tax", "boarding pass", "excess baggage",
+      "baggage fee", "luggage fee", "cancellation charges", "ticket cancellation", "ticket booking",
+      "booking charges", "ferry", "ferry ticket", "boat ticket", "cruise", "ship ticket"
+    ],
+    "stay_trips": [
+      "hotel booking", "hotel stay", "hotel room", "hotel bill", "hotel charges", "hotel rent", "lodge",
+      "lodging", "accommodation", "airbnb", "oyo", "oyo rooms", "treebo", "fabhotels", "zostel",
+      "hostel stay", "resort", "resort stay", "homestay", "home stay", "guest house", "guesthouse",
+      "dharamshala", "dharamsala", "night stay", "room booking", "booking.com", "agoda", "trivago",
+      "tour package", "travel package", "holiday package", "trip expenses", "trip expense", "trip cost",
+      "tour expense", "tour bill", "sightseeing", "sight seeing", "excursion", "road trip",
+      "weekend trip", "weekend getaway", "getaway", "picnic spot", "darshan trip", "pilgrimage",
+      "yatra expenses", "tour guide", "guide fees", "local guide", "visa fee", "visa fees",
+      "visa charges", "passport charges", "forex", "currency exchange", "travel card"
+    ],
+    "road_tolls_parking": [
+      "toll", "toll tax", "toll plaza", "toll charges", "fastag", "fast tag", "fastag recharge",
+      "fastag balance", "parking", "parking fee", "parking fees", "parking charges", "parking ticket",
+      "valet", "valet parking", "porter", "coolie", "luggage porter", "car rental", "bike rental",
+      "vehicle rental", "self drive", "zoomcar", "zoom car", "revv", "royal brothers", "bounce", "yulu",
+      "vogo", "bike on rent", "scooter on rent", "cab booking", "cab charges", "driver charges",
+      "driver bata", "outstation cab", "car hire", "taxi hire", "bus hire", "tempo hire", "travel agent",
+      "travel agency", "trip advisor"
+    ],
+    "native_script": [
+      "टैक्सी", "ऑटो", "रिक्शा", "बस", "ट्रेन", "फ्लाइट", "यात्रा", "टोल", "पार्किंग", "मेट्रो",
+      "ટેક્સી", "ઓટો", "રિક્ષા", "બસ", "ટ્રેન", "ફ્લાઇટ", "પ્રવાસ", "ટોલ", "પાર્કિંગ", "મેટ્રો", "છકડો"
+    ]
+  }
+}

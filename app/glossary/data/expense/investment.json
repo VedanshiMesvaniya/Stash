@@ -1,0 +1,51 @@
+{
+  "category": "Investment",
+  "type": "expense",
+  "description": "Money put to work: SIPs, stocks/brokers, FD/RD/PPF/NPS, gold & silver (as an asset), crypto, property, chit funds.",
+  "groups": {
+    "category_names": [
+      "investment", "investments", "invest", "investing", "invested", "saving", "savings",
+      "savings plan", "wealth", "corpus", "portfolio", "nivesh"
+    ],
+    "market_funds": [
+      "sip", "sips", "sip payment", "sip installment", "mutual fund", "mutual funds", "mf", "elss",
+      "index fund", "index funds", "nifty", "nifty50", "nifty 50", "sensex", "stock", "stocks",
+      "share market", "stock market", "equity", "equities", "demat", "demat account", "zerodha", "groww",
+      "upstox", "angel one", "angel broking", "5paisa", "icici direct", "hdfc securities",
+      "kotak securities", "sharekhan", "motilal oswal", "paytm money", "kuvera", "coin by zerodha",
+      "smallcase", "etf", "etfs", "ipo", "ipos", "nfo", "futures", "options trading", "trading",
+      "trading capital", "trading account", "intraday", "swing trading", "mtf", "debentures", "gilt",
+      "corporate bond", "sgb", "sovereign gold bond", "gold etf", "gold bees", "liquid fund",
+      "debt fund", "hybrid fund", "flexi cap", "small cap", "mid cap", "large cap", "lumpsum",
+      "lump sum", "top up sip"
+    ],
+    "deposits_govt": [
+      "fd", "fds", "fixed deposit", "fixed deposits", "fd deposit", "rd", "rd installment",
+      "recurring deposit", "ppf", "epf", "vpf", "nps", "nps tier 1", "atal pension", "apy", "sukanya",
+      "sukanya samriddhi", "ssy", "nsc", "kvp", "kisan vikas patra", "post office",
+      "post office savings", "post office scheme", "postal savings", "senior citizen savings", "scss",
+      "monthly income scheme", "tax saver", "tax saving", "tax saving investment", "80c",
+      "national pension"
+    ],
+    "gold_silver_crypto": [
+      "gold", "gold coin", "gold coins", "gold bar", "gold biscuit", "gold purchase", "digital gold",
+      "phonepe gold", "paytm gold", "googlepay gold", "tanishq gold coin", "silver", "silver coin",
+      "silver coins", "silver bar", "silver bars", "silver etf", "platinum", "crypto", "cryptocurrency",
+      "bitcoin", "btc", "ethereum", "eth", "dogecoin", "doge", "solana", "ripple", "xrp", "usdt",
+      "tether", "wazirx", "coindcx", "coinswitch", "coinswitch kuber", "binance", "mudrex", "bitbns",
+      "zebpay", "unocoin", "nft"
+    ],
+    "property_other_invest": [
+      "real estate", "property", "property purchase", "plot", "plot purchase", "land", "land purchase",
+      "flat booking", "flat down payment", "down payment", "booking amount", "token amount",
+      "advance flat", "farmhouse", "reits", "reit", "invit", "chit fund", "chit", "chit funds",
+      "committee", "bishi", "bhishi", "lending", "loan given", "lent", "lent money", "given loan",
+      "emergency fund", "savings deposit", "piggy bank", "goal savings", "gold savings scheme",
+      "gold scheme", "jewellery scheme", "business investment", "startup investment", "angel investment",
+      "invested in", "investment in"
+    ],
+    "native_script": [
+      "सोना", "चांदी", "म्यूचुअल फंड", "સોનું", "ચાંદી", "મ્યુચ્યુઅલ ફંડ"
+    ]
+  }
+}

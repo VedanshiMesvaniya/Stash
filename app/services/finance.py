@@ -17,6 +17,7 @@ from app.database import crud
 from app.services import currency as currency_service
 from app.services import recurring as recurring_service
 from app.services import analytics
+from app.services import category_learning
 
 
 def _fmt_amount(value: float) -> str:
@@ -117,7 +118,14 @@ def create_transactions(db: Session, user_id: int, transactions: list[dict], cur
         payment_method_auto_filled = False
         category_or_source = t["category_or_source"]
         keywords = _distinctive_keywords(t["description"])
-        if category_or_source == "Other" and keywords:
+
+        # A term the user explicitly taught Stash beats everything else
+        # (built-in glossary, LLM guess, habit memory) - it is their own
+        # instruction, e.g. "kalakand goes under Snacks".
+        taught = category_learning.find_taught_category(db, user_id, t["type"], t["description"])
+        if taught:
+            category_or_source = taught.category
+        elif category_or_source == "Other" and keywords:
             learned = crud.recall_merchant_category(db, user_id, t["type"], keywords)
             if learned:
                 category_or_source = learned
@@ -196,6 +204,15 @@ def create_transactions(db: Session, user_id: int, transactions: list[dict], cur
                     "budget_status": budget_status,
                 }
             )
+        # Still "Other" after glossary + LLM + learned habits, and nothing
+        # in the glossary recognises the item: flag it so the chat layer
+        # (ai/parser.py) can ask the user which category it belongs to.
+        # Other callers (retry loop, imports) simply ignore this key.
+        if category_or_source == "Other" and not taught:
+            unknown_term = category_learning.unknown_term_for(t["type"], t["description"])
+            if unknown_term:
+                created[-1]["unknown_term"] = unknown_term
+
         if keywords:
             for kw in keywords:
                 crud.remember_merchant_category(db, user_id, t["type"], kw, category_or_source)
@@ -648,7 +665,20 @@ def explain_last_categorization(db: Session, user_id: int) -> str:
         return "I haven't logged anything for you yet, so there's nothing to explain."
 
     txn = timeline[0]
+    taught = category_learning.find_taught_category(db, user_id, txn["type"], txn["description"])
+    if taught and taught.category == txn["label"]:
+        return (
+            f"Your last entry ({txn.get('display_label') or txn['label']}, {txn['amount']}) was categorized as "
+            f"\"{txn['label']}\" because you told me earlier that \"{taught.term}\" belongs there."
+        )
+
     reason_kind, keyword = extractor.explain_category(txn["type"], txn["label"], txn["description"])
+
+    if reason_kind == "glossary_match":
+        return (
+            f"Your last entry ({txn.get('display_label') or txn['label']}, {txn['amount']}) was categorized as "
+            f"\"{txn['label']}\" because \"{keyword}\" is listed under that category in my product glossary."
+        )
 
     if reason_kind == "hint_match":
         return (

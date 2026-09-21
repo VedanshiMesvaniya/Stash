@@ -63,6 +63,11 @@ jobs:
           print(f'App imported OK, {len(paths)} routes registered.')
           "
 
+      - name: Validate the product glossary JSON
+        env:
+          SECRET_KEY: ci-only-secret-key-not-for-production
+        run: python3 scripts/validate_glossary.py
+
       - name: Run migrations against a fresh database
         env:
           SECRET_KEY: ci-only-secret-key-not-for-production

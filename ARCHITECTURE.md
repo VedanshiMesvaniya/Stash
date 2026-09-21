@@ -38,6 +38,7 @@ Main tables:
 - **chat_messages**: Timestamp, user message, assistant response, user_id
 - **recurring_transactions**: Frequency, amount, label, enabled flag, user_id
 - **recurring_postings**: Idempotency marker (source_transaction_id + posting_date) to prevent duplicate auto-posts
+- **user_glossary**: Terms this user explicitly taught Stash ("kalakand → Snacks"), unique per (user_id, transaction_type, term); outranks the built-in glossary for that user only
 - **pending_entries**: Chat messages queued when both LLM providers are down/rate-limited (survives restarts)
 
 Notes:
@@ -46,6 +47,7 @@ Notes:
 - Balance is derived on-the-fly as `SUM(income) - SUM(expense)` filtered by user_id
 - Recurring postings include an idempotency key so auto-posting can restart safely
 - `pending_entries` includes retry count and last-attempted timestamp
+- `pending_selections` (one row per user) also carries `kind = "categorize"` while Stash is waiting for the answer to "which category is this item?" (expires after 24 h)
 
 ## Backend modules
 
@@ -133,14 +135,16 @@ Notes:
 - **app/ai/extractor.py**
   - Parses LLM response to extract transactions (amount, category, date, description)
   - Fixed: no longer cross-contaminates categories across multi-transaction messages
-  - Matches category against LLM's per-transaction guess, longest-keyword-wins
+  - Category resolution order for each transaction: product glossary (only when it has one clear best match for that description) → the LLM's own category if valid → hint tables (`EXPENSE_CATEGORY_HINTS`) → `Other`
+  - `explain_category()` reports `glossary_match` when the glossary decided the category
 
 - **app/ai/intent_detector.py**
   - Classifies user message intent (add income/expense, ask question, ask for report, etc.)
 
 - **app/ai/parser.py**
-  - Date parsing with support for "N days ago", "yesterday", "last week", weekday names, explicit dates
-  - Fixed: now handles "day before yesterday", "last <weekday>" patterns
+  - Chat orchestration (`handle_message`): checks for a pending question first (delete-selection or category question), then intent detection → extraction/correction/delete/QA
+  - After creating transactions it appends the "which category is this item?" question when `create_transactions` flagged an unknown item (skipped when a clarification question is already going out)
+  - Date resolution lives in `extractor.resolve_date_hint()` ("N days ago", "yesterday", "last <weekday>", explicit dates)
 
 - **app/ai/response.py**
   - QA prompt handler for non-transaction questions
@@ -149,7 +153,37 @@ Notes:
 - **app/ai/prompts.py**
   - Centralized prompt templates for transaction extraction, QA, and intent detection
 
+### Product glossary (`app/glossary/`)
+
+A data-driven "what category is this item?" lookup, independent of the LLM.
+
+- **`data/{expense,income}/*.json`** — one file per category, terms grouped by theme (dairy, vegetables, street_snacks, telecom_internet_tv, native_script ...). ~6,000 terms; format and conventions in `data/README.md`. Validated by `scripts/validate_glossary.py` (run in CI).
+- **`engine.py`** — pure Python, no DB/LLM dependency. Text is tokenised (lower-case, accents stripped, Devanagari/Gujarati combining marks preserved), matched on whole words, **leftmost-longest** (`milk tea` beats `milk`). If two *different* categories tie for the longest match (`apple airpods`) it returns no answer and the caller falls back to the LLM. Plural/singular forms of a term's last word are generated at load time. A broken data file is logged and skipped; lookups never raise, so a glossary problem degrades to "no opinion" instead of breaking chat. Loaded once (~60 ms), lookups ≈ 20 µs.
+- **Precedence when a transaction is created:** the user's own taught term (`user_glossary`) → built-in glossary → LLM category → learned habits (`merchant_memory`, only for `Other`) → `Other`.
+
+**Ask-and-remember flow** (`app/services/category_learning.py`), expenses only:
+
+```
+message ──> LLM extraction ──> resolve category (glossary first)
+                                   │
+              known item ──────────┴──> saved with that category
+              unknown item (no glossary hit, LLM said Other, 1-3 word description)
+                    │
+                    ├─> saved as "Other" (balance stays correct)
+                    └─> reply also asks "which category is <item>?"  + pending_selections(kind=categorize)
+
+next message ──> parser.handle_message checks the pending question BEFORE intent detection
+                    ├─ contains a number / isn't short  -> treated as a new message, question dropped
+                    ├─ "skip" / "don't know"            -> stays Other, nothing learned
+                    └─ category name or glossary word   -> entry moved, term saved to user_glossary
+```
+
+Several unknown items in one message are asked one at a time; two unreadable replies in a row leave the item as `Other`.
+
 ### Services
+
+- **app/services/category_learning.py**
+  - `find_taught_category()`, `unknown_term_for()`, `ask_about_unknown_terms()`, `handle_answer()` — the loop above; imports `crud` + `glossary` only (finance calls into it, not the other way round)
 
 - **app/services/finance.py**
   - `create_transaction_from_chat()` — Parses LLM response and creates income/expense

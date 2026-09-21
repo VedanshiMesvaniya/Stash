@@ -1,0 +1,56 @@
+{
+  "category": "Entertainment",
+  "type": "expense",
+  "description": "Fun and leisure: movies, events/garba passes, parties and nightlife, alcohol, games, amusement parks, hobbies.",
+  "groups": {
+    "category_names": [
+      "entertainment", "fun", "enjoyment", "outing", "outings", "hangout", "hang out", "leisure",
+      "recreation"
+    ],
+    "movies_shows": [
+      "movie", "movies", "cinema", "cinemas", "film", "films", "theatre", "theater", "movie ticket",
+      "movie tickets", "cinema ticket", "film ticket", "movie night", "movie outing", "multiplex", "pvr",
+      "pvr inox", "inox", "cinepolis", "carnival cinemas", "miraj cinemas", "bookmyshow", "book my show",
+      "bms", "paytm insider", "insider", "district app", "concert", "concerts", "live show",
+      "live concert", "stand up", "standup", "stand up comedy", "comedy show", "drama", "natak",
+      "play ticket", "event", "event ticket", "event tickets", "festival ticket", "music festival",
+      "sunburn", "lollapalooza", "garba", "garba pass", "garba passes", "dandiya", "dandiya pass",
+      "navratri pass", "navratri garba", "rass garba", "dj night", "dj party", "magic show", "circus",
+      "mela", "exhibition", "expo", "imax", "3d movie", "4dx", "ipl ticket", "match ticket",
+      "cricket match", "cricket match ticket", "stadium ticket", "football match"
+    ],
+    "nightlife_parties": [
+      "party", "parties", "birthday party", "house party", "get together", "gettogether",
+      "farewell party", "kitty party", "bachelor party", "pool party", "club", "clubbing", "nightclub",
+      "night club", "pub", "pubbing", "bar bill", "lounge", "hookah", "shisha", "hookah bar", "karaoke",
+      "treat party", "party expenses", "party expense", "celebration", "celebrations",
+      "wedding gift party", "dj", "discotheque", "bowling alley"
+    ],
+    "alcohol_tobacco_leisure": [
+      "alcohol", "beer", "beers", "wine", "whisky", "whiskey", "rum", "vodka", "gin", "tequila",
+      "liquor", "daru", "sharab", "scotch", "brandy", "champagne", "drinks night", "wine shop",
+      "beer shop", "liquor shop", "permit liquor", "cocktail", "mocktail"
+    ],
+    "games_hobbies": [
+      "games", "game", "gaming", "video game", "video games", "game purchase", "steam wallet",
+      "playstation", "ps5", "ps4", "psn", "psn card", "xbox", "game pass", "nintendo", "nintendo switch",
+      "pubg", "bgmi", "free fire", "valorant", "roblox", "minecraft", "fortnite", "google play",
+      "google play store", "play store", "app store", "in app purchase", "gift card gaming",
+      "gaming zone", "gaming cafe", "arcade", "bowling", "snooker", "billiards", "pool table", "carrom",
+      "ludo", "chess", "board game", "board games", "cards game", "poker", "rummy", "dream11", "mpl",
+      "ludo king", "fantasy team", "fantasy league", "go karting", "go kart", "paintball",
+      "trampoline park", "laser tag", "escape room", "vr gaming", "amusement park", "water park",
+      "waterpark", "theme park", "wonderla", "imagica", "adlabs", "essel world", "funworld", "fun world",
+      "zoo", "zoo ticket", "museum", "museum ticket", "aquarium", "planetarium", "science city",
+      "park entry", "entry fee", "entry ticket", "entry tickets", "monument ticket", "ticket entry",
+      "lion safari", "safari", "jungle safari", "boating", "boat ride", "ropeway", "cable car",
+      "horse riding", "camel ride", "paragliding", "rafting", "river rafting", "bungee", "scuba",
+      "snorkeling", "novel", "novels", "comic", "comics", "manga", "magazine", "magazines", "hobby",
+      "hobbies", "hobby class", "painting class", "art class", "guitar strings", "photography",
+      "photo shoot", "photoshoot", "photo studio", "photo frame print"
+    ],
+    "native_script": [
+      "फिल्म", "सिनेमा", "पार्टी", "गेम", "ફિલ્મ", "સિનેમા", "પાર્ટી", "ગેમ", "ગરબા"
+    ]
+  }
+}
