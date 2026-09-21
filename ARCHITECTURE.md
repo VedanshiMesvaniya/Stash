@@ -269,7 +269,8 @@ That file is ignored by git so private credentials stay out of commits.
 - **Pending entry retry loop** (runs in main.py on app startup)
   - Every `PENDING_RETRY_INTERVAL_SECONDS` (default: 300s = 5 min)
   - Polls `pending_entries` table for unprocessed chat messages
-  - Retries LLM parsing; if successful, moves to income/expense/categories
+  - Retries LLM parsing; if successful, creates the income/expense rows (same category resolution as chat, incl. the product glossary) and applies cash withdrawals as wallet transfers rather than expenses
+  - Runs without a user present, so it never asks clarification or category questions: anything unclear is logged, and only what was clearly extracted is saved
   - Survives app restarts (state persisted in database, not memory)
 
 ## Error handling and resilience

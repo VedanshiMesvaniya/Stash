@@ -82,15 +82,28 @@ async def _retry_pending_entries_loop():
             entries = crud.get_pending_entries(db, status="pending", limit=50)
             for entry in entries:
                 try:
-                    transactions = extractor.extract_transactions(entry.raw_message)
-                    if transactions:
-                        user = crud.get_user(db, entry.user_id)
-                        finance_service.create_transactions(
-                            db,
-                            entry.user_id,
-                            transactions,
-                            currency=user.currency if user else "INR",
+                    # extract_transactions returns a dict ({"transactions": [...],
+                    # "clarification_needed": ..., ...}), not a bare list - the
+                    # same shape ai/parser.py consumes.
+                    extraction = extractor.extract_transactions(entry.raw_message)
+                    transactions = extraction.get("transactions", [])
+                    if extraction.get("clarification_needed"):
+                        # Nobody is here to answer a question in a background job.
+                        logger.warning("Pending entry %s needs clarification; logging only what was clear", entry.id)
+                    user = crud.get_user(db, entry.user_id)
+                    currency = user.currency if user else "INR"
+                    # Cash withdrawals move money between wallets; they are not
+                    # income or spending (same split parser.py does).
+                    withdrawals = [t for t in transactions if t.get("is_withdrawal")]
+                    transactions = [t for t in transactions if not t.get("is_withdrawal")]
+                    if withdrawals:
+                        _, withdraw_errors = finance_service.process_withdrawals(
+                            db, entry.user_id, withdrawals, currency=currency,
                         )
+                        for error in withdraw_errors:
+                            logger.warning("Pending entry %s withdrawal not applied: %s", entry.id, error)
+                    if transactions:
+                        finance_service.create_transactions(db, entry.user_id, transactions, currency=currency)
                     crud.mark_pending_processed(db, entry.id)
                 except LLMUnavailableError as e:
                     logger.warning("Retry of pending entry %s still failing: %s", entry.id, e)
