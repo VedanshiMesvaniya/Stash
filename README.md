@@ -20,7 +20,7 @@ Stash is a FastAPI + React web application for tracking income, expenses, recurr
 - **Smart dashboard** (glass UI — white cards over a charcoal sidebar, one design, no light/dark toggle):
   - Current balance, monthly income/expense progress, and quick-action shortcuts
   - Live chat panel embedded right on the dashboard for desktop, alongside the full Chat page
-  - Top spending categories, most-used category, and category comparison widgets
+  - Income, expense, savings, and most-used-category tiles in a 2x2 block above the recent activity cards
   - Low-balance alerts and actionable financial insights
 - **Reports**: Monthly breakdowns by category, daily/period trend charts, income vs. expense trends
 - **Export formats**: CSV, Excel (XLSX), PDF—all scoped per user

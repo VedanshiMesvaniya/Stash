@@ -233,7 +233,7 @@ The React app lives in `frontend/src/App.jsx`:
 - **State management**: Local React state for session, page data, and UI flags
 - **Offline queue**: IndexedDB-backed transaction queue (syncs on reconnect via `POST /api/settings/offline-sync`)
 - **Pages**:
-  - Dashboard: Balance + this-month income/expense progress, quick-action shortcuts, recent timeline, recurring, category summary widgets, and a live embedded chat panel (desktop)
+  - Dashboard: Balance + this-month income/expense progress, quick-action shortcuts, a 2x2 metric block (income, expense, savings, most-used category), recent timeline, recurring, and a live embedded chat panel (desktop)
   - Chat: Full conversational transaction logging, also embedded compact on the dashboard
   - Timeline: Transaction history with edit/delete controls, chat integration
   - Reports: Category breakdowns and daily trend charts

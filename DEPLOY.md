@@ -36,6 +36,8 @@ This guide covers deploying Stash to production with Render (hosting) and Neon (
   (`DELETE /api/chat/message/{id}`) and reloads the text into the composer to resend, rather than forking the thread
 - Dashboard: removed the "Unspecified" wallet tile and the smart-suggestion insight card; the Recurring card's Edit
   button is now wired up on the dashboard (it deep-links to Settings, which opens the edit form for that item)
+- Dashboard: removed the Summary section (pie/bar/most-used cards) that sat underneath the sticky chat panel; the
+  "Most used category" card now lives in the metric block next to Savings. Category charts remain on the Reports page
 
 ## Architecture highlights
 
